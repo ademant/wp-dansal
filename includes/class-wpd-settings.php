@@ -16,6 +16,7 @@ class WPD_Settings {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'wp_ajax_wpd_test_connection', array( $this, 'ajax_test_connection' ) );
+		add_action( 'wp_ajax_wpd_connect_link', array( $this, 'ajax_connect_link' ) );
 	}
 
 	private function defaults() {
@@ -111,31 +112,28 @@ class WPD_Settings {
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Dansal Connection', 'wp-dansal' ); ?></h1>
 			<p>
-				<?php esc_html_e( 'Connect this site to a dansal server (https://github.com/ademant/dansal). Configure one publisher API key scoped to a single organization — dansal issues this when an admin runs "dansal_admin publisher create" or POSTs /api/v1/publishers for your organization.', 'wp-dansal' ); ?>
+				<?php esc_html_e( 'Connect this site to a dansal server (https://github.com/ademant/dansal). Events and locations created from this site are attributed to one organization there.', 'wp-dansal' ); ?>
 			</p>
+
+			<h2><?php esc_html_e( 'Connect via Link (recommended)', 'wp-dansal' ); ?></h2>
+			<p>
+				<?php esc_html_e( 'In dansal, open /admin/users, click "Connect link" next to your organization\'s publisher row, and paste the one-time URL it shows you here.', 'wp-dansal' ); ?>
+			</p>
+			<table class="form-table" role="presentation">
+				<tr>
+					<th scope="row"><label for="wpd-connect-url"><?php esc_html_e( 'Connect Link', 'wp-dansal' ); ?></label></th>
+					<td>
+						<input type="url" id="wpd-connect-url" class="regular-text" placeholder="https://api.example.com/api/v1/invites/abc123/publisher" />
+						<button type="button" class="button button-primary" id="wpd-connect-link"><?php esc_html_e( 'Connect', 'wp-dansal' ); ?></button>
+						<p class="description"><?php esc_html_e( 'Single-use — it fills in the base URL, organization, and API key below automatically and is consumed immediately.', 'wp-dansal' ); ?></p>
+						<p id="wpd-connect-link-result"></p>
+					</td>
+				</tr>
+			</table>
+
 			<form method="post" action="options.php">
 				<?php settings_fields( 'wpd_settings_group' ); ?>
 				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><label for="wpd_base_url"><?php esc_html_e( 'Dansal Base URL', 'wp-dansal' ); ?></label></th>
-						<td>
-							<input type="url" id="wpd_base_url" name="<?php echo esc_attr( self::OPTION ); ?>[base_url]" value="<?php echo esc_attr( $o['base_url'] ); ?>" class="regular-text" placeholder="https://api.dansal.example.com" required />
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="wpd_org_id"><?php esc_html_e( 'Organization ID', 'wp-dansal' ); ?></label></th>
-						<td>
-							<input type="number" min="1" id="wpd_org_id" name="<?php echo esc_attr( self::OPTION ); ?>[org_id]" value="<?php echo esc_attr( $o['org_id'] ); ?>" class="small-text" required />
-							<p class="description"><?php esc_html_e( 'The org_id returned when the publisher API key was created. All events and locations created from this site are attributed to this organization.', 'wp-dansal' ); ?></p>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="wpd_api_key"><?php esc_html_e( 'Publisher API Key', 'wp-dansal' ); ?></label></th>
-						<td>
-							<input type="password" id="wpd_api_key" name="<?php echo esc_attr( self::OPTION ); ?>[api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo $o['api_key'] ? esc_attr__( '(unchanged — leave blank to keep current key)', 'wp-dansal' ) : 'ak_...'; ?>" />
-							<p class="description"><?php esc_html_e( 'Begins with ak_. Shown only once by dansal at creation time; stored here and exchanged for short-lived session tokens.', 'wp-dansal' ); ?></p>
-						</td>
-					</tr>
 					<tr>
 						<th scope="row"><label for="wpd_nominatim_email"><?php esc_html_e( 'Nominatim Contact Email', 'wp-dansal' ); ?></label></th>
 						<td>
@@ -151,6 +149,33 @@ class WPD_Settings {
 						</td>
 					</tr>
 				</table>
+
+				<details<?php echo $o['api_key'] ? '' : ' open'; ?> style="margin: 1em 0;">
+					<summary><?php esc_html_e( 'Manual connection (advanced)', 'wp-dansal' ); ?></summary>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><label for="wpd_base_url"><?php esc_html_e( 'Dansal Base URL', 'wp-dansal' ); ?></label></th>
+							<td>
+								<input type="url" id="wpd_base_url" name="<?php echo esc_attr( self::OPTION ); ?>[base_url]" value="<?php echo esc_attr( $o['base_url'] ); ?>" class="regular-text" placeholder="https://api.dansal.example.com" />
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpd_org_id"><?php esc_html_e( 'Organization ID', 'wp-dansal' ); ?></label></th>
+							<td>
+								<input type="number" min="1" id="wpd_org_id" name="<?php echo esc_attr( self::OPTION ); ?>[org_id]" value="<?php echo esc_attr( $o['org_id'] ); ?>" class="small-text" />
+								<p class="description"><?php esc_html_e( 'The org_id returned when the publisher API key was created. All events and locations created from this site are attributed to this organization.', 'wp-dansal' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpd_api_key"><?php esc_html_e( 'Publisher API Key', 'wp-dansal' ); ?></label></th>
+							<td>
+								<input type="password" id="wpd_api_key" name="<?php echo esc_attr( self::OPTION ); ?>[api_key]" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo $o['api_key'] ? esc_attr__( '(unchanged — leave blank to keep current key)', 'wp-dansal' ) : 'ak_...'; ?>" />
+								<p class="description"><?php esc_html_e( 'Begins with ak_. Shown only once by dansal at creation time; stored here and exchanged for short-lived session tokens. Use this if you already have a key from dansal_admin CLI instead of a connect link.', 'wp-dansal' ); ?></p>
+							</td>
+						</tr>
+					</table>
+				</details>
+
 				<?php submit_button(); ?>
 			</form>
 			<hr />
@@ -167,6 +192,36 @@ class WPD_Settings {
 			fetch(ajaxurl + '?action=wpd_test_connection&_wpnonce=' + encodeURIComponent(<?php echo wp_json_encode( wp_create_nonce( 'wpd_test_connection' ) ); ?>))
 				.then(function (r) { return r.json(); })
 				.then(function (data) {
+					resultEl.textContent = data.data && data.data.message ? data.data.message : (data.success ? 'OK' : 'Error');
+					resultEl.style.color = data.success ? 'green' : 'crimson';
+				})
+				.catch(function (e) {
+					resultEl.textContent = String(e);
+					resultEl.style.color = 'crimson';
+				});
+		});
+
+		document.getElementById('wpd-connect-link').addEventListener('click', function () {
+			var urlEl = document.getElementById('wpd-connect-url');
+			var resultEl = document.getElementById('wpd-connect-link-result');
+			var url = urlEl.value.trim();
+			if (!url) {
+				return;
+			}
+			resultEl.textContent = <?php echo wp_json_encode( __( 'Connecting…', 'wp-dansal' ) ); ?>;
+			resultEl.style.color = '';
+			var body = new URLSearchParams();
+			body.set('action', 'wpd_connect_link');
+			body.set('_wpnonce', <?php echo wp_json_encode( wp_create_nonce( 'wpd_connect_link' ) ); ?>);
+			body.set('connect_url', url);
+			fetch(ajaxurl, { method: 'POST', body: body })
+				.then(function (r) { return r.json(); })
+				.then(function (data) {
+					if (data.success) {
+						urlEl.value = '';
+						document.getElementById('wpd_base_url').value = data.data.base_url;
+						document.getElementById('wpd_org_id').value = data.data.org_id;
+					}
 					resultEl.textContent = data.data && data.data.message ? data.data.message : (data.success ? 'OK' : 'Error');
 					resultEl.style.color = data.success ? 'green' : 'crimson';
 				})
@@ -211,5 +266,80 @@ class WPD_Settings {
                 ),
             )
         );
+	}
+
+	/**
+	 * Redeem a dansal connect-link (POST /api/v1/invites/{token}/publisher)
+	 * to bootstrap base_url/org_id/api_key in one step, instead of an admin
+	 * copying a numeric org ID and API key by hand.
+	 *
+	 * @see https://github.com/ademant/dansal API.md, "Connect-link bootstrap"
+	 */
+	public function ajax_connect_link() {
+		check_ajax_referer( 'wpd_connect_link' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
+		}
+
+		$connect_url = isset( $_POST['connect_url'] ) ? esc_url_raw( wp_unslash( $_POST['connect_url'] ) ) : '';
+		if ( '' === $connect_url || ! preg_match( '#^https?://\S+/api/v1/invites/[^/\s]+/publisher/?$#', $connect_url ) ) {
+			wp_send_json_error( array( 'message' => __( 'That does not look like a dansal connect link (expected .../api/v1/invites/{token}/publisher).', 'wp-dansal' ) ) );
+		}
+
+		$client_name = sprintf( 'wp-dansal @ %s', wp_parse_url( home_url(), PHP_URL_HOST ) );
+
+		$response = wp_remote_post(
+			$connect_url,
+			array(
+				'timeout'           => 20,
+				// Refuses to follow the request if it resolves to a private/
+				// internal IP — this URL is admin-supplied, so treat it like
+				// any other user-supplied fetch target (SSRF hardening).
+				'reject_unsafe_urls' => true,
+				'headers'           => array(
+					'Content-Type' => 'application/json',
+					'Accept'       => 'application/json',
+				),
+				'body'              => wp_json_encode(
+					array(
+						'name'          => $client_name,
+						'user_metadata' => array(
+							'client_name' => $client_name,
+							'client_url'  => home_url(),
+						),
+					)
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			/* translators: %s: underlying HTTP/connection error message. */
+			wp_send_json_error( array( 'message' => sprintf( __( 'Could not reach that link: %s', 'wp-dansal' ), $response->get_error_message() ) ) );
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+		if ( $code < 200 || $code >= 300 || empty( $body['api_key'] ) || empty( $body['org_id'] ) || empty( $body['base_url'] ) ) {
+			$message = is_array( $body ) && ! empty( $body['error'] ) ? $body['error'] : sprintf( 'HTTP %d', $code );
+			/* translators: %s: underlying error message from dansal. */
+			wp_send_json_error( array( 'message' => sprintf( __( 'Connect link redemption failed: %s', 'wp-dansal' ), $message ) ) );
+		}
+
+		$existing             = $this->get_all();
+		$existing['base_url'] = esc_url_raw( untrailingslashit( trim( $body['base_url'] ) ) );
+		$existing['org_id']   = absint( $body['org_id'] );
+		$existing['api_key']  = sanitize_text_field( $body['api_key'] );
+		update_option( self::OPTION, $existing );
+		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
+
+		wp_send_json_success(
+			array(
+				'base_url' => $existing['base_url'],
+				'org_id'   => $existing['org_id'],
+				/* translators: %s: organization name returned by dansal. */
+				'message'  => sprintf( __( 'Connected to organization "%s". Settings saved.', 'wp-dansal' ), isset( $body['org_name'] ) ? $body['org_name'] : $existing['org_id'] ),
+			)
+		);
 	}
 }

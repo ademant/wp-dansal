@@ -13,8 +13,9 @@ WordPress plugin for managing dance events and locations, backed by [dansal](htt
 
 ## Setup
 
-1. On your dansal server, create a publisher for your organization (`dansal_admin` or `POST /api/v1/publishers`) to get an `org_id` and an `ak_...` API key.
-2. In WordPress, go to **Settings → Dansal** and enter the dansal base URL, org ID, and API key. Use "Test Connection" to confirm.
+1. In dansal, open `/admin/users`, click **Connect link** next to your organization's publisher row (or create one).
+2. In WordPress, go to **Settings → Dansal**, paste the one-time link under "Connect via Link", and click **Connect** — this fills in the base URL, organization, and API key automatically. Use "Test Connection" to confirm.
+   - Alternatively, expand "Manual connection (advanced)" and enter a base URL/org ID/API key you already have from `dansal_admin` or `POST /api/v1/publishers`.
 3. Create locations under **Dance Locations**, then events under **Dance Events**.
 
 ## Notes
