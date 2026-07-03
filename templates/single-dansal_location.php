@@ -41,7 +41,8 @@ while ( have_posts() ) :
 		}
 	}
 	?>
-	<main id="primary" class="site-main wpd-single-location">
+	<div id="primary" class="content-area">
+	<main id="main" class="site-main wpd-single-location">
 		<article <?php post_class(); ?>>
 			<header class="entry-header">
 				<h1 class="entry-title"><?php the_title(); ?></h1>
@@ -95,7 +96,9 @@ while ( have_posts() ) :
 			<?php echo do_shortcode( '[dansal_events location="' . absint( $wpd_post_id ) . '"]' ); ?>
 		</article>
 	</main>
+	</div><!-- #primary -->
 	<?php
 endwhile;
 
+get_sidebar();
 get_footer();

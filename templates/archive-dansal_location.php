@@ -14,12 +14,15 @@ wp_enqueue_script( 'wpd-map', WPD_PLUGIN_URL . 'assets/js/frontend-map.js', arra
 
 get_header();
 ?>
-<main id="primary" class="site-main wpd-locations-archive">
+<div id="primary" class="content-area">
+<main id="main" class="site-main wpd-locations-archive">
 	<header class="entry-header">
 		<h1 class="entry-title"><?php post_type_archive_title(); ?></h1>
 	</header>
 
 	<?php echo do_shortcode( '[dansal_locations]' ); ?>
 </main>
+</div><!-- #primary -->
 <?php
+get_sidebar();
 get_footer();

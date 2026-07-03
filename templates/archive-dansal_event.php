@@ -34,7 +34,8 @@ if ( $wpd_next_month > 12 ) {
 
 get_header();
 ?>
-<main id="primary" class="site-main wpd-events-archive">
+<div id="primary" class="content-area">
+<main id="main" class="site-main wpd-events-archive">
 	<header class="entry-header">
 		<h1 class="entry-title"><?php post_type_archive_title(); ?></h1>
 	</header>
@@ -94,5 +95,7 @@ get_header();
 
 	<?php echo do_shortcode( '[dansal_events view="' . esc_attr( $wpd_view ) . '" month="' . absint( $wpd_month ) . '" year="' . absint( $wpd_year ) . '"]' ); ?>
 </main>
+</div><!-- #primary -->
 <?php
+get_sidebar();
 get_footer();
