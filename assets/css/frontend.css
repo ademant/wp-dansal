@@ -62,6 +62,30 @@
 	font-size: 0.8em;
 }
 
+.wpd-day-event {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+}
+
+.wpd-day-event .wpd-mini-dot {
+	flex: none;
+}
+
+.wpd-calendar-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1em;
+	margin: 0.5em 0 1em;
+	font-size: 0.85em;
+}
+
+.wpd-calendar-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
 .wpd-locations {
 	display: flex;
 	flex-wrap: wrap;

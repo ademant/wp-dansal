@@ -176,6 +176,23 @@ class WPD_Frontend {
 		<?php
 	}
 
+	/**
+	 * @return string[] Active type keys ('ball'/'workshop'/'festival'), or
+	 *                   array( 'other' ) if the event has none of those flags.
+	 *                   An event can be more than one (e.g. a ball with a
+	 *                   workshop beforehand), matching how dansal itself
+	 *                   allows all three flags simultaneously.
+	 */
+	private function event_type_keys( $post_id ) {
+		$flags  = array(
+			'ball'     => '1' === get_post_meta( $post_id, '_wpd_has_ball', true ),
+			'workshop' => '1' === get_post_meta( $post_id, '_wpd_has_workshop', true ),
+			'festival' => '1' === get_post_meta( $post_id, '_wpd_has_festival', true ),
+		);
+		$active = array_keys( array_filter( $flags ) );
+		return $active ? $active : array( 'other' );
+	}
+
 	private function format_datetime( $value ) {
 		if ( ! $value ) {
 			return '';
@@ -226,6 +243,20 @@ class WPD_Frontend {
 		?>
 		<div class="wpd-calendar">
 			<h3 class="wpd-calendar-title"><?php echo esc_html( date_i18n( 'F Y', mktime( 0, 0, 0, $month, 1, $year ) ) ); ?></h3>
+			<div class="wpd-calendar-legend">
+				<?php
+				foreach (
+					array(
+						'ball'     => __( 'Ball', 'wp-dansal' ),
+						'workshop' => __( 'Workshop', 'wp-dansal' ),
+						'festival' => __( 'Festival', 'wp-dansal' ),
+						'other'    => __( 'Other', 'wp-dansal' ),
+					) as $type => $label
+				) :
+					?>
+					<span class="wpd-calendar-legend-item"><i class="wpd-mini-dot wpd-mini-dot-<?php echo esc_attr( $type ); ?>"></i> <?php echo esc_html( $label ); ?></span>
+				<?php endforeach; ?>
+			</div>
 			<table class="wpd-calendar-table">
 				<thead><tr>
 					<?php foreach ( array( 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ) as $d ) : ?>
@@ -247,7 +278,13 @@ class WPD_Frontend {
 							<?php if ( isset( $by_day[ $day ] ) ) : ?>
 								<ul class="wpd-day-events">
 									<?php foreach ( $by_day[ $day ] as $eid ) : ?>
-										<li><a href="<?php echo esc_url( get_permalink( $eid ) ); ?>"><?php echo esc_html( get_the_title( $eid ) ); ?></a></li>
+										<?php $types = $this->event_type_keys( $eid ); ?>
+										<li class="wpd-day-event wpd-day-event-<?php echo esc_attr( $types[0] ); ?>">
+											<?php foreach ( $types as $type ) : ?>
+												<i class="wpd-mini-dot wpd-mini-dot-<?php echo esc_attr( $type ); ?>"></i>
+											<?php endforeach; ?>
+											<a href="<?php echo esc_url( get_permalink( $eid ) ); ?>"><?php echo esc_html( get_the_title( $eid ) ); ?></a>
+										</li>
 									<?php endforeach; ?>
 								</ul>
 							<?php endif; ?>
@@ -298,17 +335,7 @@ class WPD_Frontend {
 			$id  = get_the_ID();
 			$day = (int) substr( get_post_meta( $id, '_wpd_start_time', true ), 8, 2 );
 
-			$flags  = array(
-				'ball'     => '1' === get_post_meta( $id, '_wpd_has_ball', true ),
-				'workshop' => '1' === get_post_meta( $id, '_wpd_has_workshop', true ),
-				'festival' => '1' === get_post_meta( $id, '_wpd_has_festival', true ),
-			);
-			$active = array_keys( array_filter( $flags ) );
-			if ( ! $active ) {
-				$active = array( 'other' );
-			}
-
-			foreach ( $active as $type ) {
+			foreach ( $this->event_type_keys( $id ) as $type ) {
 				$types_by_day[ $day ][ $type ][] = get_the_title( $id );
 			}
 		}
