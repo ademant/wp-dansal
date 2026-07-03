@@ -97,6 +97,15 @@
 	margin: 0.4em 0;
 }
 
+.wpd-single-location,
+.wpd-single-event,
+.wpd-locations-archive,
+.wpd-events-archive {
+	max-width: var( --wp--style--global--content-size, 800px );
+	margin-inline: auto;
+	padding-inline: 1rem;
+}
+
 .wpd-single-event .wpd-booking-cta {
 	display: inline-block;
 	margin-top: 1em;
