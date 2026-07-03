@@ -26,6 +26,7 @@ require_once WPD_PLUGIN_DIR . 'includes/class-wpd-nominatim.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-location.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-event.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-frontend.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-widget-mini-calendar.php';
 
 /**
  * Central bootstrap. Everything else is wired up through the classes below,
