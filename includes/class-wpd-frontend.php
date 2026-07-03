@@ -280,9 +280,6 @@ class WPD_Frontend {
 									<?php foreach ( $by_day[ $day ] as $eid ) : ?>
 										<?php $types = $this->event_type_keys( $eid ); ?>
 										<li class="wpd-day-event wpd-day-event-<?php echo esc_attr( $types[0] ); ?>">
-											<?php foreach ( $types as $type ) : ?>
-												<i class="wpd-mini-dot wpd-mini-dot-<?php echo esc_attr( $type ); ?>"></i>
-											<?php endforeach; ?>
 											<a href="<?php echo esc_url( get_permalink( $eid ) ); ?>"><?php echo esc_html( get_the_title( $eid ) ); ?></a>
 										</li>
 									<?php endforeach; ?>

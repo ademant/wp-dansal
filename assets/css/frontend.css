@@ -63,13 +63,26 @@
 }
 
 .wpd-day-event {
-	display: flex;
-	align-items: center;
-	gap: 3px;
+	display: block;
+	border-radius: 3px;
+	padding: 1px 4px;
+	margin-bottom: 1px;
 }
 
-.wpd-day-event .wpd-mini-dot {
-	flex: none;
+.wpd-day-event-ball {
+	background: color-mix( in srgb, #d9534f 18%, transparent );
+}
+
+.wpd-day-event-workshop {
+	background: color-mix( in srgb, #5bc0de 18%, transparent );
+}
+
+.wpd-day-event-festival {
+	background: color-mix( in srgb, #f1c40f 22%, transparent );
+}
+
+.wpd-day-event-other {
+	background: color-mix( in srgb, currentColor 6%, transparent );
 }
 
 .wpd-calendar-legend {
@@ -221,7 +234,7 @@
 }
 
 .wpd-mini-dot-festival {
-	background: #9b59b6;
+	background: #f1c40f;
 }
 
 .wpd-mini-dot-other {
