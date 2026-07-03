@@ -20,6 +20,7 @@ class WPD_Frontend {
 		add_shortcode( 'dansal_events', array( $this, 'shortcode_events' ) );
 		add_shortcode( 'dansal_locations', array( $this, 'shortcode_locations' ) );
 		add_filter( 'single_template', array( $this, 'single_template' ) );
+		add_filter( 'archive_template', array( $this, 'archive_template' ) );
 	}
 
 	public function single_template( $template ) {
@@ -32,6 +33,22 @@ class WPD_Frontend {
 		}
 		if ( $post && WPD_CPT_Location::POST_TYPE === $post->post_type ) {
 			$custom = WPD_PLUGIN_DIR . 'templates/single-dansal_location.php';
+			if ( file_exists( $custom ) ) {
+				return $custom;
+			}
+		}
+		return $template;
+	}
+
+	public function archive_template( $template ) {
+		if ( is_post_type_archive( WPD_CPT_Location::POST_TYPE ) ) {
+			$custom = WPD_PLUGIN_DIR . 'templates/archive-dansal_location.php';
+			if ( file_exists( $custom ) ) {
+				return $custom;
+			}
+		}
+		if ( is_post_type_archive( WPD_CPT_Event::POST_TYPE ) ) {
+			$custom = WPD_PLUGIN_DIR . 'templates/archive-dansal_event.php';
 			if ( file_exists( $custom ) ) {
 				return $custom;
 			}
@@ -71,6 +88,9 @@ class WPD_Frontend {
 
 		if ( 'calendar' === $atts['view'] ) {
 			return $this->render_calendar( $atts );
+		}
+		if ( 'mini' === $atts['view'] ) {
+			return $this->render_mini_calendar( $atts );
 		}
 		return $this->render_list( $atts );
 	}
@@ -231,6 +251,105 @@ class WPD_Frontend {
 					<?php endfor; ?>
 				</tr></tbody>
 			</table>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Compact month grid for sidebar widget areas: day numbers plus small
+	 * dot markers (one per event type present that day) instead of the
+	 * full day-by-day title list rendered by render_calendar().
+	 */
+	private function render_mini_calendar( $atts ) {
+		$month = $atts['month'] ? absint( $atts['month'] ) : (int) current_time( 'n' );
+		$year  = $atts['year'] ? absint( $atts['year'] ) : (int) current_time( 'Y' );
+
+		$first_day     = sprintf( '%04d-%02d-01T00:00', $year, $month );
+		$days_in_month = (int) gmdate( 't', mktime( 0, 0, 0, $month, 1, $year ) );
+		$last_day      = sprintf( '%04d-%02d-%02dT23:59', $year, $month, $days_in_month );
+
+		$meta_query   = $this->base_meta_query( $atts );
+		$meta_query[] = array(
+			'key' => '_wpd_start_time',
+			'value' => array( $first_day, $last_day ),
+			'compare' => 'BETWEEN',
+		);
+
+		$query = new WP_Query(
+            array(
+				'post_type'      => WPD_CPT_Event::POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'meta_key'       => '_wpd_start_time',
+				'orderby'        => 'meta_value',
+				'order'          => 'ASC',
+				'meta_query'     => $meta_query,
+            )
+        );
+
+		$types_by_day = array();
+		while ( $query->have_posts() ) {
+			$query->the_post();
+			$id  = get_the_ID();
+			$day = (int) substr( get_post_meta( $id, '_wpd_start_time', true ), 8, 2 );
+
+			$flags = array(
+				'ball'     => '1' === get_post_meta( $id, '_wpd_has_ball', true ),
+				'workshop' => '1' === get_post_meta( $id, '_wpd_has_workshop', true ),
+				'festival' => '1' === get_post_meta( $id, '_wpd_has_festival', true ),
+			);
+			$active = array_keys( array_filter( $flags ) );
+			if ( ! $active ) {
+				$active = array( 'other' );
+			}
+
+			foreach ( $active as $type ) {
+				$types_by_day[ $day ][ $type ][] = get_the_title( $id );
+			}
+		}
+		wp_reset_postdata();
+
+		$first_weekday = (int) gmdate( 'N', mktime( 0, 0, 0, $month, 1, $year ) ); // 1 (Mon) .. 7 (Sun)
+
+		$archive_url    = get_post_type_archive_link( WPD_CPT_Event::POST_TYPE );
+		$prev_month     = 1 === $month ? 12 : $month - 1;
+		$prev_year      = 1 === $month ? $year - 1 : $year;
+		$next_month     = 12 === $month ? 1 : $month + 1;
+		$next_year      = 12 === $month ? $year + 1 : $year;
+
+		ob_start();
+		?>
+		<div class="wpd-mini-calendar">
+			<div class="wpd-mini-nav">
+				<?php if ( $archive_url ) : ?>
+					<a href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $prev_month, 'wpd_year' => $prev_year ), $archive_url ) ); ?>">&laquo;</a>
+				<?php endif; ?>
+				<span class="wpd-mini-title"><?php echo esc_html( date_i18n( 'F Y', mktime( 0, 0, 0, $month, 1, $year ) ) ); ?></span>
+				<?php if ( $archive_url ) : ?>
+					<a href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $next_month, 'wpd_year' => $next_year ), $archive_url ) ); ?>">&raquo;</a>
+				<?php endif; ?>
+			</div>
+			<div class="wpd-mini-grid">
+				<?php foreach ( array( 'M', 'T', 'W', 'T', 'F', 'S', 'S' ) as $d ) : ?>
+					<span class="wpd-mini-dow"><?php echo esc_html( $d ); ?></span>
+				<?php endforeach; ?>
+				<?php for ( $i = 1; $i < $first_weekday; $i++ ) : ?>
+					<span class="wpd-mini-day wpd-mini-empty"></span>
+				<?php endfor; ?>
+				<?php for ( $day = 1; $day <= $days_in_month; $day++ ) : ?>
+					<span class="wpd-mini-day">
+						<span class="wpd-mini-daynum"><?php echo esc_html( $day ); ?></span>
+						<?php if ( isset( $types_by_day[ $day ] ) ) : ?>
+							<span class="wpd-mini-markers">
+								<?php foreach ( $types_by_day[ $day ] as $type => $titles ) : ?>
+									<i class="wpd-mini-dot wpd-mini-dot-<?php echo esc_attr( $type ); ?>" title="<?php echo esc_attr( implode( ', ', $titles ) ); ?>"></i>
+								<?php endforeach; ?>
+							</span>
+						<?php endif; ?>
+					</span>
+				<?php endfor; ?>
+			</div>
 		</div>
 		<?php
 		return ob_get_clean();

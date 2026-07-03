@@ -96,7 +96,9 @@ while ( have_posts() ) :
 			</div>
 
 			<?php if ( $booking_url ) : ?>
-				<a class="wpd-booking-cta" href="<?php echo esc_url( $booking_url ); ?>" rel="nofollow"><?php esc_html_e( 'Book / Tickets', 'wp-dansal' ); ?></a>
+				<div class="wp-block-button wpd-booking-cta">
+					<a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( $booking_url ); ?>" rel="nofollow"><?php esc_html_e( 'Book / Tickets', 'wp-dansal' ); ?></a>
+				</div>
 			<?php endif; ?>
 		</article>
 	</main>

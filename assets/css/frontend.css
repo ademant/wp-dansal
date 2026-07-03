@@ -6,6 +6,7 @@
 
 .wpd-event-card {
 	border: 1px solid #e0e0e0;
+	border-color: color-mix( in srgb, currentColor 12%, transparent );
 	border-radius: 6px;
 	padding: 0.75em 1em;
 }
@@ -22,7 +23,7 @@
 
 .wpd-event-date {
 	font-size: 0.85em;
-	color: #666;
+	opacity: 0.7;
 }
 
 .wpd-event-title {
@@ -37,6 +38,7 @@
 .wpd-calendar-table th,
 .wpd-calendar-table td {
 	border: 1px solid #e0e0e0;
+	border-color: color-mix( in srgb, currentColor 12%, transparent );
 	vertical-align: top;
 	padding: 4px;
 	width: 14.28%;
@@ -45,6 +47,7 @@
 
 .wpd-calendar-table td.wpd-has-events {
 	background: #f7fbff;
+	background: color-mix( in srgb, var( --wp--preset--color--primary, #2271b1 ) 6%, transparent );
 }
 
 .wpd-day-number {
@@ -80,12 +83,13 @@
 
 .wpd-location-item {
 	border-bottom: 1px solid #eee;
+	border-bottom-color: color-mix( in srgb, currentColor 12%, transparent );
 	padding: 0.5em 0;
 }
 
 .wpd-location-meta {
 	font-size: 0.85em;
-	color: #666;
+	opacity: 0.7;
 }
 
 .wpd-single-event .wpd-meta-row,
@@ -96,15 +100,97 @@
 .wpd-single-event .wpd-booking-cta {
 	display: inline-block;
 	margin-top: 1em;
-	padding: 0.6em 1.2em;
-	border-radius: 4px;
-	background: #2271b1;
-	color: #fff;
-	text-decoration: none;
 }
 
 .wpd-single-location .wpd-single-map {
 	min-height: 320px;
 	margin: 1em 0;
 	border-radius: 6px;
+}
+
+.wpd-view-toggle,
+.wpd-month-nav {
+	margin: 0.5em 0 1em;
+}
+
+.wpd-view-toggle a.wpd-active {
+	font-weight: bold;
+	text-decoration: none;
+}
+
+.wpd-mini-calendar {
+	max-width: 260px;
+	font-size: 0.8em;
+}
+
+.wpd-mini-nav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.4em;
+	font-weight: bold;
+}
+
+.wpd-mini-nav a {
+	text-decoration: none;
+	padding: 0 0.4em;
+}
+
+.wpd-mini-grid {
+	display: grid;
+	grid-template-columns: repeat( 7, 1fr );
+	gap: 2px;
+}
+
+.wpd-mini-dow {
+	text-align: center;
+	font-weight: bold;
+	opacity: 0.7;
+	padding-bottom: 2px;
+}
+
+.wpd-mini-day {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	min-height: 28px;
+	padding: 2px 0;
+	border-radius: 3px;
+}
+
+.wpd-mini-day:not( .wpd-mini-empty ) {
+	background: color-mix( in srgb, currentColor 5%, transparent );
+}
+
+.wpd-mini-daynum {
+	line-height: 1;
+}
+
+.wpd-mini-markers {
+	display: flex;
+	gap: 2px;
+	margin-top: 2px;
+}
+
+.wpd-mini-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	display: inline-block;
+}
+
+.wpd-mini-dot-ball {
+	background: #d9534f;
+}
+
+.wpd-mini-dot-workshop {
+	background: #5bc0de;
+}
+
+.wpd-mini-dot-festival {
+	background: #9b59b6;
+}
+
+.wpd-mini-dot-other {
+	background: #999;
 }
