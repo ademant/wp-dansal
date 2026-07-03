@@ -13,8 +13,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class WPD_CPT_Event {
 
-	const META_DANSAL_ID = '_wpd_dansal_id';
-	const POST_TYPE      = 'dansal_event';
+	const META_DANSAL_ID      = '_wpd_dansal_id';
+	const META_LAST_SYNCED_AT = '_wpd_last_synced_at';
+	const POST_TYPE           = 'dansal_event';
 
 	/** @var WPD_Api_Client */
 	private $api;
@@ -32,6 +33,7 @@ class WPD_CPT_Event {
 		add_action( 'wp_ajax_wpd_search_entity', array( $this, 'ajax_search_entity' ) );
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
+		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
 	}
 
 	public function register_post_type() {
@@ -532,6 +534,12 @@ class WPD_CPT_Event {
 			if ( is_wp_error( $result ) ) {
 				/* translators: 1: dansal event ID, 2: underlying error message. */
 				$this->store_notice( sprintf( __( 'Failed to update dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $result->get_error_message() ), 'error' );
+			} else {
+				// Marks this push as the most recent known sync point, so a
+				// pull-sync (maybe_pull_sync()) right after doesn't consider
+				// dansal "newer" than what we just wrote and pull it right
+				// back on top of itself.
+				update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
 			}
 			return;
 		}
@@ -549,9 +557,226 @@ class WPD_CPT_Event {
 		$new_id = isset( $result[0]['id'] ) ? $result[0]['id'] : 0;
 		if ( $new_id ) {
 			update_post_meta( $post_id, self::META_DANSAL_ID, $new_id );
+			update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
 			/* translators: %d: newly created dansal event ID. */
 			$this->store_notice( sprintf( __( 'Created dansal event #%d.', 'wp-dansal' ), $new_id ), 'success' );
 		}
+	}
+
+	/**
+	 * Pull-sync: import/refresh the org's dansal events into WordPress.
+	 * Runs lazily whenever an admin opens the Dance Events list screen (see
+	 * load-edit.php hook). Authenticated (not get_public()) so it also
+	 * picks up the org's unpublished/draft events, per API.md: "Authenticated
+	 * users see their organization's draft events too."
+	 */
+	public function maybe_pull_sync() {
+		global $typenow;
+		if ( self::POST_TYPE !== $typenow || ! $this->settings->is_configured() ) {
+			return;
+		}
+		if ( get_transient( 'wpd_event_pull_lock' ) ) {
+			return;
+		}
+		set_transient( 'wpd_event_pull_lock', 1, 30 );
+
+		$result = $this->api->get( '/api/v1/events', array( 'organization_id' => $this->settings->get_org_id() ) );
+		if ( is_wp_error( $result ) ) {
+			return;
+		}
+
+		$created = 0;
+		$updated = 0;
+		$events  = is_array( $result ) ? $result : array();
+		foreach ( $events as $event ) {
+			if ( ! is_array( $event ) ) {
+				continue;
+			}
+			$status = $this->pull_one_event( $event );
+			if ( 'created' === $status ) {
+				++$created;
+			} elseif ( 'updated' === $status ) {
+				++$updated;
+			}
+		}
+
+		if ( $created || $updated ) {
+			$this->store_notice(
+				sprintf(
+					/* translators: 1: number of newly imported events, 2: number of refreshed events. */
+					__( 'Synced with dansal: %1$d new event(s) imported, %2$d refreshed.', 'wp-dansal' ),
+					$created,
+					$updated
+				),
+				'success'
+			);
+		}
+	}
+
+	/**
+	 * @return int WordPress post ID linked to this dansal event, or 0.
+	 */
+	public static function find_post_id_by_dansal_id( $dansal_id ) {
+		$posts = get_posts(
+			array(
+				'post_type'      => self::POST_TYPE,
+				'post_status'    => 'any',
+				'posts_per_page' => 1,
+				'meta_key'       => self::META_DANSAL_ID,
+				'meta_value'     => (int) $dansal_id,
+				'fields'         => 'ids',
+			)
+		);
+		return $posts ? (int) $posts[0] : 0;
+	}
+
+	/**
+	 * @return string|null 'created', 'updated', or null if skipped/unchanged.
+	 */
+	private function pull_one_event( array $event ) {
+		if ( empty( $event['id'] ) ) {
+			return null;
+		}
+		$dansal_id  = (int) $event['id'];
+		$changed_at = ! empty( $event['changed_at'] ) ? strtotime( $event['changed_at'] ) : 0;
+
+		$post_id = self::find_post_id_by_dansal_id( $dansal_id );
+
+		if ( $post_id ) {
+			$last_synced = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_AT, true );
+			if ( $changed_at && $changed_at <= $last_synced ) {
+				return null; // Local copy is already current.
+			}
+			$this->write_event_post( $post_id, $event );
+			return 'updated';
+		}
+
+		remove_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
+		$post_id = wp_insert_post(
+			array(
+				'post_type'    => self::POST_TYPE,
+				'post_status'  => ! empty( $event['is_published'] ) ? 'publish' : 'draft',
+				'post_title'   => isset( $event['title'] ) ? $event['title'] : '',
+				'post_content' => isset( $event['description'] ) ? $event['description'] : '',
+			),
+			true
+		);
+		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
+
+		if ( is_wp_error( $post_id ) || ! $post_id ) {
+			return null;
+		}
+
+		$this->write_event_post( $post_id, $event );
+		return 'created';
+	}
+
+	private function from_rfc3339( $value ) {
+		if ( ! $value ) {
+			return '';
+		}
+		try {
+			$dt = new DateTime( $value );
+			$dt->setTimezone( wp_timezone() );
+			return $dt->format( 'Y-m-d\TH:i' );
+		} catch ( Exception $e ) {
+			return '';
+		}
+	}
+
+	/**
+	 * Resolves dansal's dance_names (the list endpoint has no dance IDs) back
+	 * to local dance IDs by matching against the cached /api/v1/dances
+	 * vocabulary, which is also what the meta box's dance <select> uses.
+	 */
+	private function resolve_dance_ids( $names ) {
+		if ( empty( $names ) || ! is_array( $names ) ) {
+			return array();
+		}
+		$by_name = array();
+		foreach ( $this->get_dances_vocabulary() as $dance ) {
+			if ( isset( $dance['name'], $dance['id'] ) ) {
+				$by_name[ $dance['name'] ] = (int) $dance['id'];
+			}
+		}
+		$ids = array();
+		foreach ( $names as $name ) {
+			if ( isset( $by_name[ $name ] ) ) {
+				$ids[] = $by_name[ $name ];
+			}
+		}
+		return $ids;
+	}
+
+	/**
+	 * Writes a dansal event object onto a (new or existing) local post.
+	 * Only touches title/content/status via wp_update_post() if something
+	 * actually changed; save_post is unhooked around that call so the pull
+	 * can't re-trigger a push right back to dansal.
+	 */
+	private function write_event_post( $post_id, array $event ) {
+		$title       = isset( $event['title'] ) ? $event['title'] : '';
+		$description = isset( $event['description'] ) ? $event['description'] : '';
+		$status      = ! empty( $event['is_published'] ) ? 'publish' : 'draft';
+
+		$post = get_post( $post_id );
+		if ( $post && ( $post->post_title !== $title || $post->post_content !== $description || $post->post_status !== $status ) ) {
+			remove_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
+			wp_update_post(
+				array(
+					'ID'           => $post_id,
+					'post_title'   => $title,
+					'post_content' => $description,
+					'post_status'  => $status,
+				)
+			);
+			add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
+		}
+
+		update_post_meta( $post_id, '_wpd_start_time', $this->from_rfc3339( isset( $event['start_time'] ) ? $event['start_time'] : '' ) );
+		update_post_meta( $post_id, '_wpd_end_time', $this->from_rfc3339( isset( $event['end_time'] ) ? $event['end_time'] : '' ) );
+
+		$location_id      = isset( $event['location_id'] ) ? (int) $event['location_id'] : 0;
+		$location_post_id = $location_id ? WPD_CPT_Location::find_post_id_by_dansal_id( $location_id ) : 0;
+		update_post_meta( $post_id, '_wpd_location_post_id', $location_post_id ? $location_post_id : '' );
+
+		$tags = isset( $event['tags'] ) && is_array( $event['tags'] ) ? array_map( 'sanitize_key', $event['tags'] ) : array();
+		update_post_meta( $post_id, '_wpd_tags', $tags ? ',' . implode( ',', $tags ) . ',' : '' );
+
+		update_post_meta( $post_id, '_wpd_dance_ids', implode( ',', $this->resolve_dance_ids( isset( $event['dance_names'] ) ? $event['dance_names'] : array() ) ) );
+
+		$musicians = isset( $event['musicians'] ) && is_array( $event['musicians'] ) ? $event['musicians'] : array();
+		update_post_meta( $post_id, '_wpd_musician_ids', implode( ',', wp_list_pluck( $musicians, 'id' ) ) );
+		update_post_meta( $post_id, '_wpd_musician_names', implode( '|', wp_list_pluck( $musicians, 'bandname' ) ) );
+
+		$instructors = isset( $event['instructors'] ) && is_array( $event['instructors'] ) ? $event['instructors'] : array();
+		update_post_meta( $post_id, '_wpd_instructor_ids', implode( ',', wp_list_pluck( $instructors, 'id' ) ) );
+		update_post_meta( $post_id, '_wpd_instructor_names', implode( '|', wp_list_pluck( $instructors, 'name' ) ) );
+
+		foreach ( array( 'has_ball', 'has_workshop', 'has_festival', 'is_cancelled' ) as $flag ) {
+			update_post_meta( $post_id, '_wpd_' . $flag, ! empty( $event[ $flag ] ) ? '1' : '' );
+		}
+
+		update_post_meta( $post_id, '_wpd_workshop_difficulty', isset( $event['workshop_difficulty'] ) ? $event['workshop_difficulty'] : '' );
+		update_post_meta( $post_id, '_wpd_booking_url', isset( $event['booking_url'] ) ? $event['booking_url'] : '' );
+		update_post_meta( $post_id, '_wpd_food', isset( $event['food'] ) ? $event['food'] : '' );
+		update_post_meta( $post_id, '_wpd_drink', isset( $event['drink'] ) ? $event['drink'] : '' );
+		update_post_meta( $post_id, '_wpd_floor_condition', isset( $event['floor_condition'] ) ? $event['floor_condition'] : '' );
+		update_post_meta( $post_id, '_wpd_contact_name', isset( $event['contact_name'] ) ? $event['contact_name'] : '' );
+		update_post_meta( $post_id, '_wpd_contact_email', isset( $event['contact_email'] ) ? $event['contact_email'] : '' );
+
+		$pricing = isset( $event['pricing'] ) && is_array( $event['pricing'] ) ? $event['pricing'] : array();
+		update_post_meta( $post_id, '_wpd_pricing_type', isset( $pricing['type'] ) ? $pricing['type'] : '' );
+		update_post_meta( $post_id, '_wpd_pricing_amount', isset( $pricing['amount'] ) ? $pricing['amount'] : '' );
+		update_post_meta( $post_id, '_wpd_pricing_currency', isset( $pricing['currency'] ) ? $pricing['currency'] : '' );
+
+		$attrs = isset( $event['attributes'] ) && is_array( $event['attributes'] ) ? $event['attributes'] : array();
+		foreach ( array( 'wheelchair', 'bar', 'kitchen' ) as $attr ) {
+			update_post_meta( $post_id, '_wpd_attr_' . $attr, ! empty( $attrs[ $attr ] ) ? '1' : '' );
+		}
+
+		update_post_meta( $post_id, self::META_DANSAL_ID, (int) $event['id'] );
+		update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
 	}
 
 	private function store_notice( $message, $type ) {

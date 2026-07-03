@@ -19,8 +19,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class WPD_CPT_Location {
 
-	const META_DANSAL_ID = '_wpd_dansal_id';
-	const POST_TYPE      = 'dansal_location';
+	const META_DANSAL_ID      = '_wpd_dansal_id';
+	const META_LAST_SYNCED_AT = '_wpd_last_synced_at';
+	const POST_TYPE           = 'dansal_location';
 
 	/** @var WPD_Api_Client */
 	private $api;
@@ -42,6 +43,7 @@ class WPD_CPT_Location {
 		add_action( 'admin_notices', array( $this, 'show_sync_notices' ) );
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
+		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
 	}
 
 	public function register_post_type() {
@@ -374,7 +376,7 @@ class WPD_CPT_Location {
 			$assign = $this->api->post( "/api/v1/locations/{$use_existing_id}/assign-org", array( 'organization_id' => $org_id ) );
 			if ( is_wp_error( $assign ) ) {
 				/* translators: 1: dansal location ID, 2: underlying error message. */
-				$this->store_notice( $post_id, sprintf( __( 'Failed to assign your organization to existing dansal location #%1$d: %2$s', 'wp-dansal' ), $use_existing_id, $assign->get_error_message() ), 'error' );
+				$this->store_notice( sprintf( __( 'Failed to assign your organization to existing dansal location #%1$d: %2$s', 'wp-dansal' ), $use_existing_id, $assign->get_error_message() ), 'error' );
 				return;
 			}
 			$dansal_id = $use_existing_id;
@@ -385,7 +387,13 @@ class WPD_CPT_Location {
 			$result = $this->api->patch( "/api/v1/locations/{$dansal_id}", $payload );
 			if ( is_wp_error( $result ) ) {
 				/* translators: 1: dansal location ID, 2: underlying error message. */
-				$this->store_notice( $post_id, sprintf( __( 'Failed to update dansal location #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $result->get_error_message() ), 'error' );
+				$this->store_notice( sprintf( __( 'Failed to update dansal location #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $result->get_error_message() ), 'error' );
+			} else {
+				// Marks this push as the most recent known sync point, so a
+				// pull-sync (maybe_pull_sync()) right after doesn't consider
+				// dansal "newer" than what we just wrote and pull it right
+				// back on top of itself.
+				update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
 			}
 			return;
 		}
@@ -401,7 +409,7 @@ class WPD_CPT_Location {
 		$result = $this->api->post( '/api/v1/locations', $create_payload );
 		if ( is_wp_error( $result ) ) {
 			/* translators: %s: underlying error message. */
-			$this->store_notice( $post_id, sprintf( __( 'Failed to create dansal location: %s', 'wp-dansal' ), $result->get_error_message() ), 'error' );
+			$this->store_notice( sprintf( __( 'Failed to create dansal location: %s', 'wp-dansal' ), $result->get_error_message() ), 'error' );
 			return;
 		}
 
@@ -412,12 +420,166 @@ class WPD_CPT_Location {
 		$new_id = isset( $result[0]['location']['id'] ) ? $result[0]['location']['id'] : 0;
 		if ( $new_id ) {
 			update_post_meta( $post_id, self::META_DANSAL_ID, $new_id );
+			update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
 			/* translators: %d: newly created dansal location ID. */
-			$this->store_notice( $post_id, sprintf( __( 'Created dansal location #%d.', 'wp-dansal' ), $new_id ), 'success' );
+			$this->store_notice( sprintf( __( 'Created dansal location #%d.', 'wp-dansal' ), $new_id ), 'success' );
 		}
 	}
 
-	private function store_notice( $post_id, $message, $type ) {
+	/**
+	 * Pull-sync: import/refresh the org's dansal locations into WordPress.
+	 * Runs lazily whenever an admin opens the Dance Locations list screen
+	 * (see load-edit.php hook), rather than on a schedule, so it never
+	 * fights with an in-progress edit and needs no WP-Cron infrastructure.
+	 */
+	public function maybe_pull_sync() {
+		global $typenow;
+		if ( self::POST_TYPE !== $typenow || ! $this->settings->is_configured() ) {
+			return;
+		}
+		// Short cooldown so repeatedly reloading the list screen doesn't
+		// hammer the dansal API.
+		if ( get_transient( 'wpd_location_pull_lock' ) ) {
+			return;
+		}
+		set_transient( 'wpd_location_pull_lock', 1, 30 );
+
+		$result = $this->api->get( '/api/v1/locations', array( 'org_id' => $this->settings->get_org_id() ) );
+		if ( is_wp_error( $result ) ) {
+			return;
+		}
+
+		$created = 0;
+		$updated = 0;
+		foreach ( $this->extract_locations( $result ) as $loc ) {
+			$status = $this->pull_one_location( $loc );
+			if ( 'created' === $status ) {
+				++$created;
+			} elseif ( 'updated' === $status ) {
+				++$updated;
+			}
+		}
+
+		if ( $created || $updated ) {
+			$this->store_notice(
+				sprintf(
+					/* translators: 1: number of newly imported locations, 2: number of refreshed locations. */
+					__( 'Synced with dansal: %1$d new location(s) imported, %2$d refreshed.', 'wp-dansal' ),
+					$created,
+					$updated
+				),
+				'success'
+			);
+		}
+	}
+
+	/**
+	 * @return int WordPress post ID linked to this dansal location, or 0.
+	 */
+	public static function find_post_id_by_dansal_id( $dansal_id ) {
+		$posts = get_posts(
+			array(
+				'post_type'      => self::POST_TYPE,
+				'post_status'    => 'any',
+				'posts_per_page' => 1,
+				'meta_key'       => self::META_DANSAL_ID,
+				'meta_value'     => (int) $dansal_id,
+				'fields'         => 'ids',
+			)
+		);
+		return $posts ? (int) $posts[0] : 0;
+	}
+
+	/**
+	 * @return string|null 'created', 'updated', or null if skipped/unchanged.
+	 */
+	private function pull_one_location( array $loc ) {
+		if ( empty( $loc['id'] ) ) {
+			return null;
+		}
+		$dansal_id  = (int) $loc['id'];
+		$updated_at = isset( $loc['updated_at'] ) ? (int) $loc['updated_at'] : 0;
+
+		$post_id = self::find_post_id_by_dansal_id( $dansal_id );
+
+		if ( $post_id ) {
+			$last_synced = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_AT, true );
+			if ( $updated_at > 0 && $updated_at <= $last_synced ) {
+				return null; // Local copy is already current.
+			}
+			$this->write_location_post( $post_id, $loc );
+			return 'updated';
+		}
+
+		remove_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
+		$post_id = wp_insert_post(
+			array(
+				'post_type'   => self::POST_TYPE,
+				'post_status' => 'publish',
+				'post_title'  => isset( $loc['location'] ) ? $loc['location'] : '',
+			),
+			true
+		);
+		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
+
+		if ( is_wp_error( $post_id ) || ! $post_id ) {
+			return null;
+		}
+
+		$this->write_location_post( $post_id, $loc );
+		return 'created';
+	}
+
+	/**
+	 * Writes a dansal location object onto a (new or existing) local post.
+	 * Only touches post_title via wp_update_post() if it actually changed,
+	 * to avoid pointless revisions; save_post is unhooked around that call
+	 * so the pull can't re-trigger a push right back to dansal.
+	 */
+	private function write_location_post( $post_id, array $loc ) {
+		if ( isset( $loc['location'] ) && get_the_title( $post_id ) !== $loc['location'] ) {
+			remove_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
+			wp_update_post(
+				array(
+					'ID'         => $post_id,
+					'post_title' => $loc['location'],
+				)
+			);
+			add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
+		}
+
+		$fields = array(
+			'_wpd_short_name'      => 'short_name',
+			'_wpd_address'         => 'address',
+			'_wpd_zipcode'         => 'zipcode',
+			'_wpd_town'            => 'town',
+			'_wpd_country'         => 'country',
+			'_wpd_country_code'    => 'country_code',
+			'_wpd_region'          => 'region',
+			'_wpd_internetsite'    => 'internetsite',
+			'_wpd_notes_md'        => 'notes_md',
+			'_wpd_parking'         => 'parking',
+			'_wpd_floor_condition' => 'floor_condition',
+			'_wpd_osm_type'        => 'osm_type',
+		);
+		foreach ( $fields as $meta_key => $field ) {
+			update_post_meta( $post_id, $meta_key, isset( $loc[ $field ] ) ? $loc[ $field ] : '' );
+		}
+		update_post_meta( $post_id, '_wpd_latitude', isset( $loc['latitude'] ) ? $loc['latitude'] : '' );
+		update_post_meta( $post_id, '_wpd_longitude', isset( $loc['longitude'] ) ? $loc['longitude'] : '' );
+		update_post_meta( $post_id, '_wpd_osm_id', isset( $loc['osm_id'] ) ? $loc['osm_id'] : '' );
+		update_post_meta( $post_id, '_wpd_no_street_shoes', ! empty( $loc['no_street_shoes'] ) ? '1' : '' );
+
+		$attrs = isset( $loc['attributes'] ) && is_array( $loc['attributes'] ) ? $loc['attributes'] : array();
+		foreach ( array( 'wheelchair', 'bar', 'kitchen' ) as $attr ) {
+			update_post_meta( $post_id, '_wpd_attr_' . $attr, ! empty( $attrs[ $attr ] ) ? '1' : '' );
+		}
+
+		update_post_meta( $post_id, self::META_DANSAL_ID, (int) $loc['id'] );
+		update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
+	}
+
+	private function store_notice( $message, $type ) {
 		$notices   = get_transient( 'wpd_admin_notices_' . get_current_user_id() );
 		$notices   = is_array( $notices ) ? $notices : array();
 		$notices[] = array(
