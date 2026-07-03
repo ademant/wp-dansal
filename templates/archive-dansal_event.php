@@ -40,16 +40,55 @@ get_header();
 	</header>
 
 	<nav class="wpd-view-toggle">
-		<a href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $wpd_month, 'wpd_year' => $wpd_year ), $wpd_archive_url ) ); ?>" class="<?php echo 'calendar' === $wpd_view ? 'wpd-active' : ''; ?>"><?php esc_html_e( 'Calendar', 'wp-dansal' ); ?></a>
+		<a href="
+        <?php
+        echo esc_url(
+            add_query_arg(
+                array(
+					'wpd_view' => 'calendar',
+					'wpd_month' => $wpd_month,
+					'wpd_year' => $wpd_year,
+                ),
+                $wpd_archive_url
+            )
+        );
+		?>
+        " class="<?php echo 'calendar' === $wpd_view ? 'wpd-active' : ''; ?>"><?php esc_html_e( 'Calendar', 'wp-dansal' ); ?></a>
 		&nbsp;|&nbsp;
 		<a href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'list' ), $wpd_archive_url ) ); ?>" class="<?php echo 'list' === $wpd_view ? 'wpd-active' : ''; ?>"><?php esc_html_e( 'List', 'wp-dansal' ); ?></a>
 	</nav>
 
 	<?php if ( 'calendar' === $wpd_view ) : ?>
 		<nav class="wpd-month-nav">
-			<a href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $wpd_prev_month, 'wpd_year' => $wpd_prev_year ), $wpd_archive_url ) ); ?>">&laquo; <?php esc_html_e( 'Previous month', 'wp-dansal' ); ?></a>
+			<a href="
+            <?php
+            echo esc_url(
+                add_query_arg(
+                    array(
+						'wpd_view' => 'calendar',
+						'wpd_month' => $wpd_prev_month,
+						'wpd_year' => $wpd_prev_year,
+                    ),
+                    $wpd_archive_url
+                )
+            );
+			?>
+                        ">&laquo; <?php esc_html_e( 'Previous month', 'wp-dansal' ); ?></a>
 			&nbsp;|&nbsp;
-			<a href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $wpd_next_month, 'wpd_year' => $wpd_next_year ), $wpd_archive_url ) ); ?>"><?php esc_html_e( 'Next month', 'wp-dansal' ); ?> &raquo;</a>
+			<a href="
+            <?php
+            echo esc_url(
+                add_query_arg(
+                    array(
+						'wpd_view' => 'calendar',
+						'wpd_month' => $wpd_next_month,
+						'wpd_year' => $wpd_next_year,
+                    ),
+                    $wpd_archive_url
+                )
+            );
+			?>
+                        "><?php esc_html_e( 'Next month', 'wp-dansal' ); ?> &raquo;</a>
 		</nav>
 	<?php endif; ?>
 

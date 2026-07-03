@@ -294,7 +294,7 @@ class WPD_Frontend {
 			$id  = get_the_ID();
 			$day = (int) substr( get_post_meta( $id, '_wpd_start_time', true ), 8, 2 );
 
-			$flags = array(
+			$flags  = array(
 				'ball'     => '1' === get_post_meta( $id, '_wpd_has_ball', true ),
 				'workshop' => '1' === get_post_meta( $id, '_wpd_has_workshop', true ),
 				'festival' => '1' === get_post_meta( $id, '_wpd_has_festival', true ),
@@ -312,22 +312,48 @@ class WPD_Frontend {
 
 		$first_weekday = (int) gmdate( 'N', mktime( 0, 0, 0, $month, 1, $year ) ); // 1 (Mon) .. 7 (Sun)
 
-		$archive_url    = get_post_type_archive_link( WPD_CPT_Event::POST_TYPE );
-		$prev_month     = 1 === $month ? 12 : $month - 1;
-		$prev_year      = 1 === $month ? $year - 1 : $year;
-		$next_month     = 12 === $month ? 1 : $month + 1;
-		$next_year      = 12 === $month ? $year + 1 : $year;
+		$archive_url = get_post_type_archive_link( WPD_CPT_Event::POST_TYPE );
+		$prev_month  = 1 === $month ? 12 : $month - 1;
+		$prev_year   = 1 === $month ? $year - 1 : $year;
+		$next_month  = 12 === $month ? 1 : $month + 1;
+		$next_year   = 12 === $month ? $year + 1 : $year;
 
 		ob_start();
 		?>
 		<div class="wpd-mini-calendar">
 			<div class="wpd-mini-nav">
 				<?php if ( $archive_url ) : ?>
-					<a href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $prev_month, 'wpd_year' => $prev_year ), $archive_url ) ); ?>">&laquo;</a>
+					<a href="
+                    <?php
+                    echo esc_url(
+                        add_query_arg(
+                            array(
+								'wpd_view' => 'calendar',
+								'wpd_month' => $prev_month,
+								'wpd_year' => $prev_year,
+                            ),
+                            $archive_url
+                        )
+                    );
+					?>
+                                ">&laquo;</a>
 				<?php endif; ?>
 				<span class="wpd-mini-title"><?php echo esc_html( date_i18n( 'F Y', mktime( 0, 0, 0, $month, 1, $year ) ) ); ?></span>
 				<?php if ( $archive_url ) : ?>
-					<a href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $next_month, 'wpd_year' => $next_year ), $archive_url ) ); ?>">&raquo;</a>
+					<a href="
+                    <?php
+                    echo esc_url(
+                        add_query_arg(
+                            array(
+								'wpd_view' => 'calendar',
+								'wpd_month' => $next_month,
+								'wpd_year' => $next_year,
+                            ),
+                            $archive_url
+                        )
+                    );
+					?>
+                                ">&raquo;</a>
 				<?php endif; ?>
 			</div>
 			<div class="wpd-mini-grid">
