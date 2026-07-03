@@ -474,6 +474,42 @@ class WPD_CPT_Location {
 	}
 
 	/**
+	 * Frontend visitors trigger a lightweight single-item refresh (one
+	 * GET /api/v1/locations/{id}, not the whole org list) when viewing this
+	 * location's page, rate-limited per post so repeated page views/bot
+	 * traffic don't hammer dansal. This exists because maybe_pull_sync()
+	 * only runs when someone opens the Dance Locations list in wp-admin —
+	 * a public page would otherwise show stale data until that happens.
+	 */
+	public function maybe_refresh_single( $post_id ) {
+		if ( ! $this->settings->is_configured() ) {
+			return;
+		}
+		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
+		if ( ! $dansal_id ) {
+			return;
+		}
+		$lock_key = 'wpd_location_refresh_' . $post_id;
+		if ( get_transient( $lock_key ) ) {
+			return;
+		}
+		set_transient( $lock_key, 1, 5 * MINUTE_IN_SECONDS );
+
+		$loc = $this->api->get( "/api/v1/locations/{$dansal_id}" );
+		if ( is_wp_error( $loc ) || ! is_array( $loc ) || empty( $loc['id'] ) ) {
+			return;
+		}
+
+		$updated_at  = isset( $loc['updated_at'] ) ? (int) $loc['updated_at'] : 0;
+		$last_synced = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_AT, true );
+		if ( $updated_at > 0 && $updated_at <= $last_synced ) {
+			return; // Already current.
+		}
+
+		$this->write_location_post( $post_id, $loc );
+	}
+
+	/**
 	 * @return int WordPress post ID linked to this dansal location, or 0.
 	 */
 	public static function find_post_id_by_dansal_id( $dansal_id ) {

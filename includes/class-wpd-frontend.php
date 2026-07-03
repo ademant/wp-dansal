@@ -5,9 +5,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Public-facing display: event list/calendar and single-event page render
- * from the locally synced dansal_event/dansal_location CPTs (they already
- * hold everything needed after a save_post sync, so there is no need to
- * re-fetch dansal live on every page view).
+ * from the locally synced dansal_event/dansal_location CPTs. A single post
+ * view also triggers a rate-limited single-item refresh from dansal (see
+ * WPD_CPT_Event::maybe_refresh_single() / WPD_CPT_Location::maybe_refresh_single()),
+ * since the admin-list-triggered pull-sync only runs when someone opens
+ * wp-admin and would otherwise leave a public page stale indefinitely.
  */
 class WPD_Frontend {
 
@@ -26,12 +28,14 @@ class WPD_Frontend {
 	public function single_template( $template ) {
 		global $post;
 		if ( $post && WPD_CPT_Event::POST_TYPE === $post->post_type ) {
+			wpd_plugin()->cpt_event->maybe_refresh_single( $post->ID );
 			$custom = WPD_PLUGIN_DIR . 'templates/single-dansal_event.php';
 			if ( file_exists( $custom ) ) {
 				return $custom;
 			}
 		}
 		if ( $post && WPD_CPT_Location::POST_TYPE === $post->post_type ) {
+			wpd_plugin()->cpt_location->maybe_refresh_single( $post->ID );
 			$custom = WPD_PLUGIN_DIR . 'templates/single-dansal_location.php';
 			if ( file_exists( $custom ) ) {
 				return $custom;

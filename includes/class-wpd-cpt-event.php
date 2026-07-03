@@ -614,6 +614,42 @@ class WPD_CPT_Event {
 	}
 
 	/**
+	 * Frontend visitors trigger a lightweight single-item refresh (one
+	 * GET /api/v1/events/{id}, not the whole org list) when viewing this
+	 * event's page, rate-limited per post so repeated page views/bot
+	 * traffic don't hammer dansal. This exists because maybe_pull_sync()
+	 * only runs when someone opens the Dance Events list in wp-admin — a
+	 * public page would otherwise show stale data until that happens.
+	 */
+	public function maybe_refresh_single( $post_id ) {
+		if ( ! $this->settings->is_configured() ) {
+			return;
+		}
+		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
+		if ( ! $dansal_id ) {
+			return;
+		}
+		$lock_key = 'wpd_event_refresh_' . $post_id;
+		if ( get_transient( $lock_key ) ) {
+			return;
+		}
+		set_transient( $lock_key, 1, 5 * MINUTE_IN_SECONDS );
+
+		$event = $this->api->get( "/api/v1/events/{$dansal_id}" );
+		if ( is_wp_error( $event ) || ! is_array( $event ) || empty( $event['id'] ) ) {
+			return;
+		}
+
+		$changed_at  = ! empty( $event['changed_at'] ) ? strtotime( $event['changed_at'] ) : 0;
+		$last_synced = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_AT, true );
+		if ( $changed_at && $changed_at <= $last_synced ) {
+			return; // Already current.
+		}
+
+		$this->write_event_post( $post_id, $event );
+	}
+
+	/**
 	 * @return int WordPress post ID linked to this dansal event, or 0.
 	 */
 	public static function find_post_id_by_dansal_id( $dansal_id ) {
