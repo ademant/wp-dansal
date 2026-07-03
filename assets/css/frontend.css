@@ -1,0 +1,110 @@
+.wpd-events-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1em;
+}
+
+.wpd-event-card {
+	border: 1px solid #e0e0e0;
+	border-radius: 6px;
+	padding: 0.75em 1em;
+}
+
+.wpd-event-card.wpd-cancelled {
+	opacity: 0.6;
+}
+
+.wpd-cancelled-badge {
+	color: #a00;
+	font-weight: bold;
+	margin: 0.25em 0;
+}
+
+.wpd-event-date {
+	font-size: 0.85em;
+	color: #666;
+}
+
+.wpd-event-title {
+	margin: 0.2em 0;
+}
+
+.wpd-calendar-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.wpd-calendar-table th,
+.wpd-calendar-table td {
+	border: 1px solid #e0e0e0;
+	vertical-align: top;
+	padding: 4px;
+	width: 14.28%;
+	height: 90px;
+}
+
+.wpd-calendar-table td.wpd-has-events {
+	background: #f7fbff;
+}
+
+.wpd-day-number {
+	font-weight: bold;
+	font-size: 0.85em;
+}
+
+.wpd-day-events {
+	list-style: none;
+	margin: 4px 0 0;
+	padding: 0;
+	font-size: 0.8em;
+}
+
+.wpd-locations {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.5em;
+}
+
+.wpd-locations-map {
+	flex: 2 1 480px;
+	min-height: 400px;
+	border-radius: 6px;
+}
+
+.wpd-locations-list {
+	flex: 1 1 240px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.wpd-location-item {
+	border-bottom: 1px solid #eee;
+	padding: 0.5em 0;
+}
+
+.wpd-location-meta {
+	font-size: 0.85em;
+	color: #666;
+}
+
+.wpd-single-event .wpd-meta-row,
+.wpd-single-location .wpd-meta-row {
+	margin: 0.4em 0;
+}
+
+.wpd-single-event .wpd-booking-cta {
+	display: inline-block;
+	margin-top: 1em;
+	padding: 0.6em 1.2em;
+	border-radius: 4px;
+	background: #2271b1;
+	color: #fff;
+	text-decoration: none;
+}
+
+.wpd-single-location .wpd-single-map {
+	min-height: 320px;
+	margin: 1em 0;
+	border-radius: 6px;
+}

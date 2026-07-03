@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<ruleset name="wp-dansal">
+	<description>Coding standard for the wp-dansal plugin.</description>
+
+	<file>.</file>
+
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/assets/vendor/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+
+	<arg value="sp"/>
+	<arg name="basepath" value="."/>
+	<arg name="colors"/>
+	<arg name="extensions" value="php"/>
+
+	<!-- Best-practice + security sniffs, without WordPress-Core's stricter
+	     whitespace/array-alignment formatting rules (kept low-noise for CI). -->
+	<rule ref="WordPress-Extra">
+		<exclude name="WordPress.Arrays.MultipleStatementAlignment"/>
+		<exclude name="WordPress.WhiteSpace.OperatorSpacing"/>
+		<exclude name="Generic.WhiteSpace.DisallowSpaceIndent"/>
+		<exclude name="WordPress.Files.FileName"/>
+		<exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
+		<!-- The main plugin file legitimately mixes a bootstrap class with a
+		     couple of small procedural glue functions (wpd_plugin(),
+		     activation/deactivation hooks) — normal for a WP plugin entry file. -->
+		<exclude name="Universal.Files.SeparateFunctionsFromOO"/>
+	</rule>
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="wp-dansal"/>
+			</property>
+		</properties>
+	</rule>
+
+	<config name="minimum_supported_wp_version" value="6.0"/>
+	<config name="testVersion" value="7.4-"/>
+</ruleset>

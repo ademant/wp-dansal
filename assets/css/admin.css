@@ -1,0 +1,64 @@
+#wpd-nominatim-results ul.wpd-nominatim-list {
+	margin: 8px 0;
+	max-height: 220px;
+	overflow-y: auto;
+	border: 1px solid #dcdcde;
+	background: #fff;
+}
+
+.wpd-nominatim-list li {
+	border-bottom: 1px solid #f0f0f1;
+	padding: 2px 6px;
+}
+
+.wpd-nominatim-list li:last-child {
+	border-bottom: none;
+}
+
+.wpd-nominatim-list li.wpd-selected,
+.wpd-duplicate-row.wpd-selected {
+	background: #edfaef;
+}
+
+.wpd-duplicate-box {
+	padding: 8px 12px;
+	margin: 10px 0;
+}
+
+.wpd-duplicate-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 4px 0;
+	border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+#wpd-location-editor .form-table th {
+	width: 180px;
+}
+
+.wpd-entity-picker .wpd-entity-chips {
+	margin-bottom: 4px;
+}
+
+.wpd-chip {
+	display: inline-block;
+	background: #e5f0f7;
+	border: 1px solid #c3d8e6;
+	border-radius: 3px;
+	padding: 2px 6px;
+	margin: 2px 4px 2px 0;
+	font-size: 12px;
+}
+
+.wpd-chip-remove {
+	text-decoration: none;
+	color: #a00;
+	font-weight: bold;
+	margin-left: 2px;
+}
+
+.wpd-entity-results ul.wpd-nominatim-list {
+	max-width: 320px;
+}
