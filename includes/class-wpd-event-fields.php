@@ -315,7 +315,7 @@ class WPD_Event_Fields {
 	}
 
 	private function get_tags_vocabulary() {
-		$cached = get_transient( 'wpd_tags_vocab' );
+		$cached = get_transient( 'wpd_tags_vocab_' . WPD_VERSION );
 		if ( false !== $cached ) {
 			return $cached;
 		}
@@ -323,12 +323,12 @@ class WPD_Event_Fields {
 		if ( is_wp_error( $tags ) || ! is_array( $tags ) ) {
 			return array();
 		}
-		set_transient( 'wpd_tags_vocab', $tags, HOUR_IN_SECONDS );
+		set_transient( 'wpd_tags_vocab_' . WPD_VERSION, $tags, HOUR_IN_SECONDS );
 		return $tags;
 	}
 
 	private function get_dances_vocabulary() {
-		$cached = get_transient( 'wpd_dances_vocab' );
+		$cached = get_transient( 'wpd_dances_vocab_' . WPD_VERSION );
 		if ( false !== $cached ) {
 			return $cached;
 		}
@@ -336,7 +336,7 @@ class WPD_Event_Fields {
 		if ( is_wp_error( $dances ) || ! is_array( $dances ) ) {
 			return array();
 		}
-		set_transient( 'wpd_dances_vocab', $dances, HOUR_IN_SECONDS );
+		set_transient( 'wpd_dances_vocab_' . WPD_VERSION, $dances, HOUR_IN_SECONDS );
 		return $dances;
 	}
 }
