@@ -10,6 +10,10 @@ if ( ! defined( 'ABSPATH' ) ) {
  * WPD_CPT_Event::maybe_refresh_single() / WPD_CPT_Location::maybe_refresh_single()),
  * since the admin-list-triggered pull-sync only runs when someone opens
  * wp-admin and would otherwise leave a public page stale indefinitely.
+ *
+ * Every WP_Query in this class explicitly sets post_status => 'publish' —
+ * do not change to 'any' or omit it, or drafts leak to unauthenticated
+ * visitors.
  */
 class WPD_Frontend {
 
