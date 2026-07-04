@@ -24,6 +24,8 @@ require_once WPD_PLUGIN_DIR . 'includes/class-wpd-settings.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-api-client.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-nominatim.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-location.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-event-fields.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-event-prefill.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-event.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-frontend.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-widget-mini-calendar.php';
@@ -40,6 +42,7 @@ final class WPD_Plugin {
 	public $api;
 	public $nominatim;
 	public $cpt_location;
+	public $event_fields;
 	public $cpt_event;
 	public $frontend;
 
@@ -55,7 +58,8 @@ final class WPD_Plugin {
 		$this->api          = new WPD_Api_Client( $this->settings );
 		$this->nominatim    = new WPD_Nominatim();
 		$this->cpt_location = new WPD_CPT_Location( $this->api, $this->nominatim, $this->settings );
-		$this->cpt_event    = new WPD_CPT_Event( $this->api, $this->settings );
+		$this->event_fields = new WPD_Event_Fields( $this->api );
+		$this->cpt_event    = new WPD_CPT_Event( $this->api, $this->settings, $this->event_fields );
 		$this->frontend     = new WPD_Frontend( $this->settings );
 
 		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );

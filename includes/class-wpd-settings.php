@@ -26,7 +26,21 @@ class WPD_Settings {
 			'api_key'         => '',
 			'nominatim_email' => get_option( 'admin_email' ),
 			'dedup_radius_km' => 0.2,
+			// Overlay field defaults applied when a fresh dansal_event is
+			// opened for editing (auto-draft) and the corresponding meta is
+			// still empty. See WPD_Event_Fields for the field set.
+			'event_defaults'  => array(),
 		);
+	}
+
+	/**
+	 * Overlay defaults applied to fresh events. Keys are dansal_event meta
+	 * keys (see WPD_Event_Fields::overlay_keys()). Blank values simply mean
+	 * "no default for this field."
+	 */
+	public function get_event_defaults() {
+		$all = $this->get_all();
+		return is_array( $all['event_defaults'] ) ? $all['event_defaults'] : array();
 	}
 
 	public function get_all() {
@@ -99,6 +113,10 @@ class WPD_Settings {
 		if ( $out['api_key'] !== $existing['api_key'] || $out['base_url'] !== $existing['base_url'] ) {
 			delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
 		}
+
+		$out['event_defaults'] = isset( $input['event_defaults'] ) && is_array( $input['event_defaults'] )
+			? WPD_Event_Fields::sanitize_field_group( $input['event_defaults'] )
+			: array();
 
 		return $out;
 	}
@@ -175,6 +193,17 @@ class WPD_Settings {
 						</tr>
 					</table>
 				</details>
+
+				<h2><?php esc_html_e( 'Event defaults', 'wp-dansal' ); ?></h2>
+				<p class="description">
+					<?php esc_html_e( 'Values you set here are pre-filled on brand-new events (before the first save). Editing an existing event never overwrites its stored values.', 'wp-dansal' ); ?>
+				</p>
+				<table class="form-table" role="presentation">
+					<?php
+					$event_defaults = is_array( $o['event_defaults'] ) ? $o['event_defaults'] : array();
+					wpd_plugin()->event_fields->render_field_group( $event_defaults, self::OPTION . '[event_defaults]' );
+					?>
+				</table>
 
 				<?php submit_button(); ?>
 			</form>

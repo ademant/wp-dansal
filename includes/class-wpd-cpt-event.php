@@ -21,10 +21,13 @@ class WPD_CPT_Event {
 	private $api;
 	/** @var WPD_Settings */
 	private $settings;
+	/** @var WPD_Event_Fields */
+	private $fields;
 
-	public function __construct( WPD_Api_Client $api, WPD_Settings $settings ) {
+	public function __construct( WPD_Api_Client $api, WPD_Settings $settings, WPD_Event_Fields $fields ) {
 		$this->api      = $api;
 		$this->settings = $settings;
+		$this->fields   = $fields;
 
 		add_action( 'init', array( $this, 'register_post_type' ) );
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
@@ -95,31 +98,6 @@ class WPD_CPT_Event {
 		return '' === $v ? $default_value : $v;
 	}
 
-	private function get_location_posts() {
-		return get_posts(
-            array(
-				'post_type'      => WPD_CPT_Location::POST_TYPE,
-				'posts_per_page' => -1,
-				'meta_key'       => WPD_CPT_Location::META_DANSAL_ID,
-				'orderby'        => 'title',
-				'order'          => 'ASC',
-            )
-        );
-	}
-
-	private function get_tags_vocabulary() {
-		$cached = get_transient( 'wpd_tags_vocab' );
-		if ( false !== $cached ) {
-			return $cached;
-		}
-		$tags = $this->api->get_public( '/api/v1/tags' );
-		if ( is_wp_error( $tags ) || ! is_array( $tags ) ) {
-			return array();
-		}
-		set_transient( 'wpd_tags_vocab', $tags, HOUR_IN_SECONDS );
-		return $tags;
-	}
-
 	private function get_dances_vocabulary() {
 		$cached = get_transient( 'wpd_dances_vocab' );
 		if ( false !== $cached ) {
@@ -139,6 +117,17 @@ class WPD_CPT_Event {
 		if ( $dansal_id ) {
 			printf( '<p><strong>%s%s</strong></p>', esc_html__( 'Synced with dansal event #', 'wp-dansal' ), esc_html( $dansal_id ) );
 		}
+
+		$stored = array();
+		foreach ( WPD_Event_Fields::overlay_keys() as $key ) {
+			$stored[ $key ] = get_post_meta( $post->ID, $key, true );
+		}
+		// On a brand-new draft (auto-draft = created by post-new.php, not yet
+		// saved by the user), layer the org-wide defaults underneath. On any
+		// real draft/published/pending post we render exactly what's stored.
+		$overlay_values = 'auto-draft' === $post->post_status
+			? WPD_Event_Prefill::resolve( $this->settings->get_event_defaults(), $stored )
+			: $stored;
 		?>
 		<table class="form-table">
 			<tr>
@@ -149,51 +138,7 @@ class WPD_CPT_Event {
 				<th><label for="wpd_end_time"><?php esc_html_e( 'End', 'wp-dansal' ); ?></label></th>
 				<td><input type="datetime-local" id="wpd_end_time" name="wpd_end_time" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_end_time' ) ); ?>" required /></td>
 			</tr>
-			<tr>
-				<th><label for="wpd_location_post_id"><?php esc_html_e( 'Location', 'wp-dansal' ); ?></label></th>
-				<td>
-					<select id="wpd_location_post_id" name="wpd_location_post_id">
-						<option value=""><?php esc_html_e( '— select a synced location —', 'wp-dansal' ); ?></option>
-						<?php foreach ( $this->get_location_posts() as $loc ) : ?>
-							<option value="<?php echo esc_attr( $loc->ID ); ?>" <?php selected( $this->field( $post->ID, '_wpd_location_post_id' ), $loc->ID ); ?>><?php echo esc_html( $loc->post_title ); ?></option>
-						<?php endforeach; ?>
-					</select>
-					<p class="description"><?php esc_html_e( 'Only locations already synced to dansal (see Dance Locations) can be attached to an event.', 'wp-dansal' ); ?></p>
-				</td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Tags', 'wp-dansal' ); ?></th>
-				<td>
-					<?php
-					$selected_tags = array_filter( explode( ',', $this->field( $post->ID, '_wpd_tags' ) ) );
-					$tags_by_cat   = array();
-					foreach ( $this->get_tags_vocabulary() as $tag ) {
-						$tags_by_cat[ $tag['category'] ][] = $tag;
-					}
-					foreach ( $tags_by_cat as $category => $tags ) :
-						?>
-						<p><strong><?php echo esc_html( ucfirst( $category ) ); ?>:</strong>
-						<?php foreach ( $tags as $tag ) : ?>
-							<label style="margin-right:1em;display:inline-block;">
-								<input type="checkbox" name="wpd_tags[]" value="<?php echo esc_attr( $tag['slug'] ); ?>" <?php checked( in_array( $tag['slug'], $selected_tags, true ) ); ?> />
-								<?php echo esc_html( $tag['name'] ); ?>
-							</label>
-						<?php endforeach; ?>
-						</p>
-					<?php endforeach; ?>
-				</td>
-			</tr>
-			<tr>
-				<th><label for="wpd_dance_ids"><?php esc_html_e( 'Dances', 'wp-dansal' ); ?></label></th>
-				<td>
-					<?php $selected_dances = array_filter( explode( ',', $this->field( $post->ID, '_wpd_dance_ids' ) ) ); ?>
-					<select id="wpd_dance_ids" name="wpd_dance_ids[]" multiple size="6" style="min-width:260px;">
-						<?php foreach ( $this->get_dances_vocabulary() as $dance ) : ?>
-							<option value="<?php echo esc_attr( $dance['id'] ); ?>" <?php selected( in_array( (string) $dance['id'], $selected_dances, true ) ); ?>><?php echo esc_html( $dance['name'] ); ?></option>
-						<?php endforeach; ?>
-					</select>
-				</td>
-			</tr>
+			<?php $this->fields->render_field_group( $overlay_values, 'wpd_event' ); ?>
 			<tr>
 				<th><?php esc_html_e( 'Musicians', 'wp-dansal' ); ?></th>
 				<td><?php $this->render_entity_picker( $post->ID, 'musician', __( 'Search musicians…', 'wp-dansal' ) ); ?></td>
@@ -201,103 +146,6 @@ class WPD_CPT_Event {
 			<tr>
 				<th><?php esc_html_e( 'Instructors', 'wp-dansal' ); ?></th>
 				<td><?php $this->render_entity_picker( $post->ID, 'instructor', __( 'Search instructors…', 'wp-dansal' ) ); ?></td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Event type', 'wp-dansal' ); ?></th>
-				<td>
-					<?php
-                    foreach ( array(
-						'has_ball' => __( 'Ball', 'wp-dansal' ),
-						'has_workshop' => __( 'Workshop', 'wp-dansal' ),
-						'has_festival' => __( 'Festival', 'wp-dansal' ),
-					) as $key => $label ) :
-						?>
-						<label style="margin-right:1em;display:inline-block;">
-							<input type="checkbox" name="wpd_<?php echo esc_attr( $key ); ?>" value="1" <?php checked( $this->field( $post->ID, '_wpd_' . $key ), '1' ); ?> />
-							<?php echo esc_html( $label ); ?>
-						</label>
-					<?php endforeach; ?>
-				</td>
-			</tr>
-			<tr>
-				<th><label for="wpd_workshop_difficulty"><?php esc_html_e( 'Workshop difficulty', 'wp-dansal' ); ?></label></th>
-				<td>
-					<input type="text" id="wpd_workshop_difficulty" name="wpd_workshop_difficulty" list="wpd-difficulties" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_workshop_difficulty' ) ); ?>" />
-					<datalist id="wpd-difficulties">
-						<option value="beginner"></option>
-						<option value="intermediate"></option>
-						<option value="advanced"></option>
-						<option value="open"></option>
-					</datalist>
-				</td>
-			</tr>
-			<tr>
-				<th><label for="wpd_booking_url"><?php esc_html_e( 'Booking URL', 'wp-dansal' ); ?></label></th>
-				<td><input type="url" id="wpd_booking_url" name="wpd_booking_url" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_booking_url' ) ); ?>" /></td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Pricing', 'wp-dansal' ); ?></th>
-				<td>
-					<select name="wpd_pricing_type">
-						<?php
-                        foreach ( array(
-							'free' => __( 'Free', 'wp-dansal' ),
-							'fixed' => __( 'Fixed price', 'wp-dansal' ),
-							'donation' => __( 'Donation', 'wp-dansal' ),
-						) as $key => $label ) :
-							?>
-							<option value="<?php echo esc_attr( $key ); ?>" <?php selected( $this->field( $post->ID, '_wpd_pricing_type', 'free' ), $key ); ?>><?php echo esc_html( $label ); ?></option>
-						<?php endforeach; ?>
-					</select>
-					<input type="number" step="0.01" min="0" name="wpd_pricing_amount" placeholder="<?php esc_attr_e( 'Amount', 'wp-dansal' ); ?>" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_pricing_amount' ) ); ?>" class="small-text" />
-					<input type="text" name="wpd_pricing_currency" placeholder="EUR" maxlength="3" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_pricing_currency', 'EUR' ) ); ?>" class="small-text" />
-				</td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Food & drink', 'wp-dansal' ); ?></th>
-				<td>
-					<input type="text" name="wpd_food" placeholder="<?php esc_attr_e( 'Food', 'wp-dansal' ); ?>" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_food' ) ); ?>" class="regular-text" />
-					<input type="text" name="wpd_drink" placeholder="<?php esc_attr_e( 'Drink', 'wp-dansal' ); ?>" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_drink' ) ); ?>" class="regular-text" />
-				</td>
-			</tr>
-			<tr>
-				<th><label for="wpd_floor_condition"><?php esc_html_e( 'Floor condition override', 'wp-dansal' ); ?></label></th>
-				<td>
-					<input type="text" id="wpd_floor_condition" name="wpd_floor_condition" list="wpd-floor-conditions" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_floor_condition' ) ); ?>" />
-					<datalist id="wpd-floor-conditions">
-						<option value="wooden parquet"></option>
-						<option value="stone floor"></option>
-						<option value="grass"></option>
-						<option value="tiles"></option>
-						<option value="sand / gravel"></option>
-						<option value="pavement"></option>
-					</datalist>
-					<p class="description"><?php esc_html_e( 'Leave blank to use the location\'s floor condition.', 'wp-dansal' ); ?></p>
-				</td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Amenities override', 'wp-dansal' ); ?></th>
-				<td>
-					<?php
-                    foreach ( array(
-						'wheelchair' => __( 'Wheelchair accessible', 'wp-dansal' ),
-						'bar' => __( 'Bar', 'wp-dansal' ),
-						'kitchen' => __( 'Kitchen', 'wp-dansal' ),
-					) as $key => $label ) :
-						?>
-						<label style="margin-right:1em;display:inline-block;">
-							<input type="checkbox" name="wpd_attr_<?php echo esc_attr( $key ); ?>" value="1" <?php checked( $this->field( $post->ID, '_wpd_attr_' . $key ), '1' ); ?> />
-							<?php echo esc_html( $label ); ?>
-						</label>
-					<?php endforeach; ?>
-				</td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Contact', 'wp-dansal' ); ?></th>
-				<td>
-					<input type="text" name="wpd_contact_name" placeholder="<?php esc_attr_e( 'Name', 'wp-dansal' ); ?>" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_contact_name' ) ); ?>" class="regular-text" />
-					<input type="email" name="wpd_contact_email" placeholder="<?php esc_attr_e( 'Email', 'wp-dansal' ); ?>" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_contact_email' ) ); ?>" class="regular-text" />
-				</td>
 			</tr>
 			<tr>
 				<th><?php esc_html_e( 'Status', 'wp-dansal' ); ?></th>
@@ -402,42 +250,36 @@ class WPD_CPT_Event {
 			return;
 		}
 
-		$text_fields = array(
-			'_wpd_start_time'          => 'wpd_start_time',
-			'_wpd_end_time'            => 'wpd_end_time',
-			'_wpd_location_post_id'    => 'wpd_location_post_id',
-			'_wpd_workshop_difficulty' => 'wpd_workshop_difficulty',
-			'_wpd_booking_url'         => 'wpd_booking_url',
-			'_wpd_pricing_type'        => 'wpd_pricing_type',
-			'_wpd_pricing_amount'      => 'wpd_pricing_amount',
-			'_wpd_pricing_currency'    => 'wpd_pricing_currency',
-			'_wpd_food'                => 'wpd_food',
-			'_wpd_drink'               => 'wpd_drink',
-			'_wpd_floor_condition'     => 'wpd_floor_condition',
-			'_wpd_contact_name'        => 'wpd_contact_name',
-			'_wpd_contact_email'       => 'wpd_contact_email',
-			'_wpd_musician_ids'        => 'wpd_musician_ids',
-			'_wpd_musician_names'      => 'wpd_musician_names',
-			'_wpd_instructor_ids'      => 'wpd_instructor_ids',
-			'_wpd_instructor_names'    => 'wpd_instructor_names',
-		);
-		foreach ( $text_fields as $meta_key => $post_key ) {
+		// Per-occurrence datetimes stay flat-named because they live outside
+		// the shared overlay group.
+		foreach ( array(
+			'_wpd_start_time' => 'wpd_start_time',
+			'_wpd_end_time'   => 'wpd_end_time',
+		) as $meta_key => $post_key ) {
 			$value = isset( $_POST[ $post_key ] ) ? wp_unslash( $_POST[ $post_key ] ) : '';
 			update_post_meta( $post_id, $meta_key, sanitize_text_field( $value ) );
 		}
 
-		$tags = isset( $_POST['wpd_tags'] ) ? array_map( 'sanitize_key', (array) $_POST['wpd_tags'] ) : array();
-		// Padded with boundary commas (",slug1,slug2,") so frontend meta_query
-		// LIKE lookups can match a whole slug without false-positiving on
-		// substrings (e.g. "ball" inside "small-ball").
-		update_post_meta( $post_id, '_wpd_tags', $tags ? ',' . implode( ',', $tags ) . ',' : '' );
-		update_post_meta( $post_id, '_wpd_dance_ids', isset( $_POST['wpd_dance_ids'] ) ? implode( ',', array_map( 'absint', (array) $_POST['wpd_dance_ids'] ) ) : '' );
-
-		foreach ( array( 'has_ball', 'has_workshop', 'has_festival', 'is_cancelled' ) as $flag ) {
-			update_post_meta( $post_id, '_wpd_' . $flag, ! empty( $_POST[ 'wpd_' . $flag ] ) ? '1' : '' );
+		// sanitize_field_group unslashes internally, so pass the raw
+		// $_POST slice — double-unslashing would eat legitimate backslashes.
+		$overlay_input = isset( $_POST['wpd_event'] ) && is_array( $_POST['wpd_event'] ) ? $_POST['wpd_event'] : array();
+		$overlay       = WPD_Event_Fields::sanitize_field_group( $overlay_input );
+		foreach ( WPD_Event_Fields::overlay_keys() as $key ) {
+			update_post_meta( $post_id, $key, isset( $overlay[ $key ] ) ? $overlay[ $key ] : '' );
 		}
-		foreach ( array( 'wheelchair', 'bar', 'kitchen' ) as $attr ) {
-			update_post_meta( $post_id, '_wpd_attr_' . $attr, ! empty( $_POST[ 'wpd_attr_' . $attr ] ) ? '1' : '' );
+
+		update_post_meta( $post_id, '_wpd_is_cancelled', ! empty( $_POST['wpd_is_cancelled'] ) ? '1' : '' );
+
+		// AJAX-picker fields (musician / instructor) are system-managed and
+		// still submitted flat because they're not part of the shared group.
+		foreach ( array(
+			'_wpd_musician_ids'     => 'wpd_musician_ids',
+			'_wpd_musician_names'   => 'wpd_musician_names',
+			'_wpd_instructor_ids'   => 'wpd_instructor_ids',
+			'_wpd_instructor_names' => 'wpd_instructor_names',
+		) as $meta_key => $post_key ) {
+			$value = isset( $_POST[ $post_key ] ) ? wp_unslash( $_POST[ $post_key ] ) : '';
+			update_post_meta( $post_id, $meta_key, sanitize_text_field( $value ) );
 		}
 
 		if ( ! $this->settings->is_configured() ) {
