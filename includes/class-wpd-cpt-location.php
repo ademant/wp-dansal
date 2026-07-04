@@ -289,7 +289,10 @@ class WPD_CPT_Location {
 	}
 
 	public function save( $post_id ) {
-		if ( ! isset( $_POST['wpd_location_nonce'] ) || ! wp_verify_nonce( $_POST['wpd_location_nonce'], 'wpd_location_save' ) ) {
+		$nonce = isset( $_POST['wpd_location_nonce'] )
+			? sanitize_text_field( wp_unslash( $_POST['wpd_location_nonce'] ) )
+			: '';
+		if ( ! wp_verify_nonce( $nonce, 'wpd_location_save' ) ) {
 			return;
 		}
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {

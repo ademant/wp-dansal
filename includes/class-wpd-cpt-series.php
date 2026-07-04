@@ -145,7 +145,10 @@ class WPD_CPT_Series {
 	}
 
 	public function save( $post_id ) {
-		if ( ! isset( $_POST['wpd_series_nonce'] ) || ! wp_verify_nonce( $_POST['wpd_series_nonce'], 'wpd_series_save' ) ) {
+		$nonce = isset( $_POST['wpd_series_nonce'] )
+			? sanitize_text_field( wp_unslash( $_POST['wpd_series_nonce'] ) )
+			: '';
+		if ( ! wp_verify_nonce( $nonce, 'wpd_series_save' ) ) {
 			return;
 		}
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {

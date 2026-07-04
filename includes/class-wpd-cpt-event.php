@@ -496,7 +496,10 @@ class WPD_CPT_Event {
 	}
 
 	public function save( $post_id ) {
-		if ( ! isset( $_POST['wpd_event_nonce'] ) || ! wp_verify_nonce( $_POST['wpd_event_nonce'], 'wpd_event_save' ) ) {
+		$nonce = isset( $_POST['wpd_event_nonce'] )
+			? sanitize_text_field( wp_unslash( $_POST['wpd_event_nonce'] ) )
+			: '';
+		if ( ! wp_verify_nonce( $nonce, 'wpd_event_save' ) ) {
 			return;
 		}
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
