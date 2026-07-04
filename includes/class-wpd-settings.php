@@ -194,16 +194,18 @@ class WPD_Settings {
 					</table>
 				</details>
 
-				<h2><?php esc_html_e( 'Event defaults', 'wp-dansal' ); ?></h2>
-				<p class="description">
-					<?php esc_html_e( 'Values you set here are pre-filled on brand-new events (before the first save). Editing an existing event never overwrites its stored values.', 'wp-dansal' ); ?>
-				</p>
-				<table class="form-table" role="presentation">
-					<?php
-					$event_defaults = is_array( $o['event_defaults'] ) ? $o['event_defaults'] : array();
-					wpd_plugin()->event_fields->render_field_group( $event_defaults, self::OPTION . '[event_defaults]' );
-					?>
-				</table>
+				<details style="margin: 1em 0;">
+					<summary style="font-weight: 600; cursor: pointer; font-size: 1.3em;"><?php esc_html_e( 'Event defaults', 'wp-dansal' ); ?></summary>
+					<p class="description">
+						<?php esc_html_e( 'Values you set here are pre-filled on brand-new events (before the first save). Editing an existing event never overwrites its stored values.', 'wp-dansal' ); ?>
+					</p>
+					<table class="form-table" role="presentation">
+						<?php
+						$event_defaults = is_array( $o['event_defaults'] ) ? $o['event_defaults'] : array();
+						wpd_plugin()->event_fields->render_field_group( $event_defaults, self::OPTION . '[event_defaults]' );
+						?>
+					</table>
+				</details>
 
 				<?php submit_button(); ?>
 			</form>
