@@ -37,6 +37,10 @@ class WPD_CPT_Event {
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
+
+		add_filter( 'post_row_actions', array( $this, 'row_actions' ), 10, 2 );
+		add_action( 'post_submitbox_misc_actions', array( $this, 'render_clone_button' ) );
+		WPD_Admin_Action::register( 'wpd_clone_event', 'edit_posts', array( $this, 'handle_clone' ) );
 	}
 
 	public function register_post_type() {
@@ -91,6 +95,74 @@ class WPD_CPT_Event {
 
 	public function add_meta_boxes() {
 		add_meta_box( 'wpd_event_details', __( 'Dansal Event Details', 'wp-dansal' ), array( $this, 'render_meta_box' ), self::POST_TYPE, 'normal', 'high' );
+	}
+
+	public function row_actions( $actions, $post ) {
+		if ( self::POST_TYPE !== $post->post_type || ! current_user_can( 'edit_post', $post->ID ) ) {
+			return $actions;
+		}
+		$url                 = WPD_Admin_Action::url( 'wpd_clone_event', array( 'post' => $post->ID ) );
+		$actions['wpd_clone'] = sprintf(
+			'<a href="%s">%s</a>',
+			esc_url( $url ),
+			esc_html__( 'Clone', 'wp-dansal' )
+		);
+		return $actions;
+	}
+
+	public function render_clone_button( $post ) {
+		if ( self::POST_TYPE !== $post->post_type || ! current_user_can( 'edit_post', $post->ID ) ) {
+			return;
+		}
+		// Nothing meaningful to copy from a brand-new auto-draft, and the
+		// user would be cloning the very post they're about to save anyway.
+		if ( 'auto-draft' === $post->post_status ) {
+			return;
+		}
+		$url = WPD_Admin_Action::url( 'wpd_clone_event', array( 'post' => $post->ID ) );
+		?>
+		<div class="misc-pub-section wpd-clone-action">
+			<a href="<?php echo esc_url( $url ); ?>" class="button"><?php esc_html_e( 'Clone this event', 'wp-dansal' ); ?></a>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Copies the source event's title, content, and overlay-field meta
+	 * onto a new draft. Per-occurrence keys (start/end, is_cancelled) are
+	 * deliberately not carried over — the user picks new dates and the
+	 * cancelled flag resets. Nonce + edit_posts cap already verified by
+	 * WPD_Admin_Action; here we additionally check edit_post on the
+	 * source ID.
+	 */
+	public function handle_clone() {
+		$source_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
+		if ( ! $source_id || ! current_user_can( 'edit_post', $source_id ) ) {
+			wp_die( esc_html__( 'Cannot clone this event.', 'wp-dansal' ), '', array( 'response' => 403 ) );
+		}
+		$source = get_post( $source_id );
+		if ( ! $source || self::POST_TYPE !== $source->post_type ) {
+			wp_die( esc_html__( 'Not a dansal event.', 'wp-dansal' ), '', array( 'response' => 400 ) );
+		}
+
+		$meta = array();
+		foreach ( WPD_Event_Fields::overlay_keys() as $key ) {
+			$meta[ $key ] = get_post_meta( $source_id, $key, true );
+		}
+
+		$new_id = WPD_Event_Draft::create(
+			$meta,
+			array(
+				'post_title'   => $source->post_title,
+				'post_content' => $source->post_content,
+			)
+		);
+		if ( ! $new_id ) {
+			wp_die( esc_html__( 'Failed to create clone.', 'wp-dansal' ), '', array( 'response' => 500 ) );
+		}
+
+		wp_safe_redirect( get_edit_post_link( $new_id, '' ) );
+		exit;
 	}
 
 	private function field( $post_id, $key, $default_value = '' ) {

@@ -26,6 +26,8 @@ require_once WPD_PLUGIN_DIR . 'includes/class-wpd-nominatim.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-location.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-event-fields.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-event-prefill.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-admin-action.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-event-draft.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-event.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-frontend.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-widget-mini-calendar.php';
