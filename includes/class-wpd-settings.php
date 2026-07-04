@@ -322,7 +322,7 @@ class WPD_Settings {
 		$response = wp_remote_post(
 			$connect_url,
 			array(
-				'timeout'           => 20,
+				'timeout'           => WPD_Api_Client::timeout( '/api/v1/invites/{token}/publisher' ),
 				// Refuses to follow the request if it resolves to a private/
 				// internal IP — this URL is admin-supplied, so treat it like
 				// any other user-supplied fetch target (SSRF hardening).

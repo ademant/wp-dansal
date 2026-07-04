@@ -25,6 +25,15 @@ class WPD_Api_Client {
 	}
 
 	/**
+	 * All outbound HTTP calls run through this — 10 seconds by default so a
+	 * slow dansal can't stall a page load. Filter `wpd_http_timeout` (int
+	 * seconds, string $path) lets site owners tune per-endpoint.
+	 */
+	public static function timeout( $path = '' ) {
+		return (int) apply_filters( 'wpd_http_timeout', 10, $path );
+	}
+
+	/**
 	 * Get a valid session token, exchanging the API key if needed.
 	 *
 	 * @param bool $force Bypass the cache and force a fresh exchange.
@@ -46,7 +55,7 @@ class WPD_Api_Client {
 		$response = wp_remote_post(
 			$this->settings->get_base_url() . '/api/v1/publishers/token',
 			array(
-				'timeout' => 15,
+				'timeout' => self::timeout( '/api/v1/publishers/token' ),
 				'headers' => array(
 					'Authorization' => 'Bearer ' . $api_key,
 					'Accept'        => 'application/json',
@@ -118,7 +127,7 @@ class WPD_Api_Client {
 
 		$args = array(
 			'method'  => $method,
-			'timeout' => 20,
+			'timeout' => self::timeout( $path ),
 			'headers' => array(
 				'Authorization' => 'Bearer ' . $token,
 				'Accept'        => 'application/json',
@@ -149,7 +158,7 @@ class WPD_Api_Client {
 		$response = wp_remote_get(
             $url,
             array(
-				'timeout' => 20,
+				'timeout' => self::timeout( $path ),
 				'headers' => array( 'Accept' => 'application/json' ),
             )
         );

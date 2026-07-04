@@ -58,7 +58,7 @@ class WPD_Nominatim {
 		$response = wp_remote_get(
             $url,
             array(
-				'timeout' => 15,
+				'timeout' => WPD_Api_Client::timeout( '/nominatim' ),
 				'headers' => array(
 					'User-Agent' => 'wp-dansal-plugin/' . WPD_VERSION . ' (' . home_url() . '; ' . $contact . ')',
 					'Accept'     => 'application/json',
