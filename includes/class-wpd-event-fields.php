@@ -72,10 +72,8 @@ class WPD_Event_Fields {
 			'_wpd_instructor_ids',
 			'_wpd_instructor_names',
 			'_wpd_search_entity',
-			// Prefill-source markers stashed on drafts so the metabox can
-			// render the time-of-day hint. Cleared on save once datetimes
-			// are filled in (see WPD_CPT_Event::save).
-			'_wpd_template_source',
+			// Prefill-source marker stashed on drafts created via a series
+			// so the metabox can render the time-of-day hint.
 			'_wpd_series_post_id',
 		);
 	}

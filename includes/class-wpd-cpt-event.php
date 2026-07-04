@@ -44,34 +44,6 @@ class WPD_CPT_Event {
 
 		add_action( 'admin_menu', array( $this, 'add_assign_series_page' ) );
 		WPD_Admin_Action::register( 'wpd_assign_event_series', 'edit_posts', array( $this, 'handle_assign_series' ) );
-
-		WPD_Admin_Action::register( 'wpd_new_from_template', 'edit_posts', array( $this, 'handle_new_from_template' ) );
-		$template_presets = function () {
-			$out = array();
-			foreach ( $this->settings->get_templates() as $t ) {
-				$out[] = array(
-					'slug' => $t['slug'],
-					'name' => $t['name'],
-				);
-			}
-			return $out;
-		};
-		/* translators: %s: template name (e.g. "Lernabend"). */
-		$label_template = __( 'Add %s', 'wp-dansal' );
-		WPD_Preset_Menu::register(
-			'edit.php?post_type=' . self::POST_TYPE,
-			$template_presets,
-			'wpd_new_from_template',
-			'template',
-			$label_template
-		);
-		WPD_Preset_Buttons::register(
-			self::POST_TYPE,
-			$template_presets,
-			'wpd_new_from_template',
-			'template',
-			$label_template
-		);
 	}
 
 	public function register_post_type() {
@@ -306,35 +278,6 @@ class WPD_CPT_Event {
 		exit;
 	}
 
-	/**
-	 * Creates a draft dansal_event pre-filled from a named template. The
-	 * template's field overrides layer on top of the org-wide event defaults
-	 * (WPD_Event_Prefill::resolve). Times of day are not written as fake
-	 * datetimes — instead we stash _wpd_template_source so the metabox
-	 * renders the hint + JS auto-fill when the user picks a date.
-	 */
-	public function handle_new_from_template() {
-		$slug     = isset( $_GET['template'] ) ? sanitize_key( wp_unslash( $_GET['template'] ) ) : '';
-		$template = $slug ? $this->settings->get_template( $slug ) : null;
-		if ( ! $template ) {
-			wp_die( esc_html__( 'Unknown template.', 'wp-dansal' ), '', array( 'response' => 404 ) );
-		}
-
-		$meta   = WPD_Event_Prefill::resolve(
-			$this->settings->get_event_defaults(),
-			$template['fields']
-		);
-		$new_id = WPD_Event_Draft::create( $meta );
-		if ( ! $new_id ) {
-			wp_die( esc_html__( 'Failed to create event from template.', 'wp-dansal' ), '', array( 'response' => 500 ) );
-		}
-
-		update_post_meta( $new_id, '_wpd_template_source', $template['slug'] );
-
-		wp_safe_redirect( get_edit_post_link( $new_id, '' ) );
-		exit;
-	}
-
 	private function field( $post_id, $key, $default_value = '' ) {
 		$v = get_post_meta( $post_id, $key, true );
 		return '' === $v ? $default_value : $v;
@@ -342,23 +285,10 @@ class WPD_CPT_Event {
 
 	/**
 	 * @return array|null ['start_time' => 'HH:MM', 'end_time' => 'HH:MM', 'label' => '…']
-	 *                    when this event was created from a template and the hint
+	 *                    when this event was created from a series and the hint
 	 *                    should still be shown; null otherwise.
 	 */
 	private function resolve_datetime_hint( $post_id ) {
-		$template_slug = get_post_meta( $post_id, '_wpd_template_source', true );
-		if ( $template_slug ) {
-			$template = $this->settings->get_template( $template_slug );
-			if ( $template ) {
-				return $this->build_hint(
-					$template['name'],
-					__( '%1$s template: %2$s', 'wp-dansal' ),
-					isset( $template['start_time_of_day'] ) ? $template['start_time_of_day'] : '',
-					isset( $template['end_time_of_day'] ) ? $template['end_time_of_day'] : ''
-				);
-			}
-		}
-
 		$series_post_id = (int) get_post_meta( $post_id, '_wpd_series_post_id', true );
 		if ( $series_post_id ) {
 			$series = get_post( $series_post_id );
@@ -596,12 +526,6 @@ class WPD_CPT_Event {
 		}
 
 		update_post_meta( $post_id, '_wpd_is_cancelled', ! empty( $_POST['wpd_is_cancelled'] ) ? '1' : '' );
-
-		// Once the user has filled in real dates, the template/series hint
-		// has done its job and should stop rendering on future edits.
-		if ( get_post_meta( $post_id, '_wpd_start_time', true ) && get_post_meta( $post_id, '_wpd_end_time', true ) ) {
-			delete_post_meta( $post_id, '_wpd_template_source' );
-		}
 
 		// Series linkage sits outside the shared overlay group. Route
 		// through set_event_series so a detach also calls dansal's
