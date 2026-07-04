@@ -30,6 +30,10 @@ class WPD_Settings {
 			// opened for editing (auto-draft) and the corresponding meta is
 			// still empty. See WPD_Event_Fields for the field set.
 			'event_defaults'  => array(),
+			// Named templates: presets that layer overlay values + a
+			// start/end time-of-day on top of the org-wide defaults. Each
+			// entry: ['slug', 'name', 'start_time_of_day', 'end_time_of_day', 'fields' => [...]].
+			'templates'       => array(),
 		);
 	}
 
@@ -41,6 +45,74 @@ class WPD_Settings {
 	public function get_event_defaults() {
 		$all = $this->get_all();
 		return is_array( $all['event_defaults'] ) ? $all['event_defaults'] : array();
+	}
+
+	/**
+	 * Named event templates. Each: slug, name, start_time_of_day,
+	 * end_time_of_day, fields (overlay meta_key => value).
+	 */
+	public function get_templates() {
+		$all = $this->get_all();
+		return is_array( $all['templates'] ) ? array_values( $all['templates'] ) : array();
+	}
+
+	public function get_template( $slug ) {
+		foreach ( $this->get_templates() as $t ) {
+			if ( isset( $t['slug'] ) && $t['slug'] === $slug ) {
+				return $t;
+			}
+		}
+		return null;
+	}
+
+	private static function sanitize_time_of_day( $value ) {
+		$v = trim( (string) $value );
+		if ( '' === $v ) {
+			return '';
+		}
+		return preg_match( '/^\d{1,2}:\d{2}$/', $v ) ? sprintf( '%02d:%02d', ...array_map( 'intval', explode( ':', $v ) ) ) : '';
+	}
+
+	private function sanitize_templates_input( $input ) {
+		$out           = array();
+		$emitted_slugs = array();
+		foreach ( (array) $input as $t ) {
+			if ( ! is_array( $t ) ) {
+				continue;
+			}
+			if ( ! empty( $t['delete'] ) ) {
+				continue;
+			}
+			$name = isset( $t['name'] ) ? sanitize_text_field( wp_unslash( $t['name'] ) ) : '';
+			if ( '' === trim( $name ) ) {
+				continue;
+			}
+			$slug = isset( $t['slug'] ) && '' !== trim( (string) $t['slug'] )
+				? sanitize_title( wp_unslash( $t['slug'] ) )
+				: sanitize_title( $name );
+			if ( '' === $slug ) {
+				$slug = 'template';
+			}
+			// Uniqueness pass across templates already emitted this save.
+			$base = $slug;
+			$i    = 2;
+			while ( in_array( $slug, $emitted_slugs, true ) ) {
+				$slug = $base . '-' . $i;
+				++$i;
+			}
+			$emitted_slugs[] = $slug;
+
+			$out[] = array(
+				'slug'              => $slug,
+				'name'              => $name,
+				'start_time_of_day' => self::sanitize_time_of_day( isset( $t['start_time_of_day'] ) ? $t['start_time_of_day'] : '' ),
+				'end_time_of_day'   => self::sanitize_time_of_day( isset( $t['end_time_of_day'] ) ? $t['end_time_of_day'] : '' ),
+				'fields'            => isset( $t['fields'] ) && is_array( $t['fields'] )
+					? WPD_Event_Fields::sanitize_field_group( $t['fields'] )
+					: array(),
+			);
+		}
+		return $out;
 	}
 
 	public function get_all() {
@@ -117,6 +189,8 @@ class WPD_Settings {
 		$out['event_defaults'] = isset( $input['event_defaults'] ) && is_array( $input['event_defaults'] )
 			? WPD_Event_Fields::sanitize_field_group( $input['event_defaults'] )
 			: array();
+
+		$out['templates'] = isset( $input['templates'] ) ? $this->sanitize_templates_input( $input['templates'] ) : array();
 
 		return $out;
 	}
@@ -204,6 +278,63 @@ class WPD_Settings {
 					wpd_plugin()->event_fields->render_field_group( $event_defaults, self::OPTION . '[event_defaults]' );
 					?>
 				</table>
+
+				<h2><?php esc_html_e( 'Event templates', 'wp-dansal' ); ?></h2>
+				<p class="description">
+					<?php esc_html_e( 'Named presets for recurring event shapes (e.g. "Lernabend"). Each template layers its field overrides on top of the event defaults above, and carries a start/end time-of-day. Templates appear as "Add {name}" buttons on the events list and as sidebar submenu items.', 'wp-dansal' ); ?>
+				</p>
+				<?php
+				$templates = is_array( $o['templates'] ) ? array_values( $o['templates'] ) : array();
+				// One extra empty row so a fresh site can create its first template.
+				$rows = $templates;
+				$rows[] = array(
+					'slug'              => '',
+					'name'              => '',
+					'start_time_of_day' => '',
+					'end_time_of_day'   => '',
+					'fields'            => array(),
+				);
+				foreach ( $rows as $i => $t ) :
+					$name_prefix = self::OPTION . '[templates][' . $i . ']';
+					$is_new      = '' === $t['name'];
+					?>
+					<details<?php echo $is_new ? ' open' : ''; ?> style="margin: 1em 0; padding: 0.5em 1em; border: 1px solid #ddd;">
+						<summary style="font-weight: 600; cursor: pointer;">
+							<?php echo $is_new
+								? esc_html__( 'New template', 'wp-dansal' )
+								: esc_html( $t['name'] ); ?>
+						</summary>
+						<table class="form-table" role="presentation">
+							<tr>
+								<th><label><?php esc_html_e( 'Name', 'wp-dansal' ); ?></label></th>
+								<td>
+									<input type="text" name="<?php echo esc_attr( $name_prefix . '[name]' ); ?>" value="<?php echo esc_attr( $t['name'] ); ?>" class="regular-text" placeholder="<?php esc_attr_e( 'Lernabend', 'wp-dansal' ); ?>" />
+									<input type="hidden" name="<?php echo esc_attr( $name_prefix . '[slug]' ); ?>" value="<?php echo esc_attr( $t['slug'] ); ?>" />
+									<?php if ( ! $is_new ) : ?>
+										<p class="description"><?php printf( esc_html__( 'Slug: %s', 'wp-dansal' ), esc_html( $t['slug'] ) ); ?></p>
+									<?php endif; ?>
+								</td>
+							</tr>
+							<tr>
+								<th><label><?php esc_html_e( 'Start time of day', 'wp-dansal' ); ?></label></th>
+								<td><input type="time" name="<?php echo esc_attr( $name_prefix . '[start_time_of_day]' ); ?>" value="<?php echo esc_attr( $t['start_time_of_day'] ); ?>" /></td>
+							</tr>
+							<tr>
+								<th><label><?php esc_html_e( 'End time of day', 'wp-dansal' ); ?></label></th>
+								<td><input type="time" name="<?php echo esc_attr( $name_prefix . '[end_time_of_day]' ); ?>" value="<?php echo esc_attr( $t['end_time_of_day'] ); ?>" /></td>
+							</tr>
+							<?php wpd_plugin()->event_fields->render_field_group( $t['fields'], $name_prefix . '[fields]' ); ?>
+							<?php if ( ! $is_new ) : ?>
+								<tr>
+									<th><label><?php esc_html_e( 'Delete', 'wp-dansal' ); ?></label></th>
+									<td><label><input type="checkbox" name="<?php echo esc_attr( $name_prefix . '[delete]' ); ?>" value="1" /> <?php esc_html_e( 'Delete this template on save', 'wp-dansal' ); ?></label></td>
+								</tr>
+							<?php endif; ?>
+						</table>
+					</details>
+					<?php
+				endforeach;
+				?>
 
 				<?php submit_button(); ?>
 			</form>

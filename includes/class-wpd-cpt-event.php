@@ -41,6 +41,33 @@ class WPD_CPT_Event {
 		add_filter( 'post_row_actions', array( $this, 'row_actions' ), 10, 2 );
 		add_action( 'post_submitbox_misc_actions', array( $this, 'render_clone_button' ) );
 		WPD_Admin_Action::register( 'wpd_clone_event', 'edit_posts', array( $this, 'handle_clone' ) );
+
+		WPD_Admin_Action::register( 'wpd_new_from_template', 'edit_posts', array( $this, 'handle_new_from_template' ) );
+		$template_presets = function () {
+			$out = array();
+			foreach ( $this->settings->get_templates() as $t ) {
+				$out[] = array(
+					'slug'  => $t['slug'],
+					'name'  => $t['name'],
+					/* translators: %s: template name (e.g. "Lernabend"). */
+					'label' => sprintf( __( 'Add %s', 'wp-dansal' ), $t['name'] ),
+				);
+			}
+			return $out;
+		};
+		WPD_Preset_Menu::register(
+			'edit.php?post_type=' . self::POST_TYPE,
+			$template_presets,
+			'wpd_new_from_template',
+			'template'
+		);
+		WPD_Preset_Buttons::register(
+			self::POST_TYPE,
+			$template_presets,
+			'wpd_new_from_template',
+			'template',
+			__( 'Add %s', 'wp-dansal' )
+		);
 	}
 
 	public function register_post_type() {
@@ -165,9 +192,66 @@ class WPD_CPT_Event {
 		exit;
 	}
 
+	/**
+	 * Creates a draft dansal_event pre-filled from a named template. The
+	 * template's field overrides layer on top of the org-wide event defaults
+	 * (WPD_Event_Prefill::resolve). Times of day are not written as fake
+	 * datetimes — instead we stash _wpd_template_source so the metabox
+	 * renders the hint + JS auto-fill when the user picks a date.
+	 */
+	public function handle_new_from_template() {
+		$slug     = isset( $_GET['template'] ) ? sanitize_key( wp_unslash( $_GET['template'] ) ) : '';
+		$template = $slug ? $this->settings->get_template( $slug ) : null;
+		if ( ! $template ) {
+			wp_die( esc_html__( 'Unknown template.', 'wp-dansal' ), '', array( 'response' => 404 ) );
+		}
+
+		$meta   = WPD_Event_Prefill::resolve(
+			$this->settings->get_event_defaults(),
+			$template['fields']
+		);
+		$new_id = WPD_Event_Draft::create( $meta );
+		if ( ! $new_id ) {
+			wp_die( esc_html__( 'Failed to create event from template.', 'wp-dansal' ), '', array( 'response' => 500 ) );
+		}
+
+		update_post_meta( $new_id, '_wpd_template_source', $template['slug'] );
+
+		wp_safe_redirect( get_edit_post_link( $new_id, '' ) );
+		exit;
+	}
+
 	private function field( $post_id, $key, $default_value = '' ) {
 		$v = get_post_meta( $post_id, $key, true );
 		return '' === $v ? $default_value : $v;
+	}
+
+	/**
+	 * @return array|null ['start_time' => 'HH:MM', 'end_time' => 'HH:MM', 'label' => '…']
+	 *                    when this event was created from a template and the hint
+	 *                    should still be shown; null otherwise.
+	 */
+	private function resolve_datetime_hint( $post_id ) {
+		$template_slug = get_post_meta( $post_id, '_wpd_template_source', true );
+		if ( ! $template_slug ) {
+			return null;
+		}
+		$template = $this->settings->get_template( $template_slug );
+		if ( ! $template ) {
+			return null;
+		}
+		$start = isset( $template['start_time_of_day'] ) ? $template['start_time_of_day'] : '';
+		$end   = isset( $template['end_time_of_day'] ) ? $template['end_time_of_day'] : '';
+		if ( ! $start && ! $end ) {
+			return null;
+		}
+		$range = $start && $end ? $start . '–' . $end : ( $start ? $start : $end );
+		return array(
+			'start_time' => $start,
+			'end_time'   => $end,
+			/* translators: 1: template name, 2: HH:MM–HH:MM. */
+			'label'      => sprintf( __( '%1$s template: %2$s', 'wp-dansal' ), $template['name'], $range ),
+		);
 	}
 
 	private function get_dances_vocabulary() {
@@ -200,15 +284,27 @@ class WPD_CPT_Event {
 		$overlay_values = 'auto-draft' === $post->post_status
 			? WPD_Event_Prefill::resolve( $this->settings->get_event_defaults(), $stored )
 			: $stored;
+
+		$hint = $this->resolve_datetime_hint( $post->ID );
 		?>
 		<table class="form-table">
 			<tr>
 				<th><label for="wpd_start_time"><?php esc_html_e( 'Start', 'wp-dansal' ); ?></label></th>
-				<td><input type="datetime-local" id="wpd_start_time" name="wpd_start_time" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_start_time' ) ); ?>" required /></td>
+				<td>
+					<input type="datetime-local" id="wpd_start_time" name="wpd_start_time" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_start_time' ) ); ?>" required />
+					<?php if ( $hint && $hint['start_time'] ) : ?>
+						<?php WPD_Datetime_Hint::render( 'wpd_start_time', $hint['start_time'], $hint['label'] ); ?>
+					<?php endif; ?>
+				</td>
 			</tr>
 			<tr>
 				<th><label for="wpd_end_time"><?php esc_html_e( 'End', 'wp-dansal' ); ?></label></th>
-				<td><input type="datetime-local" id="wpd_end_time" name="wpd_end_time" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_end_time' ) ); ?>" required /></td>
+				<td>
+					<input type="datetime-local" id="wpd_end_time" name="wpd_end_time" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_end_time' ) ); ?>" required />
+					<?php if ( $hint && $hint['end_time'] ) : ?>
+						<?php WPD_Datetime_Hint::render( 'wpd_end_time', $hint['end_time'], $hint['label'] ); ?>
+					<?php endif; ?>
+				</td>
 			</tr>
 			<?php $this->fields->render_field_group( $overlay_values, 'wpd_event' ); ?>
 			<tr>
@@ -268,6 +364,7 @@ class WPD_CPT_Event {
 		}
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), WPD_VERSION );
 		wp_enqueue_script( 'wpd-admin-event', WPD_PLUGIN_URL . 'assets/js/admin-event.js', array( 'jquery' ), WPD_VERSION, true );
+		WPD_Datetime_Hint::enqueue();
 		wp_localize_script(
             'wpd-admin-event',
             'wpdEvent',
@@ -341,6 +438,12 @@ class WPD_CPT_Event {
 		}
 
 		update_post_meta( $post_id, '_wpd_is_cancelled', ! empty( $_POST['wpd_is_cancelled'] ) ? '1' : '' );
+
+		// Once the user has filled in real dates, the template hint has done
+		// its job and should stop rendering on future edits.
+		if ( get_post_meta( $post_id, '_wpd_start_time', true ) && get_post_meta( $post_id, '_wpd_end_time', true ) ) {
+			delete_post_meta( $post_id, '_wpd_template_source' );
+		}
 
 		// AJAX-picker fields (musician / instructor) are system-managed and
 		// still submitted flat because they're not part of the shared group.
