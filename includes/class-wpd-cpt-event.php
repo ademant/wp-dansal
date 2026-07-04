@@ -13,6 +13,10 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class WPD_CPT_Event {
 
+	// dansal's internal event id. Admin-only — must not appear in any
+	// frontend template, data attribute, or public JSON payload, because
+	// exposing it lets an outsider correlate this WP site with any other
+	// site publishing to the same dansal instance.
 	const META_DANSAL_ID      = '_wpd_dansal_id';
 	const META_LAST_SYNCED_AT = '_wpd_last_synced_at';
 	const POST_TYPE           = 'dansal_event';
