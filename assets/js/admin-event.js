@@ -13,6 +13,9 @@
 		$picker.find( '.wpd-entity-names' ).val( names.join( '|' ) );
 	}
 
+	// Musician/instructor names are dansal-supplied strings; they must never
+	// hit .html() or innerHTML. jQuery's .text() (used below and in the
+	// results list) sets textContent, which is safe.
 	function addChip( $picker, id, name ) {
 		if ( $picker.find( '.wpd-chip[data-id="' + id + '"]' ).length ) {
 			return;

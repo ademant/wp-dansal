@@ -2,18 +2,6 @@
 ( function ( $ ) {
 	'use strict';
 
-	function el( tag, attrs, html ) {
-		var e = document.createElement( tag );
-		attrs = attrs || {};
-		Object.keys( attrs ).forEach( function ( k ) {
-			e.setAttribute( k, attrs[ k ] );
-		} );
-		if ( html !== undefined ) {
-			e.innerHTML = html;
-		}
-		return e;
-	}
-
 	function fillManualFields( place ) {
 		$( '#wpd_short_name' ).val( place.name || '' );
 		$( '#wpd_address' ).val( place.address || '' );
