@@ -618,6 +618,7 @@ class WPD_CPT_Location {
 	}
 
 	private function store_notice( $message, $type ) {
+		$message   = wp_kses( (string) $message, array() );
 		$notices   = get_transient( 'wpd_admin_notices_' . get_current_user_id() );
 		$notices   = is_array( $notices ) ? $notices : array();
 		$notices[] = array(

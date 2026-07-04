@@ -391,6 +391,7 @@ class WPD_CPT_Series {
 	}
 
 	private function store_notice( $message, $type ) {
+		$message   = wp_kses( (string) $message, array() );
 		$key       = 'wpd_admin_notices_' . get_current_user_id();
 		$notices   = get_transient( $key );
 		$notices   = is_array( $notices ) ? $notices : array();

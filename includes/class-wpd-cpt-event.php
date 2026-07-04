@@ -933,6 +933,11 @@ class WPD_CPT_Event {
 	}
 
 	private function store_notice( $message, $type ) {
+		// Strip all HTML defensively. The message can carry an error string
+		// echoed from the dansal server; today it only renders on wp-admin
+		// pages, but if a future code path ever surfaces it on the frontend,
+		// a remote-sourced HTML fragment still can't inject markup.
+		$message   = wp_kses( (string) $message, array() );
 		$key       = 'wpd_admin_notices_' . get_current_user_id();
 		$notices   = get_transient( $key );
 		$notices   = is_array( $notices ) ? $notices : array();
