@@ -99,7 +99,7 @@ class WPD_Settings {
 		$out['base_url']        = isset( $input['base_url'] ) ? esc_url_raw( untrailingslashit( trim( $input['base_url'] ) ) ) : $existing['base_url'];
 		$out['org_id']          = isset( $input['org_id'] ) ? absint( $input['org_id'] ) : $existing['org_id'];
 		$out['nominatim_email'] = isset( $input['nominatim_email'] ) ? sanitize_email( $input['nominatim_email'] ) : $existing['nominatim_email'];
-		$out['dedup_radius_km'] = isset( $input['dedup_radius_km'] ) ? (float) $input['dedup_radius_km'] : $existing['dedup_radius_km'];
+		$out['dedup_radius_km'] = isset( $input['dedup_radius_km'] ) ? (float) str_replace( ',', '.', (string) $input['dedup_radius_km'] ) : $existing['dedup_radius_km'];
 
 		// Only overwrite the API key if a new value was actually typed in;
 		// the settings form re-renders a masked placeholder, never the real key.
@@ -162,7 +162,7 @@ class WPD_Settings {
 					<tr>
 						<th scope="row"><label for="wpd_dedup_radius_km"><?php esc_html_e( 'Location Duplicate Radius (km)', 'wp-dansal' ); ?></label></th>
 						<td>
-							<input type="number" step="0.05" min="0.01" id="wpd_dedup_radius_km" name="<?php echo esc_attr( self::OPTION ); ?>[dedup_radius_km]" value="<?php echo esc_attr( $o['dedup_radius_km'] ); ?>" class="small-text" />
+							<input type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" id="wpd_dedup_radius_km" name="<?php echo esc_attr( self::OPTION ); ?>[dedup_radius_km]" value="<?php echo esc_attr( $o['dedup_radius_km'] ); ?>" class="small-text" />
 							<p class="description"><?php esc_html_e( 'When creating a location, dansal locations within this radius are offered as possible duplicates before a new one is created.', 'wp-dansal' ); ?></p>
 						</td>
 					</tr>
