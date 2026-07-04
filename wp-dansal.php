@@ -23,6 +23,7 @@ define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-settings.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-api-client.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-nominatim.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-admin-menu.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-location.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-event-fields.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-event-prefill.php';
@@ -47,6 +48,7 @@ final class WPD_Plugin {
 	public $settings;
 	public $api;
 	public $nominatim;
+	public $admin_menu;
 	public $cpt_location;
 	public $event_fields;
 	public $cpt_event;
@@ -64,6 +66,7 @@ final class WPD_Plugin {
 		$this->settings     = new WPD_Settings();
 		$this->api          = new WPD_Api_Client( $this->settings );
 		$this->nominatim    = new WPD_Nominatim();
+		$this->admin_menu   = new WPD_Admin_Menu();
 		$this->cpt_location = new WPD_CPT_Location( $this->api, $this->nominatim, $this->settings );
 		$this->event_fields = new WPD_Event_Fields( $this->api );
 		$this->cpt_event    = new WPD_CPT_Event( $this->api, $this->settings, $this->event_fields );

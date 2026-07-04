@@ -69,8 +69,7 @@ class WPD_CPT_Series {
 				),
 				'public'       => false,
 				'show_ui'      => true,
-				'show_in_menu' => true,
-				'menu_icon'    => 'dashicons-update',
+				'show_in_menu' => WPD_Admin_Menu::SLUG,
 				'supports'     => array( 'title', 'editor' ),
 				'show_in_rest' => false,
 			)
