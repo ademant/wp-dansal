@@ -42,31 +42,35 @@ class WPD_CPT_Event {
 		add_action( 'post_submitbox_misc_actions', array( $this, 'render_clone_button' ) );
 		WPD_Admin_Action::register( 'wpd_clone_event', 'edit_posts', array( $this, 'handle_clone' ) );
 
+		add_action( 'admin_menu', array( $this, 'add_assign_series_page' ) );
+		WPD_Admin_Action::register( 'wpd_assign_event_series', 'edit_posts', array( $this, 'handle_assign_series' ) );
+
 		WPD_Admin_Action::register( 'wpd_new_from_template', 'edit_posts', array( $this, 'handle_new_from_template' ) );
 		$template_presets = function () {
 			$out = array();
 			foreach ( $this->settings->get_templates() as $t ) {
 				$out[] = array(
-					'slug'  => $t['slug'],
-					'name'  => $t['name'],
-					/* translators: %s: template name (e.g. "Lernabend"). */
-					'label' => sprintf( __( 'Add %s', 'wp-dansal' ), $t['name'] ),
+					'slug' => $t['slug'],
+					'name' => $t['name'],
 				);
 			}
 			return $out;
 		};
+		/* translators: %s: template name (e.g. "Lernabend"). */
+		$label_template = __( 'Add %s', 'wp-dansal' );
 		WPD_Preset_Menu::register(
 			'edit.php?post_type=' . self::POST_TYPE,
 			$template_presets,
 			'wpd_new_from_template',
-			'template'
+			'template',
+			$label_template
 		);
 		WPD_Preset_Buttons::register(
 			self::POST_TYPE,
 			$template_presets,
 			'wpd_new_from_template',
 			'template',
-			__( 'Add %s', 'wp-dansal' )
+			$label_template
 		);
 	}
 
@@ -128,13 +132,123 @@ class WPD_CPT_Event {
 		if ( self::POST_TYPE !== $post->post_type || ! current_user_can( 'edit_post', $post->ID ) ) {
 			return $actions;
 		}
-		$url                 = WPD_Admin_Action::url( 'wpd_clone_event', array( 'post' => $post->ID ) );
+		$clone_url            = WPD_Admin_Action::url( 'wpd_clone_event', array( 'post' => $post->ID ) );
 		$actions['wpd_clone'] = sprintf(
 			'<a href="%s">%s</a>',
-			esc_url( $url ),
+			esc_url( $clone_url ),
 			esc_html__( 'Clone', 'wp-dansal' )
 		);
+		$assign_url            = add_query_arg(
+			array(
+				'page' => 'wpd-assign-event-series',
+				'post' => $post->ID,
+			),
+			admin_url( 'admin.php' )
+		);
+		$actions['wpd_assign_series'] = sprintf(
+			'<a href="%s">%s</a>',
+			esc_url( $assign_url ),
+			esc_html__( 'Assign to series…', 'wp-dansal' )
+		);
 		return $actions;
+	}
+
+	public function add_assign_series_page() {
+		add_submenu_page(
+			'',
+			__( 'Assign to series', 'wp-dansal' ),
+			__( 'Assign to series', 'wp-dansal' ),
+			'edit_posts',
+			'wpd-assign-event-series',
+			array( $this, 'render_assign_series_page' )
+		);
+	}
+
+	public function render_assign_series_page() {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), '', array( 'response' => 403 ) );
+		}
+		$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
+		$post    = $post_id ? get_post( $post_id ) : null;
+		if ( ! $post || self::POST_TYPE !== $post->post_type ) {
+			wp_die( esc_html__( 'Not a dansal event.', 'wp-dansal' ), '', array( 'response' => 400 ) );
+		}
+		$current    = (int) get_post_meta( $post_id, '_wpd_series_post_id', true );
+		$all_series = get_posts(
+			array(
+				'post_type'      => WPD_CPT_Series::POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+			)
+		);
+		$action_url = WPD_Admin_Action::url( 'wpd_assign_event_series', array( 'post' => $post_id ) );
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Assign to series', 'wp-dansal' ); ?></h1>
+			<p><?php printf( esc_html__( 'Event: %s', 'wp-dansal' ), '<strong>' . esc_html( $post->post_title ) . '</strong>' ); ?></p>
+			<form method="post" action="<?php echo esc_url( $action_url ); ?>">
+				<table class="form-table" role="presentation">
+					<tr>
+						<th><label for="wpd_series_select"><?php esc_html_e( 'Series', 'wp-dansal' ); ?></label></th>
+						<td>
+							<select id="wpd_series_select" name="series_post_id">
+								<option value="0"><?php esc_html_e( '— detach from series —', 'wp-dansal' ); ?></option>
+								<?php foreach ( $all_series as $s ) : ?>
+									<option value="<?php echo esc_attr( $s->ID ); ?>" <?php selected( $current, $s->ID ); ?>><?php echo esc_html( $s->post_title ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+				</table>
+				<?php submit_button( __( 'Save', 'wp-dansal' ) ); ?>
+			</form>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Handles the assign-to-series form submission (or a metabox-driven
+	 * change). Writes _wpd_series_post_id, and — if this was a
+	 * detach-with-existing-dansal-linkage — calls dansal's
+	 * remove-from-series endpoint before the next PUT so the two sides
+	 * don't drift.
+	 */
+	public function handle_assign_series() {
+		$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), '', array( 'response' => 403 ) );
+		}
+		$new_series_post_id = isset( $_POST['series_post_id'] ) ? absint( $_POST['series_post_id'] ) : 0;
+		$this->set_event_series( $post_id, $new_series_post_id );
+
+		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE ) );
+		exit;
+	}
+
+	/**
+	 * Sets (or clears) _wpd_series_post_id, and if this event is already
+	 * synced to dansal and we just detached it from a series, tell dansal
+	 * so the server-side linkage matches. The next event save then PUTs
+	 * without series_id.
+	 */
+	private function set_event_series( $post_id, $new_series_post_id ) {
+		$old_series_post_id = (int) get_post_meta( $post_id, '_wpd_series_post_id', true );
+		if ( $new_series_post_id ) {
+			update_post_meta( $post_id, '_wpd_series_post_id', $new_series_post_id );
+		} else {
+			delete_post_meta( $post_id, '_wpd_series_post_id' );
+		}
+
+		if ( ! $old_series_post_id || $new_series_post_id ) {
+			return;
+		}
+		$dansal_event_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
+		if ( ! $dansal_event_id || ! $this->settings->is_configured() ) {
+			return;
+		}
+		$this->api->post( "/api/v1/events/{$dansal_event_id}/remove-from-series", array() );
 	}
 
 	public function render_clone_button( $post ) {
@@ -233,15 +347,35 @@ class WPD_CPT_Event {
 	 */
 	private function resolve_datetime_hint( $post_id ) {
 		$template_slug = get_post_meta( $post_id, '_wpd_template_source', true );
-		if ( ! $template_slug ) {
-			return null;
+		if ( $template_slug ) {
+			$template = $this->settings->get_template( $template_slug );
+			if ( $template ) {
+				return $this->build_hint(
+					$template['name'],
+					__( '%1$s template: %2$s', 'wp-dansal' ),
+					isset( $template['start_time_of_day'] ) ? $template['start_time_of_day'] : '',
+					isset( $template['end_time_of_day'] ) ? $template['end_time_of_day'] : ''
+				);
+			}
 		}
-		$template = $this->settings->get_template( $template_slug );
-		if ( ! $template ) {
-			return null;
+
+		$series_post_id = (int) get_post_meta( $post_id, '_wpd_series_post_id', true );
+		if ( $series_post_id ) {
+			$series = get_post( $series_post_id );
+			if ( $series ) {
+				return $this->build_hint(
+					$series->post_title,
+					__( 'Series %1$s: %2$s', 'wp-dansal' ),
+					(string) get_post_meta( $series_post_id, '_wpd_series_start_time_of_day', true ),
+					(string) get_post_meta( $series_post_id, '_wpd_series_end_time_of_day', true )
+				);
+			}
 		}
-		$start = isset( $template['start_time_of_day'] ) ? $template['start_time_of_day'] : '';
-		$end   = isset( $template['end_time_of_day'] ) ? $template['end_time_of_day'] : '';
+
+		return null;
+	}
+
+	private function build_hint( $name, $label_template, $start, $end ) {
 		if ( ! $start && ! $end ) {
 			return null;
 		}
@@ -249,8 +383,7 @@ class WPD_CPT_Event {
 		return array(
 			'start_time' => $start,
 			'end_time'   => $end,
-			/* translators: 1: template name, 2: HH:MM–HH:MM. */
-			'label'      => sprintf( __( '%1$s template: %2$s', 'wp-dansal' ), $template['name'], $range ),
+			'label'      => sprintf( $label_template, $name, $range ),
 		);
 	}
 
@@ -291,8 +424,9 @@ class WPD_CPT_Event {
 			<tr>
 				<th><label for="wpd_start_time"><?php esc_html_e( 'Start', 'wp-dansal' ); ?></label></th>
 				<td>
-					<input type="datetime-local" id="wpd_start_time" name="wpd_start_time" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_start_time' ) ); ?>" required />
-					<?php if ( $hint && $hint['start_time'] ) : ?>
+					<?php $start_val = $this->field( $post->ID, '_wpd_start_time' ); ?>
+					<input type="datetime-local" id="wpd_start_time" name="wpd_start_time" value="<?php echo esc_attr( $start_val ); ?>" required />
+					<?php if ( $hint && $hint['start_time'] && '' === $start_val ) : ?>
 						<?php WPD_Datetime_Hint::render( 'wpd_start_time', $hint['start_time'], $hint['label'] ); ?>
 					<?php endif; ?>
 				</td>
@@ -300,13 +434,37 @@ class WPD_CPT_Event {
 			<tr>
 				<th><label for="wpd_end_time"><?php esc_html_e( 'End', 'wp-dansal' ); ?></label></th>
 				<td>
-					<input type="datetime-local" id="wpd_end_time" name="wpd_end_time" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_end_time' ) ); ?>" required />
-					<?php if ( $hint && $hint['end_time'] ) : ?>
+					<?php $end_val = $this->field( $post->ID, '_wpd_end_time' ); ?>
+					<input type="datetime-local" id="wpd_end_time" name="wpd_end_time" value="<?php echo esc_attr( $end_val ); ?>" required />
+					<?php if ( $hint && $hint['end_time'] && '' === $end_val ) : ?>
 						<?php WPD_Datetime_Hint::render( 'wpd_end_time', $hint['end_time'], $hint['label'] ); ?>
 					<?php endif; ?>
 				</td>
 			</tr>
 			<?php $this->fields->render_field_group( $overlay_values, 'wpd_event' ); ?>
+			<tr>
+				<th><label for="wpd_series_post_id"><?php esc_html_e( 'Series', 'wp-dansal' ); ?></label></th>
+				<td>
+					<?php
+					$current_series = (int) get_post_meta( $post->ID, '_wpd_series_post_id', true );
+					$all_series     = get_posts(
+						array(
+							'post_type'      => WPD_CPT_Series::POST_TYPE,
+							'post_status'    => 'publish',
+							'posts_per_page' => -1,
+							'orderby'        => 'title',
+							'order'          => 'ASC',
+						)
+					);
+					?>
+					<select id="wpd_series_post_id" name="wpd_series_post_id">
+						<option value="0"><?php esc_html_e( '— not part of a series —', 'wp-dansal' ); ?></option>
+						<?php foreach ( $all_series as $s ) : ?>
+							<option value="<?php echo esc_attr( $s->ID ); ?>" <?php selected( $current_series, $s->ID ); ?>><?php echo esc_html( $s->post_title ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</td>
+			</tr>
 			<tr>
 				<th><?php esc_html_e( 'Musicians', 'wp-dansal' ); ?></th>
 				<td><?php $this->render_entity_picker( $post->ID, 'musician', __( 'Search musicians…', 'wp-dansal' ) ); ?></td>
@@ -439,11 +597,17 @@ class WPD_CPT_Event {
 
 		update_post_meta( $post_id, '_wpd_is_cancelled', ! empty( $_POST['wpd_is_cancelled'] ) ? '1' : '' );
 
-		// Once the user has filled in real dates, the template hint has done
-		// its job and should stop rendering on future edits.
+		// Once the user has filled in real dates, the template/series hint
+		// has done its job and should stop rendering on future edits.
 		if ( get_post_meta( $post_id, '_wpd_start_time', true ) && get_post_meta( $post_id, '_wpd_end_time', true ) ) {
 			delete_post_meta( $post_id, '_wpd_template_source' );
 		}
+
+		// Series linkage sits outside the shared overlay group. Route
+		// through set_event_series so a detach also calls dansal's
+		// remove-from-series endpoint before the PUT below.
+		$new_series_post_id = isset( $_POST['wpd_series_post_id'] ) ? absint( $_POST['wpd_series_post_id'] ) : 0;
+		$this->set_event_series( $post_id, $new_series_post_id );
 
 		// AJAX-picker fields (musician / instructor) are system-managed and
 		// still submitted flat because they're not part of the shared group.
@@ -495,7 +659,13 @@ class WPD_CPT_Event {
 
 		$post = get_post( $post_id );
 
+		// If the event is linked to a series that has a dansal id, carry
+		// the linkage through in the payload so dansal keeps them attached.
+		$series_post_id   = (int) get_post_meta( $post_id, '_wpd_series_post_id', true );
+		$series_dansal_id = $series_post_id ? (int) get_post_meta( $series_post_id, WPD_CPT_Series::META_DANSAL_ID, true ) : 0;
+
 		return array(
+			'series_id'          => $series_dansal_id ? $series_dansal_id : null,
 			'title'              => get_the_title( $post_id ),
 			'description'        => $post ? $post->post_content : '',
 			'start_time'         => $this->to_rfc3339( $get( '_wpd_start_time' ) ),
