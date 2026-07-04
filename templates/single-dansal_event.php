@@ -128,7 +128,8 @@ while ( have_posts() ) :
 
 			<?php if ( $booking_url ) : ?>
 				<div class="wp-block-button wpd-booking-cta">
-					<a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( $booking_url ); ?>" rel="nofollow"><?php esc_html_e( 'Book / Tickets', 'wp-dansal' ); ?></a>
+					<?php // esc_url — not esc_attr — is required here: it strips javascript:/data: schemes that could otherwise reach a click. ?>
+					<a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( $booking_url ); ?>" rel="nofollow noopener"><?php esc_html_e( 'Book / Tickets', 'wp-dansal' ); ?></a>
 				</div>
 			<?php endif; ?>
 		</article>

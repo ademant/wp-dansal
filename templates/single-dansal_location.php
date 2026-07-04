@@ -51,7 +51,8 @@ while ( have_posts() ) :
 			<div class="wpd-meta-row"><?php echo esc_html( trim( "$address, $zipcode $town, $country", ' ,' ) ); ?></div>
 
 			<?php if ( $website ) : ?>
-				<div class="wpd-meta-row"><a href="<?php echo esc_url( $website ); ?>" rel="nofollow"><?php echo esc_html( $website ); ?></a></div>
+				<?php // esc_url — not esc_attr — is required here: it strips javascript:/data: schemes that could otherwise reach a click. ?>
+				<div class="wpd-meta-row"><a href="<?php echo esc_url( $website ); ?>" rel="nofollow noopener"><?php echo esc_html( $website ); ?></a></div>
 			<?php endif; ?>
 
 			<?php if ( '' !== $lat && '' !== $lng ) : ?>
