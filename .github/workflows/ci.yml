@@ -52,6 +52,56 @@ jobs:
       - name: Run PHPCS
         run: vendor/bin/phpcs
 
+  phpunit:
+    name: PHPUnit
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: wordpress_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-phpunit-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Configure wp-tests-config
+        env:
+          WP_TESTS_DIR: ${{ github.workspace }}/vendor/wp-phpunit/wp-phpunit
+        run: |
+          cp "$WP_TESTS_DIR/wp-tests-config-sample.php" "$WP_TESTS_DIR/wp-tests-config.php"
+          sed -i "s|youremptytestdbnamehere|wordpress_test|" "$WP_TESTS_DIR/wp-tests-config.php"
+          sed -i "s|yourusernamehere|root|" "$WP_TESTS_DIR/wp-tests-config.php"
+          sed -i "s|yourpasswordhere|root|" "$WP_TESTS_DIR/wp-tests-config.php"
+          sed -i "s|localhost|127.0.0.1|" "$WP_TESTS_DIR/wp-tests-config.php"
+
+      - name: Run PHPUnit
+        env:
+          WP_TESTS_DIR: ${{ github.workspace }}/vendor/wp-phpunit/wp-phpunit
+        run: vendor/bin/phpunit
+
   plugin-check:
     name: WordPress plugin-check
     runs-on: ubuntu-latest

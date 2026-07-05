@@ -11,7 +11,10 @@
 		"wp-coding-standards/wpcs": "^3.1",
 		"phpcsstandards/phpcsutils": "^1.0",
 		"phpcsstandards/phpcsextra": "^1.2",
-		"dealerdirect/phpcodesniffer-composer-installer": "^1.0"
+		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+		"phpunit/phpunit": "^9.6",
+		"yoast/phpunit-polyfills": "^2.0",
+		"wp-phpunit/wp-phpunit": "^6.4"
 	},
 	"config": {
 		"allow-plugins": {
@@ -21,6 +24,7 @@
 	"scripts": {
 		"lint": "find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l",
 		"cs": "phpcs",
-		"cs-fix": "phpcbf"
+		"cs-fix": "phpcbf",
+		"test": "phpunit"
 	}
 }
