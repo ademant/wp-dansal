@@ -487,14 +487,27 @@ class WPD_CPT_Location {
 		if ( ! $this->settings->is_configured() ) {
 			return;
 		}
+		// Only refresh public posts; drafts/trash/private have no public page
+		// to keep fresh and should never trigger backend calls from visitors.
+		if ( 'publish' !== get_post_status( $post_id ) ) {
+			return;
+		}
 		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
 		if ( ! $dansal_id ) {
+			return;
+		}
+		// Global short lock caps fan-out across all posts under traffic bursts
+		// (bots crawling many distinct URLs at once); per-post lock throttles
+		// repeated hits on the same URL.
+		$global_lock_key = 'wpd_location_refresh_global';
+		if ( get_transient( $global_lock_key ) ) {
 			return;
 		}
 		$lock_key = 'wpd_location_refresh_' . $post_id;
 		if ( get_transient( $lock_key ) ) {
 			return;
 		}
+		set_transient( $global_lock_key, 1, 5 );
 		set_transient( $lock_key, 1, 5 * MINUTE_IN_SECONDS );
 
 		$loc = $this->api->get( "/api/v1/locations/{$dansal_id}" );
