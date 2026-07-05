@@ -33,35 +33,38 @@ class WPD_Frontend {
 		global $post;
 		if ( $post && WPD_CPT_Event::POST_TYPE === $post->post_type ) {
 			wpd_plugin()->cpt_event->maybe_refresh_single( $post->ID );
-			$custom = WPD_PLUGIN_DIR . 'templates/single-dansal_event.php';
-			if ( file_exists( $custom ) ) {
-				return $custom;
-			}
+			return $this->locate_plugin_template( 'single-dansal_event.php', $template );
 		}
 		if ( $post && WPD_CPT_Location::POST_TYPE === $post->post_type ) {
 			wpd_plugin()->cpt_location->maybe_refresh_single( $post->ID );
-			$custom = WPD_PLUGIN_DIR . 'templates/single-dansal_location.php';
-			if ( file_exists( $custom ) ) {
-				return $custom;
-			}
+			return $this->locate_plugin_template( 'single-dansal_location.php', $template );
 		}
 		return $template;
 	}
 
 	public function archive_template( $template ) {
 		if ( is_post_type_archive( WPD_CPT_Location::POST_TYPE ) ) {
-			$custom = WPD_PLUGIN_DIR . 'templates/archive-dansal_location.php';
-			if ( file_exists( $custom ) ) {
-				return $custom;
-			}
+			return $this->locate_plugin_template( 'archive-dansal_location.php', $template );
 		}
 		if ( is_post_type_archive( WPD_CPT_Event::POST_TYPE ) ) {
-			$custom = WPD_PLUGIN_DIR . 'templates/archive-dansal_event.php';
-			if ( file_exists( $custom ) ) {
-				return $custom;
-			}
+			return $this->locate_plugin_template( 'archive-dansal_event.php', $template );
 		}
 		return $template;
+	}
+
+	/**
+	 * WooCommerce-style template resolution: a theme (or child theme) can
+	 * override any plugin template by placing a file at
+	 * {theme}/dansal/{name} — locate_template() checks the child theme
+	 * first, then the parent, then falls back to the plugin's copy.
+	 */
+	private function locate_plugin_template( $name, $default_template ) {
+		$theme_override = locate_template( array( 'dansal/' . $name ) );
+		if ( $theme_override ) {
+			return $theme_override;
+		}
+		$plugin_copy = WPD_PLUGIN_DIR . 'templates/' . $name;
+		return file_exists( $plugin_copy ) ? $plugin_copy : $default_template;
 	}
 
 	private function enqueue_frontend_style() {

@@ -11,6 +11,18 @@ WordPress plugin for managing dance events and locations, backed by [dansal](htt
 - `[dansal_locations]` shortcode: a directory of locations with a self-hosted Leaflet map.
 - Single templates for individual events and locations.
 
+## Theme template overrides
+
+Any of the plugin's templates can be overridden by copying it into your
+(child) theme under a `dansal/` subdirectory. `locate_template()` picks
+the child theme's copy first, then the parent theme's, then falls back
+to the plugin's default:
+
+- `dansal/single-dansal_event.php`
+- `dansal/single-dansal_location.php`
+- `dansal/archive-dansal_event.php`
+- `dansal/archive-dansal_location.php`
+
 ## Setup
 
 1. In dansal, open `/admin/users`, click **Connect link** next to your organization's publisher row (or create one).
