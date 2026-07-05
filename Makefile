@@ -10,17 +10,23 @@ ZIP_FILE  := $(DIST_DIR)/$(SLUG)-$(VERSION).zip
 # (rather than excluding dev cruft) so nothing new — composer.json, phpcs
 # config, CI workflows, .git — leaks into a release by accident just because
 # it was added to the repo root later.
-DIST_FILES := wp-dansal.php uninstall.php includes templates assets LICENSE README.md
+DIST_FILES := wp-dansal.php uninstall.php includes templates assets languages LICENSE README.md
 
-.PHONY: all zip build clean version help
+.PHONY: all zip build clean version help pot
 
 all: zip
 
 help:
 	@echo "make zip      build $(DIST_DIR)/$(SLUG)-<version>.zip (default)"
 	@echo "make build    assemble the plugin into $(STAGE)/ without zipping"
+	@echo "make pot      regenerate languages/$(SLUG).pot via wp-cli"
 	@echo "make version  print the detected plugin version ($(VERSION))"
 	@echo "make clean    remove $(BUILD_DIR)/ and $(DIST_DIR)/"
+
+pot:
+	@command -v wp >/dev/null || { echo "wp-cli not installed (see https://wp-cli.org/)" >&2; exit 1; }
+	@wp i18n make-pot . languages/$(SLUG).pot --slug=$(SLUG) --domain=$(SLUG)
+	@echo "Regenerated languages/$(SLUG).pot"
 
 version:
 	@echo "$(VERSION)"

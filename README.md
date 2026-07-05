@@ -23,6 +23,10 @@ to the plugin's default:
 - `dansal/archive-dansal_event.php`
 - `dansal/archive-dansal_location.php`
 
+## Translations
+
+Translatable strings live under the `wp-dansal` text domain. Translators can start from `languages/wp-dansal.pot` and drop `.po`/`.mo` files next to it (`languages/wp-dansal-{locale}.po`), or place them under `wp-content/languages/plugins/`. Regenerate the POT with `make pot` (requires [wp-cli](https://wp-cli.org/)).
+
 ## Setup
 
 1. In dansal, open `/admin/users`, click **Connect link** next to your organization's publisher row (or create one).
