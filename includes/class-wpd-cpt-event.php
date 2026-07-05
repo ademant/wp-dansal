@@ -65,6 +65,13 @@ class WPD_CPT_Event {
 				'show_in_menu' => WPD_Admin_Menu::SLUG,
 				'supports'     => array( 'title', 'editor' ),
 				'rewrite'      => array( 'slug' => 'dance-events' ),
+				// Deliberately classic-editor-only. The event edit screen is
+				// meta-box-heavy (dansal fields, series prefill, template
+				// prefill, admin-action toolbar), and those UIs don't survive
+				// Gutenberg's __back_compat_meta_box path cleanly. Revisit if
+				// we ever move the field group to block-editor-native
+				// controls; until then leave show_in_rest=false so users get
+				// the classic editor consistently, not a half-broken block UI.
 				'show_in_rest' => false,
             )
         );

@@ -71,6 +71,8 @@ class WPD_CPT_Series {
 				'show_ui'      => true,
 				'show_in_menu' => WPD_Admin_Menu::SLUG,
 				'supports'     => array( 'title', 'editor' ),
+				// Classic editor by design — see the matching comment on
+				// WPD_CPT_Event::register_post_type().
 				'show_in_rest' => false,
 			)
 		);
