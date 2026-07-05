@@ -92,6 +92,19 @@ class WPD_Frontend {
             'dansal_events'
         );
 
+		// Bound every attribute before it reaches WP_Query. Author input from
+		// shortcodes can come from lower-trust roles or copy-pasted snippets,
+		// so we cap limits, whitelist enums, and coerce IDs/dates.
+		$atts['location']  = absint( $atts['location'] );
+		$atts['tag']       = sanitize_key( $atts['tag'] );
+		$atts['limit']     = max( 1, min( 100, absint( $atts['limit'] ) ) );
+		$atts['view']      = in_array( $atts['view'], array( 'list', 'calendar', 'mini' ), true ) ? $atts['view'] : 'list';
+		$atts['show_past'] = ! empty( $atts['show_past'] ) && '0' !== (string) $atts['show_past'] ? 1 : 0;
+		$month             = absint( $atts['month'] );
+		$atts['month']     = ( $month >= 1 && $month <= 12 ) ? $month : '';
+		$year              = absint( $atts['year'] );
+		$atts['year']      = ( $year >= 1970 && $year <= 2100 ) ? $year : '';
+
 		$this->enqueue_frontend_style();
 
 		if ( 'calendar' === $atts['view'] ) {
@@ -416,7 +429,12 @@ class WPD_Frontend {
 	/**
 	 * [dansal_locations]
 	 */
-	public function shortcode_locations() {
+	public function shortcode_locations( $atts = array() ) {
+		// [dansal_locations] has no attributes today, but call shortcode_atts
+		// with an empty schema so unknown attrs are dropped rather than
+		// silently passed on to future callers.
+		shortcode_atts( array(), (array) $atts, 'dansal_locations' );
+
 		$this->enqueue_frontend_style();
 		$this->enqueue_leaflet();
 
