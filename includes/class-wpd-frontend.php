@@ -27,6 +27,33 @@ class WPD_Frontend {
 		add_shortcode( 'dansal_locations', array( $this, 'shortcode_locations' ) );
 		add_filter( 'single_template', array( $this, 'single_template' ) );
 		add_filter( 'archive_template', array( $this, 'archive_template' ) );
+		add_filter( 'theme_page_templates', array( $this, 'register_page_templates' ) );
+		add_filter( 'page_template', array( $this, 'page_template' ) );
+	}
+
+	/**
+	 * Register selectable page templates in Page Attributes → Template.
+	 * Keys are template slugs (matched against get_page_template_slug in
+	 * page_template() below); values are the human labels shown in the
+	 * dropdown. Site owners can then place the locations map or events
+	 * calendar at any URL/menu position by choosing the template on a
+	 * normal Page.
+	 */
+	public function register_page_templates( $templates ) {
+		$templates['wpd-locations.php'] = __( 'Dansal: Locations Map', 'wp-dansal' );
+		$templates['wpd-calendar.php']  = __( 'Dansal: Events Calendar', 'wp-dansal' );
+		return $templates;
+	}
+
+	public function page_template( $template ) {
+		$slug = get_page_template_slug( get_queried_object_id() );
+		if ( 'wpd-locations.php' === $slug ) {
+			return $this->locate_plugin_template( 'page-dansal-locations.php', $template );
+		}
+		if ( 'wpd-calendar.php' === $slug ) {
+			return $this->locate_plugin_template( 'page-dansal-calendar.php', $template );
+		}
+		return $template;
 	}
 
 	public function single_template( $template ) {

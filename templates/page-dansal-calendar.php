@@ -1,0 +1,121 @@
+<?php
+/**
+ * Page template: "Dansal: Events Calendar".
+ *
+ * Selectable from Page Attributes → Template. Shows the same
+ * calendar/list toggle + month navigation as the events archive
+ * (archive-dansal_event.php), but placed inside a normal Page so the
+ * site owner controls the URL, menu placement, and page title/lead.
+ *
+ * View/month/year navigation is intentionally GET-only (same
+ * invariant as the events archive template — do not switch to POST
+ * or add write side effects here).
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+wp_enqueue_style( 'wpd-frontend', WPD_PLUGIN_URL . 'assets/css/frontend.css', array(), wpd_asset_ver( 'assets/css/frontend.css' ) );
+
+$wpd_view  = isset( $_GET['wpd_view'] ) && 'list' === $_GET['wpd_view'] ? 'list' : 'calendar'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+$wpd_month = isset( $_GET['wpd_month'] ) ? absint( $_GET['wpd_month'] ) : (int) current_time( 'n' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+$wpd_year  = isset( $_GET['wpd_year'] ) ? absint( $_GET['wpd_year'] ) : (int) current_time( 'Y' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+if ( $wpd_month < 1 || $wpd_month > 12 ) {
+	$wpd_month = (int) current_time( 'n' );
+}
+
+$wpd_page_url = get_permalink();
+
+$wpd_prev_month = $wpd_month - 1;
+$wpd_prev_year  = $wpd_year;
+if ( $wpd_prev_month < 1 ) {
+	$wpd_prev_month = 12;
+	--$wpd_prev_year;
+}
+$wpd_next_month = $wpd_month + 1;
+$wpd_next_year  = $wpd_year;
+if ( $wpd_next_month > 12 ) {
+	$wpd_next_month = 1;
+	++$wpd_next_year;
+}
+
+get_header();
+?>
+<div id="primary" class="content-area">
+<main id="main" class="site-main wpd-events-page">
+	<?php
+	while ( have_posts() ) :
+		the_post();
+		?>
+		<article <?php post_class(); ?>>
+			<header class="entry-header">
+				<h1 class="entry-title"><?php the_title(); ?></h1>
+			</header>
+			<?php if ( get_the_content() ) : ?>
+				<div class="entry-content"><?php the_content(); ?></div>
+			<?php endif; ?>
+
+			<nav class="wpd-view-toggle">
+				<a href="
+				<?php
+				echo esc_url(
+					add_query_arg(
+						array(
+							'wpd_view' => 'calendar',
+							'wpd_month' => $wpd_month,
+							'wpd_year' => $wpd_year,
+						),
+						$wpd_page_url
+					)
+				);
+				?>
+				" class="<?php echo 'calendar' === $wpd_view ? 'wpd-active' : ''; ?>"><?php esc_html_e( 'Calendar', 'wp-dansal' ); ?></a>
+				&nbsp;|&nbsp;
+				<a href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'list' ), $wpd_page_url ) ); ?>" class="<?php echo 'list' === $wpd_view ? 'wpd-active' : ''; ?>"><?php esc_html_e( 'List', 'wp-dansal' ); ?></a>
+			</nav>
+
+			<?php if ( 'calendar' === $wpd_view ) : ?>
+				<nav class="wpd-month-nav">
+					<a href="
+					<?php
+					echo esc_url(
+						add_query_arg(
+							array(
+								'wpd_view' => 'calendar',
+								'wpd_month' => $wpd_prev_month,
+								'wpd_year' => $wpd_prev_year,
+							),
+							$wpd_page_url
+						)
+					);
+					?>
+					">&laquo; <?php esc_html_e( 'Previous month', 'wp-dansal' ); ?></a>
+					&nbsp;|&nbsp;
+					<a href="
+					<?php
+					echo esc_url(
+						add_query_arg(
+							array(
+								'wpd_view' => 'calendar',
+								'wpd_month' => $wpd_next_month,
+								'wpd_year' => $wpd_next_year,
+							),
+							$wpd_page_url
+						)
+					);
+					?>
+					"><?php esc_html_e( 'Next month', 'wp-dansal' ); ?> &raquo;</a>
+				</nav>
+			<?php endif; ?>
+
+			<?php echo do_shortcode( '[dansal_events view="' . esc_attr( $wpd_view ) . '" month="' . absint( $wpd_month ) . '" year="' . absint( $wpd_year ) . '"]' ); ?>
+		</article>
+		<?php
+	endwhile;
+	?>
+</main>
+</div><!-- #primary -->
+<?php
+get_sidebar();
+get_footer();

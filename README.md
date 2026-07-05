@@ -22,6 +22,12 @@ to the plugin's default:
 - `dansal/single-dansal_location.php`
 - `dansal/archive-dansal_event.php`
 - `dansal/archive-dansal_location.php`
+- `dansal/page-dansal-locations.php`
+- `dansal/page-dansal-calendar.php`
+
+## Placing the map/calendar on a Page
+
+Instead of the automatic archive URLs, you can put the locations map or the events calendar on any Page: **Pages → Add New → Page Attributes → Template**, then pick **Dansal: Locations Map** or **Dansal: Events Calendar**. The Page's own title and content render normally; the map/calendar is appended below.
 
 ## Translations
 
