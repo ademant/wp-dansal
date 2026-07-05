@@ -1,14 +1,15 @@
 /* global L */
 document.addEventListener( 'DOMContentLoaded', function () {
 	var mapEl = document.getElementById( 'wpd-locations-map' );
-	var dataEl = document.getElementById( 'wpd-locations-data' );
-	if ( ! mapEl || ! dataEl || typeof L === 'undefined' ) {
+	if ( ! mapEl || typeof L === 'undefined' ) {
 		return;
 	}
 
+	// Points are shipped in a data- attribute (CSP-friendly — no inline
+	// <script> to allow) and JSON-parsed here.
 	var points = [];
 	try {
-		points = JSON.parse( dataEl.textContent );
+		points = JSON.parse( mapEl.getAttribute( 'data-wpd-points' ) || '[]' );
 	} catch ( e ) {
 		return;
 	}
@@ -32,7 +33,12 @@ document.addEventListener( 'DOMContentLoaded', function () {
 	var markers = [];
 	points.forEach( function ( point ) {
 		var marker = L.marker( [ point.lat, point.lng ] ).addTo( map );
-		marker.bindPopup( '<a href="' + point.url + '">' + point.title + '</a>' );
+		// Build the popup via DOM (textContent + href) so a stored title or
+		// URL containing HTML/JS cannot inject into the map popup.
+		var link = document.createElement( 'a' );
+		link.href = point.url;
+		link.textContent = point.title;
+		marker.bindPopup( link );
 		markers.push( marker );
 	} );
 

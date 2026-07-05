@@ -455,34 +455,38 @@ class WPD_Frontend {
 		ob_start();
 		?>
 		<div class="wpd-locations">
-			<div id="wpd-locations-map" class="wpd-locations-map"></div>
-			<ul class="wpd-locations-list">
-				<?php
-				while ( $query->have_posts() ) :
-					$query->the_post();
-					$id  = get_the_ID();
-					$lat = get_post_meta( $id, '_wpd_latitude', true );
-					$lng = get_post_meta( $id, '_wpd_longitude', true );
-					if ( '' !== $lat && '' !== $lng ) {
-						$points[] = array(
-							'lat'   => (float) $lat,
-							'lng'   => (float) $lng,
-							'title' => get_the_title( $id ),
-							'url'   => get_permalink( $id ),
-						);
-					}
-					?>
-					<li class="wpd-location-item">
-						<a href="<?php echo esc_url( get_permalink( $id ) ); ?>"><?php the_title(); ?></a>
-						<div class="wpd-location-meta"><?php echo esc_html( get_post_meta( $id, '_wpd_town', true ) ); ?></div>
-					</li>
-					<?php
-				endwhile;
-				wp_reset_postdata();
+			<?php
+			// Points are collected first so the map container can carry the
+			// JSON payload in a data- attribute — no inline <script> means no
+			// script-src/unsafe-inline dependency in the host site's CSP.
+			$points_html = '';
+			ob_start();
+			while ( $query->have_posts() ) :
+				$query->the_post();
+				$id  = get_the_ID();
+				$lat = get_post_meta( $id, '_wpd_latitude', true );
+				$lng = get_post_meta( $id, '_wpd_longitude', true );
+				if ( '' !== $lat && '' !== $lng ) {
+					$points[] = array(
+						'lat'   => (float) $lat,
+						'lng'   => (float) $lng,
+						'title' => get_the_title( $id ),
+						'url'   => get_permalink( $id ),
+					);
+				}
 				?>
-			</ul>
+				<li class="wpd-location-item">
+					<a href="<?php echo esc_url( get_permalink( $id ) ); ?>"><?php the_title(); ?></a>
+					<div class="wpd-location-meta"><?php echo esc_html( get_post_meta( $id, '_wpd_town', true ) ); ?></div>
+				</li>
+				<?php
+			endwhile;
+			wp_reset_postdata();
+			$points_html = ob_get_clean();
+			?>
+			<div id="wpd-locations-map" class="wpd-locations-map" data-wpd-points="<?php echo esc_attr( wp_json_encode( $points ) ); ?>"></div>
+			<ul class="wpd-locations-list"><?php echo $points_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — pre-escaped list items ?></ul>
 		</div>
-		<script type="application/json" id="wpd-locations-data"><?php echo wp_json_encode( $points ); ?></script>
 		<?php
 		return ob_get_clean();
 	}

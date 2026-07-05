@@ -56,21 +56,21 @@ while ( have_posts() ) :
 			<?php endif; ?>
 
 			<?php if ( '' !== $lat && '' !== $lng ) : ?>
-				<div id="wpd-locations-map" class="wpd-single-map"></div>
-				<script type="application/json" id="wpd-locations-data">
-                <?php
-                echo wp_json_encode(
-                    array(
+				<?php
+				// CSP-friendly: point data rides on a data- attribute instead
+				// of an inline <script>, so no script-src exception is needed.
+				$wpd_points_json = wp_json_encode(
+					array(
 						array(
 							'lat' => (float) $lat,
 							'lng' => (float) $lng,
 							'title' => get_the_title(),
 							'url' => get_permalink(),
 						),
-                    )
-                );
+					)
+				);
 				?>
-                                                                        </script>
+				<div id="wpd-locations-map" class="wpd-single-map" data-wpd-points="<?php echo esc_attr( $wpd_points_json ); ?>"></div>
 			<?php endif; ?>
 
 			<?php if ( $parking ) : ?>
