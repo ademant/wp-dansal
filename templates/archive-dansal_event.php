@@ -2,6 +2,12 @@
 /**
  * Archive template for dansal_event: calendar (default) or list view,
  * with a view toggle and, in calendar view, month navigation.
+ *
+ * View/month/year navigation is intentionally GET-only (idempotent, safely
+ * cacheable, no side effects) and uses add_query_arg + absint on the
+ * inputs — no nonce required and no state-changing action. Keep it that
+ * way: do not switch these links to POST or add write side effects to the
+ * archive request path.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
