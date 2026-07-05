@@ -830,7 +830,12 @@ class WPD_CPT_Event {
 				'post_type'    => self::POST_TYPE,
 				'post_status'  => ! empty( $event['is_published'] ) ? 'publish' : 'draft',
 				'post_title'   => isset( $event['title'] ) ? $event['title'] : '',
-				'post_content' => isset( $event['description'] ) ? $event['description'] : '',
+				// Filtered through wp_kses_post here too, matching
+				// write_event_post() below, so the initial insert doesn't
+				// briefly persist unfiltered dansal HTML.
+				'post_content' => apply_filters( 'wpd_event_description_kses', true, $event )
+					? wp_kses_post( isset( $event['description'] ) ? (string) $event['description'] : '' )
+					: ( isset( $event['description'] ) ? (string) $event['description'] : '' ),
 			),
 			true
 		);
@@ -889,7 +894,17 @@ class WPD_CPT_Event {
 	 */
 	private function write_event_post( $post_id, array $event ) {
 		$title       = isset( $event['title'] ) ? $event['title'] : '';
-		$description = isset( $event['description'] ) ? $event['description'] : '';
+		// dansal writers cross a trust boundary WordPress doesn't know
+		// about — they're not authenticated WP users, so we can't grant
+		// them WP-Author-level HTML privileges. wp_kses_post is what WP
+		// applies to Contributor input, and matches the safe intersection
+		// of tags site owners already expect in post_content. Filterable
+		// via wpd_event_description_kses for anyone who has verified their
+		// dansal writers are trusted at Author level.
+		$description = isset( $event['description'] ) ? (string) $event['description'] : '';
+		if ( apply_filters( 'wpd_event_description_kses', true, $event ) ) {
+			$description = wp_kses_post( $description );
+		}
 		$status      = ! empty( $event['is_published'] ) ? 'publish' : 'draft';
 
 		$post = get_post( $post_id );
