@@ -20,6 +20,23 @@ define( 'WPD_PLUGIN_FILE', __FILE__ );
 define( 'WPD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
+/**
+ * Cache-buster for enqueued assets. In WP_DEBUG we return the file mtime
+ * so edits to CSS/JS show up without bumping WPD_VERSION; in production
+ * we return WPD_VERSION so one release = one cache generation.
+ *
+ * @param string $rel Path relative to the plugin directory, e.g. 'assets/js/foo.js'.
+ */
+function wpd_asset_ver( $rel ) {
+	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		$abs = WPD_PLUGIN_DIR . ltrim( $rel, '/' );
+		if ( file_exists( $abs ) ) {
+			return (string) filemtime( $abs );
+		}
+	}
+	return WPD_VERSION;
+}
+
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-settings.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-api-client.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-nominatim.php';

@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-wp_enqueue_style( 'wpd-frontend', WPD_PLUGIN_URL . 'assets/css/frontend.css', array(), WPD_VERSION );
+wp_enqueue_style( 'wpd-frontend', WPD_PLUGIN_URL . 'assets/css/frontend.css', array(), wpd_asset_ver( 'assets/css/frontend.css' ) );
 
 $wpd_view  = isset( $_GET['wpd_view'] ) && 'list' === $_GET['wpd_view'] ? 'list' : 'calendar'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 $wpd_month = isset( $_GET['wpd_month'] ) ? absint( $_GET['wpd_month'] ) : (int) current_time( 'n' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended

@@ -206,8 +206,8 @@ class WPD_CPT_Location {
 		if ( ! $screen || self::POST_TYPE !== $screen->post_type || ! in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
 			return;
 		}
-		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), WPD_VERSION );
-		wp_enqueue_script( 'wpd-admin-location', WPD_PLUGIN_URL . 'assets/js/admin-location.js', array( 'jquery' ), WPD_VERSION, true );
+		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
+		wp_enqueue_script( 'wpd-admin-location', WPD_PLUGIN_URL . 'assets/js/admin-location.js', array( 'jquery' ), wpd_asset_ver( 'assets/js/admin-location.js' ), true );
 		wp_localize_script(
             'wpd-admin-location',
             'wpdLocation',

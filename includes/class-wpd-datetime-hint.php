@@ -33,7 +33,7 @@ class WPD_Datetime_Hint {
 			'wpd-datetime-hint',
 			WPD_PLUGIN_URL . 'assets/js/admin-datetime-hint.js',
 			array(),
-			WPD_VERSION,
+			wpd_asset_ver( 'assets/js/admin-datetime-hint.js' ),
 			true
 		);
 	}
