@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.1.1
+Stable tag: 0.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,6 +51,18 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.1.2 =
+* Public-side robustness: frontend refresh only runs on published posts and is capped by a 5-second global fan-out lock; shortcode attributes bounded before hitting WP_Query.
+* Themes can override plugin templates via `{theme}/dansal/…` (WooCommerce-style `locate_template` resolution).
+* Selectable page templates "Dansal: Locations Map" and "Dansal: Events Calendar" for placing the map/calendar on any Page.
+* CSP-friendly frontend: no inline `<script>` blocks; map data on `data-` attributes; Leaflet popups built via DOM (`textContent`).
+* OSM tile privacy: `Referrer-Policy: no-referrer` default and `wpd_tile_url_template` filter for self-hosted tile proxies.
+* `uninstall.php` cleans up plugin options and transients; opt-in content wipe via `wpd_uninstall_delete_content`.
+* `filemtime()` cache-busting on plugin assets under `WP_DEBUG`.
+* `readme.txt` in wordpress.org header format; `languages/wp-dansal.pot` header + `make pot` target.
+* CI: `wp plugin-check` job and PHPUnit + wp-phpunit test suite.
+* Dansal descriptions filtered through `wp_kses_post` on pull-sync; classic-editor design choice documented on all three CPT registrations.
 
 = 0.1.1 =
 * Hardening and cleanup pass across settings, admin notices, HTTP timeouts, transient keys, and shortcode attribute validation.
