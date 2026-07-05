@@ -52,6 +52,22 @@ jobs:
       - name: Run PHPCS
         run: vendor/bin/phpcs
 
+  plugin-check:
+    name: WordPress plugin-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The wordpress/plugin-check-action bootstraps a WP install, drops
+      # the plugin into wp-content/plugins/, activates plugin-check, and
+      # runs `wp plugin-check` against it. Errors fail the job; warnings
+      # (categories: general, security, plugin_repo) are surfaced but do
+      # not fail CI until the codebase is warning-clean.
+      - name: Run plugin-check
+        uses: wordpress/plugin-check-action@v1
+        with:
+          build-dir: './'
+
   secrets:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
