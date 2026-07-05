@@ -19,15 +19,29 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		return;
 	}
 
-	// Map tiles necessarily load from OSM's tile server at view time (unlike
-	// the Leaflet library itself, which this plugin self-hosts) — there's no
-	// practical way to self-host the whole planet's raster tiles. Swap this
-	// URL for a self-hosted/paid tile provider if that third-party request
-	// to a visitor's browser is a concern.
+	// Tile provider config comes from data-wpd-tiles (see the
+	// wpd_tile_url_template PHP filter) so site owners can point at a
+	// self-hosted or paid tile proxy without touching this file. Default
+	// referrer policy is "no-referrer" so the page URL doesn't leak to
+	// the tile host on every tile request.
+	var tiles = { urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxZoom: 19, attribution: '', referrerPolicy: 'no-referrer' };
+	try {
+		var tileAttr = mapEl.getAttribute( 'data-wpd-tiles' );
+		if ( tileAttr ) {
+			var parsed = JSON.parse( tileAttr );
+			for ( var k in parsed ) {
+				if ( Object.prototype.hasOwnProperty.call( parsed, k ) ) {
+					tiles[ k ] = parsed[ k ];
+				}
+			}
+		}
+	} catch ( e ) {}
+
 	var map = L.map( mapEl );
-	L.tileLayer( 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-		maxZoom: 19,
-		attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+	L.tileLayer( tiles.urlTemplate, {
+		maxZoom: tiles.maxZoom,
+		attribution: tiles.attribution,
+		referrerPolicy: tiles.referrerPolicy,
 	} ).addTo( map );
 
 	var markers = [];

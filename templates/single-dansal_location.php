@@ -69,8 +69,9 @@ while ( have_posts() ) :
 						),
 					)
 				);
+				$wpd_tiles_json  = wp_json_encode( wpd_plugin()->frontend->tile_config() );
 				?>
-				<div id="wpd-locations-map" class="wpd-single-map" data-wpd-points="<?php echo esc_attr( $wpd_points_json ); ?>"></div>
+				<div id="wpd-locations-map" class="wpd-single-map" data-wpd-points="<?php echo esc_attr( $wpd_points_json ); ?>" data-wpd-tiles="<?php echo esc_attr( $wpd_tiles_json ); ?>"></div>
 			<?php endif; ?>
 
 			<?php if ( $parking ) : ?>

@@ -78,6 +78,24 @@ class WPD_Frontend {
 	}
 
 	/**
+	 * Tile provider config for the frontend map, filterable so site owners
+	 * can point at a self-hosted or paid tile proxy instead of OSM's
+	 * public tile server (which sees every visitor's IP + Referer). The
+	 * default keeps OSM but sets a strict referrer policy so the page URL
+	 * doesn't leak with each tile request. Emitted as a data- attribute
+	 * on the map container (see enqueue_leaflet callers) — no inline
+	 * <script>, so a strict site CSP still works.
+	 */
+	public function tile_config() {
+		return array(
+			'urlTemplate'    => (string) apply_filters( 'wpd_tile_url_template', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' ),
+			'attribution'    => (string) apply_filters( 'wpd_tile_attribution', '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' ),
+			'maxZoom'        => (int) apply_filters( 'wpd_tile_max_zoom', 19 ),
+			'referrerPolicy' => (string) apply_filters( 'wpd_tile_referrer_policy', 'no-referrer' ),
+		);
+	}
+
+	/**
 	 * [dansal_events location="123" tag="bal-folk" limit="20" view="list|calendar" show_past="0"]
 	 */
 	public function shortcode_events( $atts ) {
@@ -484,7 +502,7 @@ class WPD_Frontend {
 			wp_reset_postdata();
 			$points_html = ob_get_clean();
 			?>
-			<div id="wpd-locations-map" class="wpd-locations-map" data-wpd-points="<?php echo esc_attr( wp_json_encode( $points ) ); ?>"></div>
+			<div id="wpd-locations-map" class="wpd-locations-map" data-wpd-points="<?php echo esc_attr( wp_json_encode( $points ) ); ?>" data-wpd-tiles="<?php echo esc_attr( wp_json_encode( $this->tile_config() ) ); ?>"></div>
 			<ul class="wpd-locations-list"><?php echo $points_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — pre-escaped list items ?></ul>
 		</div>
 		<?php

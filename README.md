@@ -32,5 +32,11 @@ to the plugin's default:
 
 ## Notes
 
-- Map tiles are loaded live from OpenStreetMap's tile server (the Leaflet library itself is bundled, but tiles can't practically be self-hosted).
+- Map tiles are loaded live from OpenStreetMap's tile server (the Leaflet library itself is bundled, but tiles can't practically be self-hosted). Every tile request goes with `Referrer-Policy: no-referrer` so the page URL isn't shared with the tile host. To route tiles through a self-hosted or paid proxy instead, filter `wpd_tile_url_template` (and, if needed, `wpd_tile_attribution` / `wpd_tile_max_zoom` / `wpd_tile_referrer_policy`):
+
+  ```php
+  add_filter( 'wpd_tile_url_template', function () {
+      return 'https://tiles.example.com/{z}/{x}/{y}.png';
+  } );
+  ```
 - dansal's `API.md` documents `PATCH /api/v1/events/{id}` for updates, but the server currently only registers `PUT /api/v1/events/{id}` — this plugin calls `PUT`. Worth reconciling in dansal's docs/routes at some point.
