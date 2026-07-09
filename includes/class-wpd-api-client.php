@@ -135,7 +135,9 @@ class WPD_Api_Client {
 		);
 
 		if ( null !== $body ) {
-			$args['headers']['Content-Type'] = 'application/json';
+			// dansal requires RFC 7396 merge-patch content-type on PATCH; other
+			// methods get plain JSON.
+			$args['headers']['Content-Type'] = ( 'PATCH' === $method ) ? 'application/merge-patch+json' : 'application/json';
 			$args['body']                    = wp_json_encode( $body );
 		}
 
