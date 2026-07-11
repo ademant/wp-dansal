@@ -37,6 +37,7 @@ function wpd_asset_ver( $rel ) {
 	return WPD_VERSION;
 }
 
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-vocab.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-settings.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-api-client.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-nominatim.php';

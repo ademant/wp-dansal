@@ -154,20 +154,26 @@ class WPD_CPT_Location {
 				</tr>
 				<tr>
 					<th><label for="wpd_parking"><?php esc_html_e( 'Parking', 'wp-dansal' ); ?></label></th>
-					<td><input type="text" id="wpd_parking" name="wpd_parking" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_parking' ) ); ?>" /></td>
+					<td>
+						<select id="wpd_parking" name="wpd_parking">
+							<option value=""><?php esc_html_e( '— not set —', 'wp-dansal' ); ?></option>
+							<?php $current_parking = $this->field( $post->ID, '_wpd_parking' ); ?>
+							<?php foreach ( WPD_Vocab::options( 'parking' ) as $slug => $label ) : ?>
+								<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current_parking, $slug ); ?>><?php echo esc_html( $label ); ?></option>
+							<?php endforeach; ?>
+						</select>
+					</td>
 				</tr>
 				<tr>
 					<th><label for="wpd_floor_condition"><?php esc_html_e( 'Floor condition', 'wp-dansal' ); ?></label></th>
 					<td>
-						<input type="text" id="wpd_floor_condition" name="wpd_floor_condition" list="wpd-floor-conditions" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_floor_condition' ) ); ?>" />
-						<datalist id="wpd-floor-conditions">
-							<option value="wooden parquet"></option>
-							<option value="stone floor"></option>
-							<option value="grass"></option>
-							<option value="tiles"></option>
-							<option value="sand / gravel"></option>
-							<option value="pavement"></option>
-						</datalist>
+						<select id="wpd_floor_condition" name="wpd_floor_condition">
+							<option value=""><?php esc_html_e( '— not set —', 'wp-dansal' ); ?></option>
+							<?php $current_floor = $this->field( $post->ID, '_wpd_floor_condition' ); ?>
+							<?php foreach ( WPD_Vocab::options( 'floor_condition' ) as $slug => $label ) : ?>
+								<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current_floor, $slug ); ?>><?php echo esc_html( $label ); ?></option>
+							<?php endforeach; ?>
+						</select>
 					</td>
 				</tr>
 				<tr>
@@ -315,8 +321,6 @@ class WPD_CPT_Location {
 			'_wpd_latitude'       => 'wpd_latitude',
 			'_wpd_longitude'      => 'wpd_longitude',
 			'_wpd_internetsite'   => 'wpd_internetsite',
-			'_wpd_parking'        => 'wpd_parking',
-			'_wpd_floor_condition'=> 'wpd_floor_condition',
 			'_wpd_notes_md'       => 'wpd_notes_md',
 			'_wpd_osm_id'         => 'wpd_osm_id',
 			'_wpd_osm_type'       => 'wpd_osm_type',
@@ -324,6 +328,14 @@ class WPD_CPT_Location {
 		foreach ( $fields as $meta_key => $post_key ) {
 			$value = isset( $_POST[ $post_key ] ) ? wp_unslash( $_POST[ $post_key ] ) : '';
 			update_post_meta( $post_id, $meta_key, sanitize_text_field( $value ) );
+		}
+
+		foreach ( array(
+			'_wpd_parking'         => 'parking',
+			'_wpd_floor_condition' => 'floor_condition',
+		) as $meta_key => $vocab_key ) {
+			$raw = isset( $_POST[ 'wpd_' . $vocab_key ] ) ? wp_unslash( $_POST[ 'wpd_' . $vocab_key ] ) : '';
+			update_post_meta( $post_id, $meta_key, WPD_Vocab::sanitize( $vocab_key, $raw ) );
 		}
 
 		foreach ( array( 'wheelchair', 'bar', 'kitchen' ) as $attr ) {

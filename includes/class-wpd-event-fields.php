@@ -200,23 +200,35 @@ class WPD_Event_Fields {
 		<tr>
 			<th><?php esc_html_e( 'Food & drink', 'wp-dansal' ); ?></th>
 			<td>
-				<input type="text" name="<?php echo esc_attr( $name( '_wpd_food' ) ); ?>" placeholder="<?php esc_attr_e( 'Food', 'wp-dansal' ); ?>" value="<?php echo esc_attr( $v( '_wpd_food' ) ); ?>" class="regular-text" />
-				<input type="text" name="<?php echo esc_attr( $name( '_wpd_drink' ) ); ?>" placeholder="<?php esc_attr_e( 'Drink', 'wp-dansal' ); ?>" value="<?php echo esc_attr( $v( '_wpd_drink' ) ); ?>" class="regular-text" />
+				<label style="margin-right:1em;">
+					<?php esc_html_e( 'Food', 'wp-dansal' ); ?>
+					<select name="<?php echo esc_attr( $name( '_wpd_food' ) ); ?>">
+						<option value=""><?php esc_html_e( '— not set —', 'wp-dansal' ); ?></option>
+						<?php foreach ( WPD_Vocab::options( 'food' ) as $slug => $label ) : ?>
+							<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $v( '_wpd_food' ), $slug ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<label>
+					<?php esc_html_e( 'Drink', 'wp-dansal' ); ?>
+					<select name="<?php echo esc_attr( $name( '_wpd_drink' ) ); ?>">
+						<option value=""><?php esc_html_e( '— not set —', 'wp-dansal' ); ?></option>
+						<?php foreach ( WPD_Vocab::options( 'drink' ) as $slug => $label ) : ?>
+							<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $v( '_wpd_drink' ), $slug ); ?>><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
 			</td>
 		</tr>
 		<tr>
 			<th><label><?php esc_html_e( 'Floor condition override', 'wp-dansal' ); ?></label></th>
 			<td>
-				<input type="text" name="<?php echo esc_attr( $name( '_wpd_floor_condition' ) ); ?>" list="wpd-floor-conditions" value="<?php echo esc_attr( $v( '_wpd_floor_condition' ) ); ?>" />
-				<datalist id="wpd-floor-conditions">
-					<option value="wooden parquet"></option>
-					<option value="stone floor"></option>
-					<option value="grass"></option>
-					<option value="tiles"></option>
-					<option value="sand / gravel"></option>
-					<option value="pavement"></option>
-				</datalist>
-				<p class="description"><?php esc_html_e( 'Leave blank to use the location\'s floor condition.', 'wp-dansal' ); ?></p>
+				<select name="<?php echo esc_attr( $name( '_wpd_floor_condition' ) ); ?>">
+					<option value=""><?php esc_html_e( '— inherit from venue —', 'wp-dansal' ); ?></option>
+					<?php foreach ( WPD_Vocab::options( 'floor_condition' ) as $slug => $label ) : ?>
+						<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $v( '_wpd_floor_condition' ), $slug ); ?>><?php echo esc_html( $label ); ?></option>
+					<?php endforeach; ?>
+				</select>
 			</td>
 		</tr>
 		<tr>
@@ -266,15 +278,22 @@ class WPD_Event_Fields {
 			'_wpd_pricing_type',
 			'_wpd_pricing_amount',
 			'_wpd_pricing_currency',
-			'_wpd_food',
-			'_wpd_drink',
-			'_wpd_floor_condition',
 			'_wpd_contact_name',
 			'_wpd_contact_email',
 		);
 		foreach ( $text_keys as $key ) {
 			$raw           = isset( $input[ $key ] ) ? wp_unslash( $input[ $key ] ) : '';
 			$out[ $key ]   = sanitize_text_field( is_array( $raw ) ? '' : $raw );
+		}
+
+		$vocab_map = array(
+			'_wpd_food'            => 'food',
+			'_wpd_drink'           => 'drink',
+			'_wpd_floor_condition' => 'floor_condition',
+		);
+		foreach ( $vocab_map as $meta_key => $vocab_key ) {
+			$raw            = isset( $input[ $meta_key ] ) ? wp_unslash( $input[ $meta_key ] ) : '';
+			$out[ $meta_key ] = WPD_Vocab::sanitize( $vocab_key, is_array( $raw ) ? '' : $raw );
 		}
 
 		$flag_keys = array(
