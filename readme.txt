@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.1.3
+Stable tag: 0.1.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,6 +51,11 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.1.4 =
+* Event food / drink / floor-condition and location parking / floor-condition are now `<select>` dropdowns matching dansal's closed vocabularies, sanitized against the vocab on save so an off-vocab value can no longer silently persist.
+* Vocabulary slugs are fetched from dansal's public `/api/v1/vocabulary` endpoint (cached for 1 hour) so a slug dansal adds later doesn't require a plugin release; the hardcoded fallback shipped with each version keeps the edit screen working when dansal is unreachable.
+* `wpd_{food,drink,floor_condition,parking}_options` filters let a site extend or reorder the option labels without editing the plugin.
 
 = 0.1.3 =
 * Events update via `PATCH` (RFC 7396 merge-patch) instead of `PUT`, so fields the plugin doesn't manage (timetable, images, pricing tiers added via the dansal admin) survive a WP save.
