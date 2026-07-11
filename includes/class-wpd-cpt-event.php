@@ -650,11 +650,18 @@ class WPD_CPT_Event {
 		}
 
 		if ( $dansal_id ) {
-			// dansal's event-update route is registered as PUT, not PATCH,
-			// despite API.md documenting PATCH (confirmed against
-			// cmd/dansal/main.go: `smux.Handle("PUT /api/v1/events/{id}", ...)`
-			// — there is no PATCH route for events on the server at all).
-			$result = $this->api->put( "/api/v1/events/{$dansal_id}", $payload );
+			// PATCH (RFC 7396 merge-patch) so fields the plugin doesn't manage
+			// (timetable, images, pricing tiers added via dansal admin) survive
+			// a WP-side save. Strip null values so an unset optional field
+			// leaves the dansal-side value untouched instead of clearing it;
+			// empty strings on text fields stay, they mean the user cleared it.
+			$patch = array_filter(
+				$payload,
+				static function ( $v ) {
+					return null !== $v;
+				}
+			);
+			$result = $this->api->patch( "/api/v1/events/{$dansal_id}", $patch );
 			if ( is_wp_error( $result ) ) {
 				/* translators: 1: dansal event ID, 2: underlying error message. */
 				$this->store_notice( sprintf( __( 'Failed to update dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $result->get_error_message() ), 'error' );
