@@ -43,6 +43,9 @@ class WPD_CPT_Event {
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
+		add_action( 'admin_notices', array( $this, 'render_pending_pull_notice' ) );
+		WPD_Admin_Action::register( 'wpd_event_pull_accept', 'edit_posts', array( $this, 'handle_pull_accept' ) );
+		WPD_Admin_Action::register( 'wpd_event_pull_ignore', 'edit_posts', array( $this, 'handle_pull_ignore' ) );
 
 		add_filter( 'post_row_actions', array( $this, 'row_actions' ), 10, 2 );
 		add_action( 'post_submitbox_misc_actions', array( $this, 'render_clone_button' ) );
@@ -879,7 +882,24 @@ class WPD_CPT_Event {
 			return; // Already current.
 		}
 
-		$this->write_event_post( $post_id, $event );
+		// Don't silently overwrite: stash for admin confirmation on the edit
+		// screen (issue #47). Events are the primary WP authoring surface;
+		// dansal-side edits must be explicitly accepted.
+		$this->stash_pending_pull( $post_id, $event, $changed_at );
+	}
+
+	/**
+	 * Store a dansal payload to be applied to $post_id only after the admin
+	 * accepts it. Skip if the same (or newer) version was already Ignored --
+	 * we don't want to re-prompt on the same dansal edit tick.
+	 */
+	private function stash_pending_pull( $post_id, array $event, $changed_at ) {
+		$ignored_at = (int) get_post_meta( $post_id, '_wpd_pull_ignored_at', true );
+		if ( $ignored_at && $changed_at && $changed_at <= $ignored_at ) {
+			return;
+		}
+		set_transient( 'wpd_event_pending_pull_' . $post_id, $event, DAY_IN_SECONDS );
+		update_post_meta( $post_id, '_wpd_pending_pull', $changed_at ? (int) $changed_at : time() );
 	}
 
 	/**
@@ -916,8 +936,10 @@ class WPD_CPT_Event {
 			if ( $changed_at && $changed_at <= $last_synced ) {
 				return null; // Local copy is already current.
 			}
-			$this->write_event_post( $post_id, $event );
-			return 'updated';
+			// Same rule as the single-item refresh: the admin must confirm
+			// a dansal-side change before it lands on the WP event (#47).
+			$this->stash_pending_pull( $post_id, $event, $changed_at );
+			return null;
 		}
 
 		remove_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
@@ -988,6 +1010,66 @@ class WPD_CPT_Event {
 	 * actually changed; save_post is unhooked around that call so the pull
 	 * can't re-trigger a push right back to dansal.
 	 */
+	public function render_pending_pull_notice() {
+		$screen = get_current_screen();
+		if ( ! $screen || 'post' !== $screen->base || self::POST_TYPE !== $screen->post_type ) {
+			return;
+		}
+		$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+		if ( ! get_post_meta( $post_id, '_wpd_pending_pull', true ) ) {
+			return;
+		}
+		if ( ! get_transient( 'wpd_event_pending_pull_' . $post_id ) ) {
+			// Marker was left behind but the transient expired -- clean up.
+			delete_post_meta( $post_id, '_wpd_pending_pull' );
+			return;
+		}
+		$accept = WPD_Admin_Action::url( 'wpd_event_pull_accept', array( 'post' => $post_id ) );
+		$ignore = WPD_Admin_Action::url( 'wpd_event_pull_ignore', array( 'post' => $post_id ) );
+		printf(
+			'<div class="notice notice-warning"><p>%s</p><p><a class="button button-primary" href="%s">%s</a> <a class="button" href="%s">%s</a></p></div>',
+			esc_html__( 'Dansal has newer changes for this event. Accepting will overwrite the WordPress fields with the dansal version.', 'wp-dansal' ),
+			esc_url( $accept ),
+			esc_html__( 'Accept dansal version', 'wp-dansal' ),
+			esc_url( $ignore ),
+			esc_html__( 'Ignore this update', 'wp-dansal' )
+		);
+	}
+
+	public function handle_pull_accept() {
+		$post_id = isset( $_REQUEST['post'] ) ? absint( $_REQUEST['post'] ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), 403 );
+		}
+		$event = get_transient( 'wpd_event_pending_pull_' . $post_id );
+		if ( is_array( $event ) ) {
+			$this->write_event_post( $post_id, $event );
+		}
+		delete_transient( 'wpd_event_pending_pull_' . $post_id );
+		delete_post_meta( $post_id, '_wpd_pending_pull' );
+		delete_post_meta( $post_id, '_wpd_pull_ignored_at' );
+		wp_safe_redirect( get_edit_post_link( $post_id, 'raw' ) );
+		exit;
+	}
+
+	public function handle_pull_ignore() {
+		$post_id = isset( $_REQUEST['post'] ) ? absint( $_REQUEST['post'] ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), 403 );
+		}
+		$ignored_at = (int) get_post_meta( $post_id, '_wpd_pending_pull', true );
+		delete_transient( 'wpd_event_pending_pull_' . $post_id );
+		delete_post_meta( $post_id, '_wpd_pending_pull' );
+		// Remember which dansal version we declined so a re-fetch of the
+		// same edit doesn't re-prompt; a genuinely newer edit still will.
+		update_post_meta( $post_id, '_wpd_pull_ignored_at', $ignored_at ? $ignored_at : time() );
+		wp_safe_redirect( get_edit_post_link( $post_id, 'raw' ) );
+		exit;
+	}
+
 	private function write_event_post( $post_id, array $event ) {
 		$title       = isset( $event['title'] ) ? $event['title'] : '';
 		// dansal writers cross a trust boundary WordPress doesn't know

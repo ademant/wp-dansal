@@ -36,6 +36,7 @@ foreach ( $wpd_named_transients as $wpd_t ) {
 global $wpdb;
 $wpd_prefixes = array(
 	'wpd_event_refresh_',
+	'wpd_event_pending_pull_',
 	'wpd_location_refresh_',
 	'wpd_admin_notices_',
 	'wpd_tags_vocab_',
