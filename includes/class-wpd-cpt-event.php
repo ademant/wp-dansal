@@ -39,6 +39,7 @@ class WPD_CPT_Event {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'wp_ajax_wpd_search_entity', array( $this, 'ajax_search_entity' ) );
 		add_action( 'wp_ajax_wpd_create_entity', array( $this, 'ajax_create_entity' ) );
+		add_action( 'wp_ajax_wpd_promote_entity', array( $this, 'ajax_promote_entity' ) );
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
@@ -445,7 +446,7 @@ class WPD_CPT_Event {
 		<div class="wpd-entity-picker" data-type="<?php echo esc_attr( $type ); ?>">
 			<div class="wpd-entity-chips">
 				<?php foreach ( $chips as $id => $name ) : ?>
-					<span class="wpd-chip" data-id="<?php echo esc_attr( $id ); ?>"><?php echo esc_html( $name ); ?> <a href="#" class="wpd-chip-remove">&times;</a></span>
+					<span class="wpd-chip" data-id="<?php echo esc_attr( $id ); ?>"><?php echo esc_html( $name ); ?> <a href="#" class="wpd-chip-promote" title="<?php esc_attr_e( 'Create / edit local copy', 'wp-dansal' ); ?>">&#9998;</a> <a href="#" class="wpd-chip-remove">&times;</a></span>
 				<?php endforeach; ?>
 			</div>
 			<input type="text" class="wpd-entity-search regular-text" placeholder="<?php echo esc_attr( $placeholder ); ?>" />
@@ -477,6 +478,9 @@ class WPD_CPT_Event {
 					'createInstructor' => __( 'Create "%s" as new instructor', 'wp-dansal' ),
 					'confirmCreate'    => __( 'Click again to confirm', 'wp-dansal' ),
 					'createFailed'     => __( 'Create failed — click to retry', 'wp-dansal' ),
+					'promoteTitle'     => __( 'Create / edit local copy', 'wp-dansal' ),
+					'editLocal'        => __( 'Open local copy', 'wp-dansal' ),
+					'promoteFailed'    => __( 'Could not create local copy.', 'wp-dansal' ),
 				),
             )
         );
@@ -549,6 +553,44 @@ class WPD_CPT_Event {
 			array(
 				'id'   => (int) $result['id'],
 				'name' => (string) $result[ $name_key ],
+			)
+		);
+	}
+
+	/**
+	 * Promote a dansal-side musician/instructor to a local WP post so an
+	 * admin can edit its fields. Fetches the current dansal record and hands
+	 * it to the matching CPT's upsert_from_dansal(). Returns the WP edit URL
+	 * so the JS can offer a "Edit locally" link.
+	 */
+	public function ajax_promote_entity() {
+		check_ajax_referer( 'wpd_search_entity' );
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
+		}
+
+		$type = isset( $_POST['type'] ) ? sanitize_key( wp_unslash( $_POST['type'] ) ) : '';
+		$id   = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+		if ( ! in_array( $type, array( 'musician', 'instructor' ), true ) || $id <= 0 ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid input.', 'wp-dansal' ) ) );
+		}
+
+		$path   = 'musician' === $type ? '/api/v1/musicians' : '/api/v1/instructors';
+		$entity = $this->api->get_public( $path . '/' . $id );
+		if ( is_wp_error( $entity ) || ! is_array( $entity ) || empty( $entity['id'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Could not fetch entity from dansal.', 'wp-dansal' ) ) );
+		}
+
+		$cpt     = 'musician' === $type ? wpd_plugin()->cpt_musician : wpd_plugin()->cpt_instructor;
+		$post_id = $cpt->upsert_from_dansal( $entity );
+		if ( ! $post_id ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to create local copy.', 'wp-dansal' ) ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'post_id'  => (int) $post_id,
+				'edit_url' => get_edit_post_link( $post_id, 'raw' ),
 			)
 		);
 	}

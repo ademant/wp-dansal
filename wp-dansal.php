@@ -52,6 +52,9 @@ require_once WPD_PLUGIN_DIR . 'includes/class-wpd-preset-buttons.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-datetime-hint.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-event.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-series.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-person.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-musician.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-instructor.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-frontend.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-widget-mini-calendar.php';
 
@@ -71,6 +74,8 @@ final class WPD_Plugin {
 	public $event_fields;
 	public $cpt_event;
 	public $cpt_series;
+	public $cpt_musician;
+	public $cpt_instructor;
 	public $frontend;
 
 	public static function instance() {
@@ -89,6 +94,8 @@ final class WPD_Plugin {
 		$this->event_fields = new WPD_Event_Fields( $this->api );
 		$this->cpt_event    = new WPD_CPT_Event( $this->api, $this->settings, $this->event_fields );
 		$this->cpt_series   = new WPD_CPT_Series( $this->api, $this->settings, $this->event_fields );
+		$this->cpt_musician   = new WPD_CPT_Musician( $this->api, $this->settings );
+		$this->cpt_instructor = new WPD_CPT_Instructor( $this->api, $this->settings );
 		$this->frontend     = new WPD_Frontend( $this->settings );
 
 		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );

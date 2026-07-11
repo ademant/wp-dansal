@@ -52,7 +52,7 @@ foreach ( $wpd_prefixes as $wpd_prefix ) {
 // their events/locations/series gone can add:
 //   add_filter( 'wpd_uninstall_delete_content', '__return_true' );
 if ( apply_filters( 'wpd_uninstall_delete_content', false ) ) {
-	foreach ( array( 'dansal_event', 'dansal_location', 'dansal_series' ) as $wpd_pt ) {
+	foreach ( array( 'dansal_event', 'dansal_location', 'dansal_series', 'dansal_musician', 'dansal_instructor' ) as $wpd_pt ) {
 		$wpd_ids = get_posts(
 			array(
 				'post_type'      => $wpd_pt,

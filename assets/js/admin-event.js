@@ -21,11 +21,40 @@
 			return;
 		}
 		var $chip = $( '<span class="wpd-chip" />' ).attr( 'data-id', id ).text( name + ' ' );
+		var $promote = $( '<a href="#" class="wpd-chip-promote" />' ).attr( 'title', wpdEvent.i18n.promoteTitle ).html( '&#9998;' );
 		var $remove = $( '<a href="#" class="wpd-chip-remove">&times;</a>' );
-		$chip.append( $remove );
+		$chip.append( $promote ).append( document.createTextNode( ' ' ) ).append( $remove );
 		$picker.find( '.wpd-entity-chips' ).append( $chip );
 		syncHidden( $picker );
 	}
+
+	$( document ).on( 'click', '.wpd-chip-promote', function ( e ) {
+		e.preventDefault();
+		var $link = $( this );
+		var $chip = $link.closest( '.wpd-chip' );
+		var $picker = $link.closest( '.wpd-entity-picker' );
+		$link.prop( 'aria-busy', true );
+		$.post( wpdEvent.ajaxUrl, {
+			action: 'wpd_promote_entity',
+			_wpnonce: wpdEvent.nonce,
+			type: $picker.data( 'type' ),
+			id: $chip.data( 'id' ),
+		} ).done( function ( resp ) {
+			if ( resp && resp.success && resp.data.edit_url ) {
+				var $edit = $( '<a class="wpd-chip-edit" target="_blank" rel="noopener" />' )
+					.attr( 'href', resp.data.edit_url )
+					.attr( 'title', wpdEvent.i18n.editLocal )
+					.html( '&#8599;' );
+				$link.replaceWith( $edit );
+			} else {
+				window.alert( ( resp && resp.data && resp.data.message ) || wpdEvent.i18n.promoteFailed );
+				$link.prop( 'aria-busy', false );
+			}
+		} ).fail( function () {
+			window.alert( wpdEvent.i18n.promoteFailed );
+			$link.prop( 'aria-busy', false );
+		} );
+	} );
 
 	$( document ).on( 'click', '.wpd-chip-remove', function ( e ) {
 		e.preventDefault();
