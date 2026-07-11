@@ -38,6 +38,7 @@ class WPD_CPT_Event {
 		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'wp_ajax_wpd_search_entity', array( $this, 'ajax_search_entity' ) );
+		add_action( 'wp_ajax_wpd_create_entity', array( $this, 'ajax_create_entity' ) );
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
@@ -469,6 +470,14 @@ class WPD_CPT_Event {
             array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonce'   => wp_create_nonce( 'wpd_search_entity' ),
+				'i18n'    => array(
+					/* translators: %s: name typed by the user. */
+					'createMusician'   => __( 'Create "%s" as new musician', 'wp-dansal' ),
+					/* translators: %s: name typed by the user. */
+					'createInstructor' => __( 'Create "%s" as new instructor', 'wp-dansal' ),
+					'confirmCreate'    => __( 'Click again to confirm', 'wp-dansal' ),
+					'createFailed'     => __( 'Create failed — click to retry', 'wp-dansal' ),
+				),
             )
         );
 	}
@@ -504,6 +513,44 @@ class WPD_CPT_Event {
 			}
 		}
 		wp_send_json_success( $out );
+	}
+
+	/**
+	 * Create a new musician/instructor in dansal from a user-typed name that
+	 * the search endpoint returned no match for. Same nonce + capability
+	 * gate as ajax_search_entity so the two share a trust boundary. Uses
+	 * the authenticated api client (POST requires publisher auth) rather
+	 * than get_public; returned id + name is echoed back so the JS can
+	 * add the chip without another round-trip.
+	 */
+	public function ajax_create_entity() {
+		check_ajax_referer( 'wpd_search_entity' );
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
+		}
+
+		$type = isset( $_POST['type'] ) ? sanitize_key( wp_unslash( $_POST['type'] ) ) : '';
+		$name = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+		if ( ! in_array( $type, array( 'musician', 'instructor' ), true ) || '' === trim( $name ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid input.', 'wp-dansal' ) ) );
+		}
+
+		$path     = 'musician' === $type ? '/api/v1/musicians' : '/api/v1/instructors';
+		$name_key = 'musician' === $type ? 'bandname' : 'name';
+		$result   = $this->api->post( $path, array( $name_key => trim( $name ) ) );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		if ( ! isset( $result['id'], $result[ $name_key ] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Unexpected response from dansal.', 'wp-dansal' ) ) );
+		}
+		wp_send_json_success(
+			array(
+				'id'   => (int) $result['id'],
+				'name' => (string) $result[ $name_key ],
+			)
+		);
 	}
 
 	public function save( $post_id ) {

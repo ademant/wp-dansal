@@ -34,6 +34,42 @@
 		syncHidden( $picker );
 	} );
 
+	function renderCreateRow( $picker, $input, $results, type, name ) {
+		// Two-step: first click asks for confirmation, second click POSTs.
+		// Prevents accidental creation from a typo the user might have
+		// missed. Label text is always dansal-supplied or user-typed, set
+		// via .text() so it can't inject markup.
+		var $li = $( '<li class="wpd-entity-create" />' );
+		var label = ( type === 'musician' ? wpdEvent.i18n.createMusician : wpdEvent.i18n.createInstructor ).replace( '%s', name );
+		var $btn = $( '<button type="button" class="button-link" />' ).text( label );
+		$btn.on( 'click', function () {
+			if ( ! $btn.hasClass( 'is-confirming' ) ) {
+				$btn.addClass( 'is-confirming' ).text( wpdEvent.i18n.confirmCreate );
+				return;
+			}
+			$btn.prop( 'disabled', true );
+			$.post( wpdEvent.ajaxUrl, {
+				action: 'wpd_create_entity',
+				_wpnonce: wpdEvent.nonce,
+				type: type,
+				name: name,
+			} ).done( function ( resp ) {
+				if ( ! resp || ! resp.success ) {
+					var msg = resp && resp.data && resp.data.message ? resp.data.message : wpdEvent.i18n.createFailed;
+					$btn.prop( 'disabled', false ).removeClass( 'is-confirming' ).text( msg );
+					return;
+				}
+				addChip( $picker, resp.data.id, resp.data.name );
+				$input.val( '' );
+				$results.empty();
+			} ).fail( function () {
+				$btn.prop( 'disabled', false ).removeClass( 'is-confirming' ).text( wpdEvent.i18n.createFailed );
+			} );
+		} );
+		$li.append( $btn );
+		return $li;
+	}
+
 	$( document ).on( 'input', '.wpd-entity-search', function () {
 		var $input = $( this );
 		var $picker = $input.closest( '.wpd-entity-picker' );
@@ -54,21 +90,21 @@
 				q: q,
 			} ).done( function ( resp ) {
 				$results.empty();
-				if ( ! resp.success || ! resp.data.length ) {
-					return;
-				}
 				var $list = $( '<ul class="wpd-nominatim-list" />' );
-				resp.data.forEach( function ( item ) {
-					var $li = $( '<li/>' );
-					var $btn = $( '<button type="button" class="button-link" />' ).text( item.name );
-					$btn.on( 'click', function () {
-						addChip( $picker, item.id, item.name );
-						$input.val( '' );
-						$results.empty();
+				if ( resp.success && resp.data.length ) {
+					resp.data.forEach( function ( item ) {
+						var $li = $( '<li/>' );
+						var $btn = $( '<button type="button" class="button-link" />' ).text( item.name );
+						$btn.on( 'click', function () {
+							addChip( $picker, item.id, item.name );
+							$input.val( '' );
+							$results.empty();
+						} );
+						$li.append( $btn );
+						$list.append( $li );
 					} );
-					$li.append( $btn );
-					$list.append( $li );
-				} );
+				}
+				$list.append( renderCreateRow( $picker, $input, $results, type, q ) );
 				$results.append( $list );
 			} );
 		}, 300 ) );

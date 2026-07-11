@@ -62,3 +62,13 @@
 .wpd-entity-results ul.wpd-nominatim-list {
 	max-width: 320px;
 }
+
+.wpd-entity-create button {
+	font-style: italic;
+}
+
+.wpd-entity-create button.is-confirming {
+	font-weight: 600;
+	font-style: normal;
+	color: #b32d2e;
+}
