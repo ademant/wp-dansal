@@ -382,11 +382,53 @@ class WPD_Settings {
 		}
 
 		$connect_url = isset( $_POST['connect_url'] ) ? esc_url_raw( wp_unslash( $_POST['connect_url'] ) ) : '';
-		if ( '' === $connect_url || ! preg_match( '#^https?://\S+/api/v1/invites/[^/\s]+/publisher/?$#', $connect_url ) ) {
-			wp_send_json_error( array( 'message' => __( 'That does not look like a dansal connect link (expected .../api/v1/invites/{token}/publisher).', 'wp-dansal' ) ) );
+		// #54: require HTTPS so the api_key exchange can't be sniffed on-wire.
+		// Escape hatch for local dev via `wpd_allow_insecure_connect_url` filter.
+		$allow_http = (bool) apply_filters( 'wpd_allow_insecure_connect_url', false );
+		$scheme_re  = $allow_http ? 'https?' : 'https';
+		if ( '' === $connect_url || ! preg_match( '#^' . $scheme_re . '://\S+/api/v1/invites/[^/\s]+/publisher/?$#', $connect_url ) ) {
+			wp_send_json_error( array( 'message' => __( 'Connect link must be HTTPS and look like .../api/v1/invites/{token}/publisher.', 'wp-dansal' ) ) );
 		}
 
 		$client_name = sprintf( 'wp-dansal @ %s', wp_parse_url( home_url(), PHP_URL_HOST ) );
+
+		// #55: single-use random challenge dansal must echo back verbatim.
+		// 32 hex chars fits dansal's 16..256 accepted length (see dansal #771).
+		$challenge = bin2hex( random_bytes( 16 ) );
+
+		// #56: ephemeral RSA-2048 keypair. dansal encrypts the api_key with
+		// the public key so it's never on the wire in plaintext, even if the
+		// TLS layer is compromised (dansal #770). Falls back gracefully to
+		// plaintext transport when openssl is unavailable at build time.
+		$private_key = null;
+		$public_pem  = '';
+		if ( function_exists( 'openssl_pkey_new' ) ) {
+			$pair = @openssl_pkey_new(
+				array(
+					'private_key_bits' => 2048,
+					'private_key_type' => OPENSSL_KEYTYPE_RSA,
+				)
+			);
+			if ( $pair ) {
+				$details = openssl_pkey_get_details( $pair );
+				if ( is_array( $details ) && ! empty( $details['key'] ) ) {
+					$public_pem  = $details['key'];
+					$private_key = $pair;
+				}
+			}
+		}
+
+		$payload = array(
+			'name'          => $client_name,
+			'user_metadata' => array(
+				'client_name' => $client_name,
+				'client_url'  => home_url(),
+				'challenge'   => $challenge,
+			),
+		);
+		if ( '' !== $public_pem ) {
+			$payload['client_pubkey'] = $public_pem;
+		}
 
 		$response = wp_remote_post(
 			$connect_url,
@@ -400,15 +442,7 @@ class WPD_Settings {
 					'Content-Type' => 'application/json',
 					'Accept'       => 'application/json',
 				),
-				'body'              => wp_json_encode(
-					array(
-						'name'          => $client_name,
-						'user_metadata' => array(
-							'client_name' => $client_name,
-							'client_url'  => home_url(),
-						),
-					)
-				),
+				'body'              => wp_json_encode( $payload ),
 			)
 		);
 
@@ -420,22 +454,54 @@ class WPD_Settings {
 		$code = wp_remote_retrieve_response_code( $response );
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-		if ( $code < 200 || $code >= 300 || empty( $body['api_key'] ) || empty( $body['org_id'] ) || empty( $body['base_url'] ) ) {
+		if ( $code < 200 || $code >= 300 || ! is_array( $body ) || empty( $body['org_id'] ) || empty( $body['base_url'] ) ) {
 			$message = is_array( $body ) && ! empty( $body['error'] ) ? $body['error'] : sprintf( 'HTTP %d', $code );
 			/* translators: %s: underlying error message from dansal. */
 			wp_send_json_error( array( 'message' => sprintf( __( 'Connect link redemption failed: %s', 'wp-dansal' ), $message ) ) );
 		}
 
-		$existing                       = $this->get_all();
+		// #55: verify challenge echo before touching credentials.
+		if ( empty( $body['challenge'] ) || ! hash_equals( $challenge, (string) $body['challenge'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Connect link challenge mismatch — refusing to store credentials.', 'wp-dansal' ) ) );
+		}
+
+		// #56: prefer encrypted api_key when we sent a pubkey. Plaintext
+		// api_key remains valid when we couldn't generate a keypair.
+		if ( ! empty( $body['api_key_encrypted'] ) && $private_key ) {
+			$cipher    = base64_decode( (string) $body['api_key_encrypted'], true );
+			$decrypted = '';
+			if ( false === $cipher || ! openssl_private_decrypt( $cipher, $decrypted, $private_key, OPENSSL_PKCS1_OAEP_PADDING ) || '' === $decrypted ) {
+				wp_send_json_error( array( 'message' => __( 'Could not decrypt the API key returned by dansal.', 'wp-dansal' ) ) );
+			}
+			$api_key = $decrypted;
+		} elseif ( ! empty( $body['api_key'] ) ) {
+			$api_key = (string) $body['api_key'];
+		} else {
+			wp_send_json_error( array( 'message' => __( 'dansal response did not include an API key.', 'wp-dansal' ) ) );
+		}
+
+		$previous                       = $this->get_all();
+		$existing                       = $previous;
 		$existing['base_url']           = esc_url_raw( untrailingslashit( trim( $body['base_url'] ) ) );
 		$existing['org_id']             = absint( $body['org_id'] );
-		$existing['api_key']            = sanitize_text_field( $body['api_key'] );
+		$existing['api_key']            = sanitize_text_field( $api_key );
 		$existing['api_key_expires_at'] = 0;
 		$existing['api_key_no_expiry']  = false;
 		$existing['api_key_dead']       = false;
 		update_option( self::OPTION, $existing );
 		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
 		WPD_Vocab::flush();
+
+		// #57: prove the credentials work before we commit to them. If the
+		// session-token exchange fails, roll back so a broken key doesn't
+		// silently poison every later request.
+		$token = wpd_plugin()->api->get_session_token( true );
+		if ( is_wp_error( $token ) ) {
+			update_option( self::OPTION, $previous );
+			delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
+			/* translators: %s: underlying error from dansal token exchange. */
+			wp_send_json_error( array( 'message' => sprintf( __( 'Connect link redeemed but the returned API key did not authenticate: %s', 'wp-dansal' ), $token->get_error_message() ) ) );
+		}
 
 		wp_send_json_success(
 			array(
