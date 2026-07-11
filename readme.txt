@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.1.2
+Stable tag: 0.1.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,6 +51,11 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.1.3 =
+* Events update via `PATCH` (RFC 7396 merge-patch) instead of `PUT`, so fields the plugin doesn't manage (timetable, images, pricing tiers added via the dansal admin) survive a WP save.
+* Retry once on `429 Too Many Requests` / `503 Service Unavailable`, honoring the `Retry-After` header (clamped to 30s); previously any non-2xx surfaced as an immediate failure.
+* Validation errors from dansal now show the field name in the admin notice (`food: invalid value` instead of just `invalid value`).
 
 = 0.1.2 =
 * Public-side robustness: frontend refresh only runs on published posts and is capped by a 5-second global fan-out lock; shortcode attributes bounded before hitting WP_Query.
