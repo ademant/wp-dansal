@@ -178,8 +178,25 @@ class WPD_Api_Client {
 		$body = json_decode( $raw, true );
 
 		if ( $code < 200 || $code >= 300 ) {
-			$message = is_array( $body ) && ! empty( $body['error'] ) ? $body['error'] : ( $raw ? $raw : sprintf( 'HTTP %d', $code ) );
-			return new WP_Error( 'wpd_http_' . $code, $message, array( 'status' => $code ) );
+			$field = is_array( $body ) && ! empty( $body['field'] ) ? (string) $body['field'] : '';
+			$error = is_array( $body ) && ! empty( $body['error'] ) ? (string) $body['error'] : '';
+			if ( '' !== $error && '' !== $field ) {
+				/* translators: 1: field name from dansal validation error, 2: error message. */
+				$message = sprintf( __( '%1$s: %2$s', 'wp-dansal' ), $field, $error );
+			} elseif ( '' !== $error ) {
+				$message = $error;
+			} else {
+				$message = $raw ? $raw : sprintf( 'HTTP %d', $code );
+			}
+			return new WP_Error(
+				'wpd_http_' . $code,
+				$message,
+				array(
+					'status' => $code,
+					'field'  => '' !== $field ? $field : null,
+					'body'   => is_array( $body ) ? $body : null,
+				)
+			);
 		}
 
 		return is_array( $body ) ? $body : array();
