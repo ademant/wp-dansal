@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.1.5
+Stable tag: 0.1.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,6 +51,9 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.1.6 =
+* Musician / instructor picker on the event edit screen can now create a new dansal entity inline when a typed name has no match; two-step click-to-confirm prevents accidental duplicates from typos.
 
 = 0.1.5 =
 * Publisher API keys with a bounded expiry now auto-renew via `POST /api/v1/apikeys/renew` on a daily WP-Cron tick when their stored expiry is within the lead-time window (default 7 days, filter `wpd_apikey_renew_leadtime`).
