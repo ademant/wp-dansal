@@ -903,6 +903,24 @@ class WPD_CPT_Event {
 	}
 
 	/**
+	 * Same as wp_kses_post but strips color-family CSS from inline styles.
+	 *
+	 * dansal's own editor renders on a dark theme, so descriptions can carry
+	 * things like <span style="color:#fff"> that show as white-on-white in
+	 * the WP editor's white background. Layout styles (margins, text-align,
+	 * etc.) still round-trip; only the color-family properties are dropped.
+	 */
+	private static function sanitize_dansal_description( $html ) {
+		$strip = static function ( $props ) {
+			return array_values( array_diff( $props, array( 'color', 'background', 'background-color' ) ) );
+		};
+		add_filter( 'safe_style_css', $strip );
+		$out = wp_kses_post( (string) $html );
+		remove_filter( 'safe_style_css', $strip );
+		return $out;
+	}
+
+	/**
 	 * @return int WordPress post ID linked to this dansal event, or 0.
 	 */
 	public static function find_post_id_by_dansal_id( $dansal_id ) {
@@ -952,7 +970,7 @@ class WPD_CPT_Event {
 				// write_event_post() below, so the initial insert doesn't
 				// briefly persist unfiltered dansal HTML.
 				'post_content' => apply_filters( 'wpd_event_description_kses', true, $event )
-					? wp_kses_post( isset( $event['description'] ) ? (string) $event['description'] : '' )
+					? self::sanitize_dansal_description( isset( $event['description'] ) ? (string) $event['description'] : '' )
 					: ( isset( $event['description'] ) ? (string) $event['description'] : '' ),
 			),
 			true
@@ -1081,7 +1099,7 @@ class WPD_CPT_Event {
 		// dansal writers are trusted at Author level.
 		$description = isset( $event['description'] ) ? (string) $event['description'] : '';
 		if ( apply_filters( 'wpd_event_description_kses', true, $event ) ) {
-			$description = wp_kses_post( $description );
+			$description = self::sanitize_dansal_description( $description );
 		}
 		$status      = ! empty( $event['is_published'] ) ? 'publish' : 'draft';
 

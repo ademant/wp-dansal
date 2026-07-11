@@ -55,6 +55,7 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 = 0.1.8 =
 * Connect-link redemption now requires HTTPS (filter `wpd_allow_insecure_connect_url` to opt out for local dev), sends a random challenge dansal must echo back (verified with `hash_equals`), and generates an ephemeral RSA-2048 keypair so dansal returns the API key encrypted rather than in plaintext.
 * After redemption the plugin immediately exchanges the returned key for a session token; if that fails the previous settings are restored so a broken key never silently poisons later requests.
+* Event description sync strips inline `color` / `background` / `background-color` styles from dansal HTML so descriptions written against dansal's dark theme stay readable in WordPress's white editor. Layout styles are preserved.
 
 = 0.1.7 =
 * New `dansal_musician` and `dansal_instructor` post types for editing musician / instructor details in WordPress; only entities the admin promotes get a local WP post, others stay dansal-only. On save, WP → dansal via `PATCH` merge-patch so fields the plugin doesn't surface (biography, wikidata_id, discogs_id, website, email, images) survive.
