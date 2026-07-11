@@ -52,16 +52,17 @@ class WPD_Api_Client {
 			return new WP_Error( 'wpd_no_api_key', __( 'No dansal API key configured.', 'wp-dansal' ) );
 		}
 
-		$response = wp_remote_post(
-			$this->settings->get_base_url() . '/api/v1/publishers/token',
-			array(
-				'timeout' => self::timeout( '/api/v1/publishers/token' ),
-				'headers' => array(
-					'Authorization' => 'Bearer ' . $api_key,
-					'Accept'        => 'application/json',
-				),
-			)
+		$token_url  = $this->settings->get_base_url() . '/api/v1/publishers/token';
+		$token_args = array(
+			'method'  => 'POST',
+			'timeout' => self::timeout( '/api/v1/publishers/token' ),
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $api_key,
+				'Accept'        => 'application/json',
+			),
 		);
+		$response   = wp_remote_request( $token_url, $token_args );
+		$response   = $this->maybe_retry_after( $response, $token_url, $token_args );
 
 		if ( is_wp_error( $response ) ) {
 			return $response;
@@ -142,7 +143,34 @@ class WPD_Api_Client {
 		}
 
 		$response = wp_remote_request( $url, $args );
+		$response = $this->maybe_retry_after( $response, $url, $args );
 		return $this->handle_response( $response );
+	}
+
+	/**
+	 * Bounded single retry on 429/503 honoring Retry-After. On any other
+	 * status (or a WP_Error transport failure), returns the response as-is
+	 * so handle_response() converts it normally.
+	 *
+	 * @param array|WP_Error $response
+	 * @return array|WP_Error
+	 */
+	private function maybe_retry_after( $response, $url, $args ) {
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		if ( 429 !== $code && 503 !== $code ) {
+			return $response;
+		}
+		$header = trim( (string) wp_remote_retrieve_header( $response, 'retry-after' ) );
+		if ( '' !== $header && ctype_digit( $header ) ) {
+			$delay = max( 1, min( 30, (int) $header ) );
+		} else {
+			$delay = 429 === $code ? 2 : 5;
+		}
+		sleep( $delay );
+		return wp_remote_request( $url, $args );
 	}
 
 	/**
@@ -157,13 +185,13 @@ class WPD_Api_Client {
 			$url = add_query_arg( array_map( 'rawurlencode', $query ), $url );
 		}
 
-		$response = wp_remote_get(
-            $url,
-            array(
-				'timeout' => self::timeout( $path ),
-				'headers' => array( 'Accept' => 'application/json' ),
-            )
-        );
+		$args     = array(
+			'method'  => 'GET',
+			'timeout' => self::timeout( $path ),
+			'headers' => array( 'Accept' => 'application/json' ),
+		);
+		$response = wp_remote_request( $url, $args );
+		$response = $this->maybe_retry_after( $response, $url, $args );
 
 		return $this->handle_response( $response );
 	}
