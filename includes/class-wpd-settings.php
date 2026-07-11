@@ -30,6 +30,16 @@ class WPD_Settings {
 			// opened for editing (auto-draft) and the corresponding meta is
 			// still empty. See WPD_Event_Fields for the field set.
 			'event_defaults'  => array(),
+			// API key lifecycle bookkeeping — set by WPD_Api_Client after
+			// a successful renew, cleared on reconnect.
+			// 0 = unknown / never checked. Positive Unix ts = known expiry.
+			'api_key_expires_at' => 0,
+			// True once dansal has told us the key has no expiry (renew → 400);
+			// stops us from calling renew every cron tick for a permanent key.
+			'api_key_no_expiry'  => false,
+			// True after renew returned 401 (key already expired). Persistent
+			// admin notice until the admin re-runs the connect-link flow.
+			'api_key_dead'       => false,
 		);
 	}
 
@@ -63,6 +73,48 @@ class WPD_Settings {
 
 	public function get_api_key() {
 		return (string) $this->get( 'api_key' );
+	}
+
+	public function get_api_key_expires_at() {
+		return (int) $this->get( 'api_key_expires_at' );
+	}
+
+	public function get_api_key_no_expiry() {
+		return (bool) $this->get( 'api_key_no_expiry' );
+	}
+
+	public function is_api_key_dead() {
+		return (bool) $this->get( 'api_key_dead' );
+	}
+
+	/**
+	 * Persist a fresh publisher API key + expiry after a successful
+	 * POST /api/v1/apikeys/renew. Clears the "dead" flag, invalidates
+	 * any cached session token so the next call picks up the new key.
+	 *
+	 * @param string   $key           New api_key returned by dansal.
+	 * @param int|null $expires_at    Unix ts, or null if dansal omitted it.
+	 */
+	public function record_apikey_renewed( $key, $expires_at ) {
+		$opts                       = $this->get_all();
+		$opts['api_key']            = sanitize_text_field( (string) $key );
+		$opts['api_key_expires_at'] = $expires_at ? (int) $expires_at : 0;
+		$opts['api_key_no_expiry']  = false;
+		$opts['api_key_dead']       = false;
+		update_option( self::OPTION, $opts );
+		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
+	}
+
+	public function mark_apikey_no_expiry() {
+		$opts                      = $this->get_all();
+		$opts['api_key_no_expiry'] = true;
+		update_option( self::OPTION, $opts );
+	}
+
+	public function mark_apikey_dead() {
+		$opts                 = $this->get_all();
+		$opts['api_key_dead'] = true;
+		update_option( self::OPTION, $opts );
 	}
 
 	public function get_nominatim_email() {
@@ -112,6 +164,18 @@ class WPD_Settings {
 		// Credentials or org changed: any cached publisher session token is invalid now.
 		if ( $out['api_key'] !== $existing['api_key'] || $out['base_url'] !== $existing['base_url'] ) {
 			delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
+		}
+
+		// A new API key resets everything the renew flow tracks; unrelated
+		// updates preserve it.
+		if ( $out['api_key'] !== $existing['api_key'] ) {
+			$out['api_key_expires_at'] = 0;
+			$out['api_key_no_expiry']  = false;
+			$out['api_key_dead']       = false;
+		} else {
+			$out['api_key_expires_at'] = (int) $existing['api_key_expires_at'];
+			$out['api_key_no_expiry']  = (bool) $existing['api_key_no_expiry'];
+			$out['api_key_dead']       = (bool) $existing['api_key_dead'];
 		}
 
 		// A different dansal server may ship different vocabularies.
@@ -362,10 +426,13 @@ class WPD_Settings {
 			wp_send_json_error( array( 'message' => sprintf( __( 'Connect link redemption failed: %s', 'wp-dansal' ), $message ) ) );
 		}
 
-		$existing             = $this->get_all();
-		$existing['base_url'] = esc_url_raw( untrailingslashit( trim( $body['base_url'] ) ) );
-		$existing['org_id']   = absint( $body['org_id'] );
-		$existing['api_key']  = sanitize_text_field( $body['api_key'] );
+		$existing                       = $this->get_all();
+		$existing['base_url']           = esc_url_raw( untrailingslashit( trim( $body['base_url'] ) ) );
+		$existing['org_id']             = absint( $body['org_id'] );
+		$existing['api_key']            = sanitize_text_field( $body['api_key'] );
+		$existing['api_key_expires_at'] = 0;
+		$existing['api_key_no_expiry']  = false;
+		$existing['api_key_dead']       = false;
 		update_option( self::OPTION, $existing );
 		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
 		WPD_Vocab::flush();

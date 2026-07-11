@@ -92,6 +92,46 @@ final class WPD_Plugin {
 		$this->frontend     = new WPD_Frontend( $this->settings );
 
 		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
+		add_action( 'init', array( $this, 'ensure_cron_scheduled' ) );
+		add_action( 'wpd_apikey_renew_check', array( $this, 'cron_renew_apikey' ) );
+		add_action( 'admin_notices', array( $this, 'admin_notice_apikey_dead' ) );
+	}
+
+	/**
+	 * Catches upgrades from an older version installed before the renewal
+	 * cron existed — activation hook only runs on activate/reactivate.
+	 */
+	public function ensure_cron_scheduled() {
+		if ( ! wp_next_scheduled( 'wpd_apikey_renew_check' ) ) {
+			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'wpd_apikey_renew_check' );
+		}
+	}
+
+	/**
+	 * Daily WP-Cron tick. Renews the publisher API key when its stored
+	 * expiry is within the lead-time window (default 7 days) — never
+	 * touches a key we already know has no expiry or is dead.
+	 */
+	public function cron_renew_apikey() {
+		if ( ! $this->settings->is_configured() ) {
+			return;
+		}
+		if ( ! $this->api->apikey_should_renew() ) {
+			return;
+		}
+		$this->api->renew_apikey();
+	}
+
+	public function admin_notice_apikey_dead() {
+		if ( ! current_user_can( 'manage_options' ) || ! $this->settings->is_api_key_dead() ) {
+			return;
+		}
+		printf(
+			'<div class="notice notice-error"><p>%s <a href="%s">%s</a></p></div>',
+			esc_html__( 'WP Dansal: the publisher API key has expired.', 'wp-dansal' ),
+			esc_url( admin_url( 'options-general.php?page=wpd-settings' ) ),
+			esc_html__( 'Re-run the connect-link flow to restore the connection.', 'wp-dansal' )
+		);
 	}
 
 	public function load_textdomain() {
@@ -113,10 +153,14 @@ function wpd_activate() {
 	// has happened before we flush rewrite rules.
 	do_action( 'init' );
 	flush_rewrite_rules();
+	if ( ! wp_next_scheduled( 'wpd_apikey_renew_check' ) ) {
+		wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'wpd_apikey_renew_check' );
+	}
 }
 register_activation_hook( __FILE__, 'wpd_activate' );
 
 function wpd_deactivate() {
 	flush_rewrite_rules();
+	wp_clear_scheduled_hook( 'wpd_apikey_renew_check' );
 }
 register_deactivation_hook( __FILE__, 'wpd_deactivate' );

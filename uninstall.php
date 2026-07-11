@@ -18,12 +18,14 @@ delete_option( 'wpd_settings' );
 // Named transients we know statically.
 $wpd_named_transients = array(
 	'wpd_dansal_session_token', // WPD_Api_Client::TOKEN_TRANSIENT
+	'wpd_apikey_renew_lock',    // WPD_Api_Client::RENEW_LOCK
 	'wpd_event_pull_lock',
 	'wpd_location_pull_lock',
 	'wpd_series_pull_lock',
 	'wpd_event_refresh_global',
 	'wpd_location_refresh_global',
 );
+wp_clear_scheduled_hook( 'wpd_apikey_renew_check' );
 foreach ( $wpd_named_transients as $wpd_t ) {
 	delete_transient( $wpd_t );
 }

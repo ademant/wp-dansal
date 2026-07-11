@@ -16,12 +16,94 @@ if ( ! defined( 'ABSPATH' ) ) {
 class WPD_Api_Client {
 
 	const TOKEN_TRANSIENT = 'wpd_dansal_session_token';
+	const RENEW_LOCK      = 'wpd_apikey_renew_lock';
 
 	/** @var WPD_Settings */
 	private $settings;
 
 	public function __construct( WPD_Settings $settings ) {
 		$this->settings = $settings;
+	}
+
+	/**
+	 * Rotate the publisher API key via POST /api/v1/apikeys/renew.
+	 *
+	 * dansal semantics (API.md, API Keys → Renewal):
+	 *   200 → new key issued, old one invalidated immediately
+	 *   400 → key has no expires_at (nothing to renew)
+	 *   401 → key already expired (admin must re-run connect-link)
+	 *
+	 * Persists the outcome via WPD_Settings so cron doesn't retry a
+	 * no-expiry key or a dead one on every tick. Guarded by a short
+	 * transient lock so two concurrent tick+admin-triggered renewals
+	 * can't double-invalidate the current key.
+	 *
+	 * @return true|WP_Error
+	 */
+	public function renew_apikey() {
+		$api_key = $this->settings->get_api_key();
+		if ( '' === $api_key ) {
+			return new WP_Error( 'wpd_no_api_key', __( 'No dansal API key configured.', 'wp-dansal' ) );
+		}
+		if ( ! get_transient( self::RENEW_LOCK ) ) {
+			set_transient( self::RENEW_LOCK, 1, 30 );
+		} else {
+			return new WP_Error( 'wpd_renew_locked', __( 'API key renewal already in progress.', 'wp-dansal' ) );
+		}
+
+		$url  = $this->settings->get_base_url() . '/api/v1/apikeys/renew';
+		$args = array(
+			'method'  => 'POST',
+			'timeout' => self::timeout( '/api/v1/apikeys/renew' ),
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $api_key,
+				'Accept'        => 'application/json',
+			),
+		);
+		$response = wp_remote_request( $url, $args );
+		$response = $this->maybe_retry_after( $response, $url, $args );
+
+		delete_transient( self::RENEW_LOCK );
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+		if ( 200 === $code && ! empty( $body['api_key'] ) ) {
+			$expires_at = ! empty( $body['expires_at'] ) ? strtotime( (string) $body['expires_at'] ) : 0;
+			$this->settings->record_apikey_renewed( $body['api_key'], $expires_at ?: null );
+			return true;
+		}
+		if ( 400 === $code ) {
+			$this->settings->mark_apikey_no_expiry();
+			return new WP_Error( 'wpd_apikey_no_expiry', __( 'Publisher API key has no expiry; renewal not applicable.', 'wp-dansal' ) );
+		}
+		if ( 401 === $code ) {
+			$this->settings->mark_apikey_dead();
+			return new WP_Error( 'wpd_apikey_dead', __( 'Publisher API key has expired. Re-run the connect-link flow to restore the connection.', 'wp-dansal' ) );
+		}
+		$message = is_array( $body ) && ! empty( $body['error'] ) ? $body['error'] : sprintf( 'HTTP %d', $code );
+		return new WP_Error( 'wpd_apikey_renew_failed', $message );
+	}
+
+	/**
+	 * True when the stored expires_at is inside the renewal lead-time window
+	 * (default 7 days). Filter `wpd_apikey_renew_leadtime` to tune (seconds).
+	 */
+	public function apikey_should_renew() {
+		if ( $this->settings->get_api_key_no_expiry() || $this->settings->is_api_key_dead() ) {
+			return false;
+		}
+		$exp = $this->settings->get_api_key_expires_at();
+		if ( $exp <= 0 ) {
+			// Never checked — attempt once so we discover whether it has an
+			// expiry (200) or not (400 → mark no-expiry).
+			return true;
+		}
+		$leadtime = (int) apply_filters( 'wpd_apikey_renew_leadtime', 7 * DAY_IN_SECONDS );
+		return ( $exp - time() ) < $leadtime;
 	}
 
 	/**
