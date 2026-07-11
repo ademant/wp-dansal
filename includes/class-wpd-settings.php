@@ -114,6 +114,11 @@ class WPD_Settings {
 			delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
 		}
 
+		// A different dansal server may ship different vocabularies.
+		if ( $out['base_url'] !== $existing['base_url'] ) {
+			WPD_Vocab::flush();
+		}
+
 		$out['event_defaults'] = isset( $input['event_defaults'] ) && is_array( $input['event_defaults'] )
 			? WPD_Event_Fields::sanitize_field_group( $input['event_defaults'] )
 			: array();
@@ -363,6 +368,7 @@ class WPD_Settings {
 		$existing['api_key']  = sanitize_text_field( $body['api_key'] );
 		update_option( self::OPTION, $existing );
 		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
+		WPD_Vocab::flush();
 
 		wp_send_json_success(
 			array(

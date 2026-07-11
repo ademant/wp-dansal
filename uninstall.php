@@ -38,6 +38,7 @@ $wpd_prefixes = array(
 	'wpd_admin_notices_',
 	'wpd_tags_vocab_',
 	'wpd_dances_vocab_',
+	'wpd_vocab_',
 );
 foreach ( $wpd_prefixes as $wpd_prefix ) {
 	$wpd_like = $wpdb->esc_like( '_transient_' . $wpd_prefix ) . '%';
