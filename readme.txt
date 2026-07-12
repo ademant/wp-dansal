@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.1.10
+Stable tag: 0.1.10
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,7 +52,7 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 
 == Changelog ==
 
-= 1.1.10 =
+= 0.1.10 =
 * Event edit screen auto-fills the end datetime with start + 2h when end is still empty; existing end values are never touched. Duration filterable via `wpd_default_event_duration` (seconds).
 * Single event page now shows an OpenStreetMap inlay from the linked location's coordinates (same Leaflet component the single-location page uses). Assets only enqueue when the map can actually render, so events without coordinates stay lean.
 
