@@ -212,6 +212,9 @@ class WPD_CPT_Event {
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
 			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), '', array( 'response' => 403 ) );
 		}
+		// Nonce is verified by the WPD_Admin_Action framework before this
+		// handler is dispatched (see class-wpd-admin-action.php).
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
 		$new_series_post_id = isset( $_POST['series_post_id'] ) ? absint( $_POST['series_post_id'] ) : 0;
 		$this->set_event_series( $post_id, $new_series_post_id );
 

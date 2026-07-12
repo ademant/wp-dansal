@@ -90,18 +90,30 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
+      - name: Install WordPress core
+        env:
+          WP_CORE_DIR: ${{ github.workspace }}/tmp/wordpress
+        run: |
+          set -euo pipefail
+          # wp-phpunit ships only the test harness (bootstrap, factories, ...)
+          # and expects a real WordPress install to load via ABSPATH. Fetch
+          # the latest core tarball into WP_CORE_DIR.
+          mkdir -p "$WP_CORE_DIR"
+          curl -sSfL https://wordpress.org/latest.tar.gz \
+            | tar -xz --strip-components=1 -C "$WP_CORE_DIR"
+
       - name: Configure wp-tests-config
         env:
           WP_TESTS_DIR: ${{ github.workspace }}/vendor/wp-phpunit/wp-phpunit
+          WP_CORE_DIR: ${{ github.workspace }}/tmp/wordpress
         run: |
           set -euo pipefail
-          # Write the config inline rather than hunting for a sample file in the
-          # vendored package (which may or may not ship one, depending on the
-          # release) or curl-ing an unpinned upstream URL.
+          # Write the config inline. ABSPATH points to the extracted WP core,
+          # not the wp-phpunit dir — wp-phpunit no longer bundles WordPress.
           mkdir -p "$WP_TESTS_DIR"
-          cat > "$WP_TESTS_DIR/wp-tests-config.php" <<'PHP'
+          cat > "$WP_TESTS_DIR/wp-tests-config.php" <<PHP
           <?php
-          define( 'ABSPATH', __DIR__ . '/' );
+          define( 'ABSPATH', '$WP_CORE_DIR/' );
           define( 'WP_DEFAULT_THEME', 'default' );
           define( 'DB_NAME', 'wordpress_test' );
           define( 'DB_USER', 'root' );
@@ -109,7 +121,7 @@ jobs:
           define( 'DB_HOST', '127.0.0.1' );
           define( 'DB_CHARSET', 'utf8' );
           define( 'DB_COLLATE', '' );
-          $table_prefix = 'wptests_';
+          \$table_prefix = 'wptests_';
           define( 'WP_TESTS_DOMAIN', 'example.org' );
           define( 'WP_TESTS_EMAIL', 'admin@example.org' );
           define( 'WP_TESTS_TITLE', 'Test Blog' );

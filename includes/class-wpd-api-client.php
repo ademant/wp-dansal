@@ -73,7 +73,7 @@ class WPD_Api_Client {
 
 		if ( 200 === $code && ! empty( $body['api_key'] ) ) {
 			$expires_at = ! empty( $body['expires_at'] ) ? strtotime( (string) $body['expires_at'] ) : 0;
-			$this->settings->record_apikey_renewed( $body['api_key'], $expires_at ?: null );
+			$this->settings->record_apikey_renewed( $body['api_key'], $expires_at ? $expires_at : null );
 			return true;
 		}
 		if ( 400 === $code ) {
@@ -206,7 +206,7 @@ class WPD_Api_Client {
 						$this->settings->mark_apikey_dead();
 					}
 				} catch ( Exception $e ) {
-					// Non-fatal — fall through to return the error.
+					unset( $e ); // Non-fatal — fall through to return the error.
 				}
 			}
 		}

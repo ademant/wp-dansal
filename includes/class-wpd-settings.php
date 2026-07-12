@@ -219,7 +219,7 @@ class WPD_Settings {
 			return false;
 		}
 		$cert = $params['options']['ssl']['peer_certificate'];
-		fclose( $client );
+		fclose( $client ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closing a stream_socket_client resource; WP_Filesystem operates on files, not sockets.
 		$export = '';
 		if ( ! openssl_x509_export( $cert, $export ) ) {
 			return false;
