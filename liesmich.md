@@ -1,0 +1,49 @@
+# wp-dansal
+
+WordPress-Plugin zur Verwaltung von Tanzevents und -orten, das [dansal](https://github.com/ademant/dansal) als Backend für Speicherung und Veröffentlichung nutzt.
+
+## Verbindung mit dansal herstellen
+
+1. Öffnen Sie in dansal `/admin/users` und klicken Sie auf **Connect link** neben dem Publisher-Eintrag Ihrer Organisation (oder erstellen Sie einen).
+2. Gehen Sie in WordPress zu **Einstellungen → Dansal**, fügen Sie den Einmalkink unter "Connect via Link" ein und klicken Sie auf **Connect** — dies trägt automatisch die Basis-URL, Organisation und den API-Schlüssel ein. Nutzen Sie "Test Connection", um die Verbindung zu prüfen.
+   - Alternativ können Sie "Manual connection (advanced)" erweitern und manuell eine Basis-URL/Organisations-ID/API-Schlüssel eingeben, die Sie bereits aus `dansal_admin` oder `POST /api/v1/publishers` haben.
+
+## Event- und Ortsverwaltung
+
+Das Plugin fügt die benutzerdefinierten Beitragstypen **Tanzorte (Dance Locations)** und **Tanzevents (Dance Events)** hinzu, die im normalen WordPress-Admin bearbeitet werden können.
+
+Beim Anlegen eines Orts sucht das Plugin die Adresse über OpenStreetMap (Nominatim) und prüft dann in dansal auf bestehende Orte (nach OSM-ID, dann nach Nähe), um Duplikate zu vermeiden. Statt ein Duplikat zu erstellen, wird angeboten, Ihre Organisation dem bestehenden Ort zuzuweisen.
+
+Das Speichern eines Events oder Orts synchronisiert es automatisch mit dansal (Erstellung beim ersten Speichern, Update bei jedem weiteren Speichern) unter Verwendung eines Publisher-API-Schlüssels, der auf eine Organisation beschränkt ist.
+
+Events können mit dem Shortcode `[dansal_events]` angezeigt werden: anstehende Events als Liste oder als Monatskalender (`view="list"` oder `view="calendar"` sowie die Attribute `location`, `tag`, `limit`, `show_past`). Der Shortcode `[dansal_locations]` gibt ein Verzeichnis der Orte mit einer selbst gehosteten Leaflet-Karte aus. Einzelne Vorlagen stehen für einzelne Events und Orte zur Verfügung.
+
+## Template-Überschreibungen im Theme
+
+Jede der Plugin-Vorlagen kann überschrieben werden, indem Sie sie in Ihr (Child-)Theme in einem Unterverzeichnis `dansal/` kopieren. `locate_template()` wählt zuerst die Kopie im Child-Theme, dann die des Parent-Themes und fällt schließlich auf die Standardvorlage des Plugins zurück:
+
+- `dansal/single-dansal_event.php`
+- `dansal/single-dansal_location.php`
+- `dansal/archive-dansal_event.php`
+- `dansal/archive-dansal_location.php`
+- `dansal/page-dansal-locations.php`
+- `dansal/page-dansal-calendar.php`
+
+## Karte/Kalender auf einer Seite platzieren
+
+Statt der automatischen Archiv-URLs können Sie die Ortskarte oder den Event-Kalender auf jeder Seite platzieren: **Seiten → Neu erstellen → Seiten-Attribute → Vorlage** und dann **Dansal: Locations Map** oder **Dansal: Events Calendar** auswählen. Titel und Inhalt der Seite werden normal dargestellt; die Karte/der Kalender wird darunter eingefügt.
+
+## Übersetzungen
+
+Übersetzbare Strings befinden sich unter dem Textdomain `wp-dansal`. Übersetzer können von `languages/wp-dansal.pot` ausgehen und `.po`/`.mo`-Dateien daneben ablegen (`languages/wp-dansal-{locale}.po`) oder unter `wp-content/languages/plugins/` platzieren. Die POT-Datei kann mit `make pot` neu generiert werden (benötigt [wp-cli](https://wp-cli.org/)).
+
+## Hinweise
+
+- Kartentiles werden live vom OpenStreetMap-Tile-Server geladen (die Leaflet-Bibliothek selbst ist gebündelt, aber Tiles können praktisch nicht selbst gehostet werden). Jede Tile-Anfrage wird mit `Referrer-Policy: no-referrer` gesendet, sodass die Seiten-URL nicht mit dem Tile-Host geteilt wird. Um Tiles stattdessen über einen selbst gehosteten oder kostenpflichtigen Proxy zu leiten, filtern Sie `wpd_tile_url_template` (und bei Bedarf `wpd_tile_attribution` / `wpd_tile_max_zoom` / `wpd_tile_referrer_policy`):
+
+  ```php
+  add_filter( 'wpd_tile_url_template', function () {
+      return 'https://tiles.example.com/{z}/{x}/{y}.png';
+  } );
+  ```
+- In der dansal-Dokumentation `API.md` wird `PATCH /api/v1/events/{id}` für Updates beschrieben, aber der Server registriert derzeit nur `PUT /api/v1/events/{id}` — dieses Plugin verwendet `PUT`. Es wäre sinnvoll, dies irgendwann in den dansal-Dokumentationen/Routen anzupassen.
