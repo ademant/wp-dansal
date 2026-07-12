@@ -50,8 +50,18 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		// Build the popup via DOM (textContent + href) so a stored title or
 		// URL containing HTML/JS cannot inject into the map popup.
 		var link = document.createElement( 'a' );
-		link.href = point.url;
-		link.textContent = point.title;
+		// Sanitize URL: only allow http(s) schemes to avoid javascript: or data: URIs.
+		var safeUrl = '#';
+		try {
+			if ( point && typeof point.url === 'string' && /^https?:\/\//i.test( point.url ) ) {
+				safeUrl = point.url;
+			}
+		} catch ( e ) { /* fall back to '#' */ }
+		link.href = safeUrl;
+		link.target = '_blank';
+		link.rel = 'noopener noreferrer';
+		// Use textContent to ensure meta-characters are not interpreted as HTML.
+		link.textContent = point && point.title ? point.title : safeUrl;
 		marker.bindPopup( link );
 		markers.push( marker );
 	} );
