@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.1.10
+Stable tag: 0.1.11
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,9 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.1.11 =
+* Release job now publishes an unversioned `wp-dansal.zip` alias next to the versioned zip, so the readme can link to `.../releases/latest/download/wp-dansal.zip` as a stable direct-download URL.
 
 = 0.1.10 =
 * Event edit screen auto-fills the end datetime with start + 2h when end is still empty; existing end values are never touched. Duration filterable via `wpd_default_event_duration` (seconds).
