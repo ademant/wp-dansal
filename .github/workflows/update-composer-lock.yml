@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies (update lock)
         run: |
           composer --version
-          composer update --lock --no-interaction --no-plugins --no-scripts
+          composer update --no-interaction --with-all-dependencies
 
       - name: Commit and push composer.lock if changed
         env:
