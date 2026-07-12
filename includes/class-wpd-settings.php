@@ -23,7 +23,10 @@ class WPD_Settings {
 		return array(
 			'base_url'        => '',
 			'org_id'          => '',
+			// Deprecated: kept for UI placeholder only. Real key may be stored
+			// encrypted in 'api_key_encrypted'. Do NOT store plaintext here.
 			'api_key'         => '',
+			'api_key_encrypted' => '',
 			'nominatim_email' => get_option( 'admin_email' ),
 			'dedup_radius_km' => 0.2,
 			// Overlay field defaults applied when a fresh dansal_event is
@@ -40,6 +43,9 @@ class WPD_Settings {
 			// True after renew returned 401 (key already expired). Persistent
 			// admin notice until the admin re-runs the connect-link flow.
 			'api_key_dead'       => false,
+			// Optional security settings
+			'pinned_cert_sha256' => '',
+			'hmac_secret' => '',
 		);
 	}
 
@@ -71,7 +77,19 @@ class WPD_Settings {
 		return (int) $this->get( 'org_id' );
 	}
 
+	/**
+	 * Return the publisher API key plaintext. Prefer the encrypted storage
+	 * when available for new installs.
+	 */
 	public function get_api_key() {
+		$all = $this->get_all();
+		if ( ! empty( $all['api_key_encrypted'] ) ) {
+			$decrypted = $this->decrypt_api_key( $all['api_key_encrypted'] );
+			if ( false !== $decrypted && '' !== $decrypted ) {
+				return (string) $decrypted;
+			}
+		}
+		// Fallback to legacy plaintext option for backward compatibility.
 		return (string) $this->get( 'api_key' );
 	}
 
@@ -97,7 +115,17 @@ class WPD_Settings {
 	 */
 	public function record_apikey_renewed( $key, $expires_at ) {
 		$opts                       = $this->get_all();
-		$opts['api_key']            = sanitize_text_field( (string) $key );
+		$plaintext_key = sanitize_text_field( (string) $key );
+		// Prefer encrypted storage when possible.
+		$encrypted = $this->encrypt_api_key( $plaintext_key );
+		if ( false !== $encrypted ) {
+			$opts['api_key_encrypted'] = $encrypted;
+			// Keep legacy api_key truthy so the options UI still shows a key is set.
+			$opts['api_key'] = '***';
+		} else {
+			$opts['api_key'] = $plaintext_key;
+			$opts['api_key_encrypted'] = '';
+		}
 		$opts['api_key_expires_at'] = $expires_at ? (int) $expires_at : 0;
 		$opts['api_key_no_expiry']  = false;
 		$opts['api_key_dead']       = false;
@@ -111,10 +139,98 @@ class WPD_Settings {
 		update_option( self::OPTION, $opts );
 	}
 
+	/**
+	 * Encrypt API key using openssl with a key derived from site salts.
+	 * Returns base64(iv . ciphertext) on success, false on failure.
+	 */
+	private function encrypt_api_key( $plaintext ) {
+		if ( empty( $plaintext ) || ! function_exists( 'openssl_encrypt' ) ) {
+			return false;
+		}
+		$key_material = defined( 'AUTH_KEY' ) && defined( 'AUTH_SALT' ) ? AUTH_KEY . AUTH_SALT : '';
+		if ( '' === $key_material ) {
+			return false;
+		}
+		$key = substr( hash( 'sha256', $key_material, true ), 0, 32 );
+		$iv  = openssl_random_pseudo_bytes( 16 );
+		$cipher = openssl_encrypt( $plaintext, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv );
+		if ( false === $cipher ) {
+			return false;
+		}
+		return base64_encode( $iv . $cipher );
+	}
+
+	/**
+	 * Decrypt an API key stored as base64(iv . ciphertext).
+	 * Returns plaintext on success or false on failure.
+	 */
+	private function decrypt_api_key( $blob ) {
+		if ( empty( $blob ) || ! function_exists( 'openssl_decrypt' ) ) {
+			return false;
+		}
+		$data = base64_decode( $blob, true );
+		if ( false === $data || strlen( $data ) <= 16 ) {
+			return false;
+		}
+		$iv = substr( $data, 0, 16 );
+		$cipher = substr( $data, 16 );
+		$key_material = defined( 'AUTH_KEY' ) && defined( 'AUTH_SALT' ) ? AUTH_KEY . AUTH_SALT : '';
+		if ( '' === $key_material ) {
+			return false;
+		}
+		$key = substr( hash( 'sha256', $key_material, true ), 0, 32 );
+		$plaintext = openssl_decrypt( $cipher, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv );
+		if ( false === $plaintext ) {
+			return false;
+		}
+		return $plaintext;
+	}
+
 	public function mark_apikey_dead() {
 		$opts                 = $this->get_all();
 		$opts['api_key_dead'] = true;
 		update_option( self::OPTION, $opts );
+	}
+
+	/**
+	 * Retrieve the peer certificate SHA256 (hex) for a given host:port.
+	 * Returns lowercase hex string on success, false on failure.
+	 */
+	private function get_peer_cert_sha256( $host, $port = 443 ) {
+		$errno = 0;
+		$errstr = '';
+		$context = stream_context_create( array('ssl' => array('capture_peer_cert' => true, 'verify_peer' => true, 'verify_peer_name' => true)) );
+		$remote = sprintf('%s:%d', $host, (int) $port);
+		$client = @stream_socket_client( 'ssl://' . $remote, $errno, $errstr, 5, STREAM_CLIENT_CONNECT, $context );
+		if ( ! $client ) {
+			return false;
+		}
+		$params = stream_context_get_params( $client );
+		if ( empty( $params['options']['ssl']['peer_certificate'] ) ) {
+			@fclose( $client );
+			return false;
+		}
+		$cert = $params['options']['ssl']['peer_certificate'];
+		@fclose( $client );
+		$export = '';
+		if ( ! openssl_x509_export( $cert, $export ) ) {
+			return false;
+		}
+		// PEM -> DER: strip headers and base64-decode.
+		$lines = preg_split('/\r?\n/', $export);
+		$body = '';
+		foreach ( $lines as $line ) {
+			if ( strpos( $line, '-----' ) === 0 ) {
+				continue;
+			}
+			$body .= trim( $line );
+		}
+		$der = base64_decode( $body );
+		if ( false === $der ) {
+			return false;
+		}
+		$hash = hash( 'sha256', $der );
+		return strtolower( $hash );
 	}
 
 	public function get_nominatim_email() {
@@ -148,7 +264,16 @@ class WPD_Settings {
 		$existing = $this->get_all();
 		$out      = array();
 
-		$out['base_url']        = isset( $input['base_url'] ) ? esc_url_raw( untrailingslashit( trim( $input['base_url'] ) ) ) : $existing['base_url'];
+		// Base URL — require HTTPS unless filter allows insecure.
+		$raw_base = isset( $input['base_url'] ) ? trim( $input['base_url'] ) : $existing['base_url'];
+		$allow_http = (bool) apply_filters( 'wpd_allow_insecure_connect_url', false );
+		$scheme_re = $allow_http ? '#^https?://#i' : '#^https://#i';
+		if ( '' !== $raw_base && preg_match( $scheme_re, $raw_base ) ) {
+			$out['base_url'] = esc_url_raw( untrailingslashit( $raw_base ) );
+		} else {
+			$out['base_url'] = $existing['base_url'];
+		}
+
 		$out['org_id']          = isset( $input['org_id'] ) ? absint( $input['org_id'] ) : $existing['org_id'];
 		$out['nominatim_email'] = isset( $input['nominatim_email'] ) ? sanitize_email( $input['nominatim_email'] ) : $existing['nominatim_email'];
 		$out['dedup_radius_km'] = isset( $input['dedup_radius_km'] ) ? (float) str_replace( ',', '.', (string) $input['dedup_radius_km'] ) : $existing['dedup_radius_km'];
@@ -156,19 +281,39 @@ class WPD_Settings {
 		// Only overwrite the API key if a new value was actually typed in;
 		// the settings form re-renders a masked placeholder, never the real key.
 		if ( ! empty( $input['api_key'] ) ) {
-			$out['api_key'] = sanitize_text_field( $input['api_key'] );
+			$plaintext = sanitize_text_field( $input['api_key'] );
+			$encrypted = $this->encrypt_api_key( $plaintext );
+			if ( false !== $encrypted ) {
+				$out['api_key_encrypted'] = $encrypted;
+				$out['api_key'] = '***';
+			} else {
+				// Fallback to legacy plaintext storage if encryption unavailable.
+				$out['api_key'] = $plaintext;
+				$out['api_key_encrypted'] = '';
+			}
 		} else {
 			$out['api_key'] = $existing['api_key'];
+			$out['api_key_encrypted'] = isset( $existing['api_key_encrypted'] ) ? $existing['api_key_encrypted'] : '';
 		}
 
 		// Credentials or org changed: any cached publisher session token is invalid now.
-		if ( $out['api_key'] !== $existing['api_key'] || $out['base_url'] !== $existing['base_url'] ) {
+		$existing_plain = '';
+		if ( ! empty( $existing['api_key_encrypted'] ) ) {
+			$existing_plain = $this->decrypt_api_key( $existing['api_key_encrypted'] );
+		} elseif ( ! empty( $existing['api_key'] ) && '***' !== $existing['api_key'] ) {
+			$existing_plain = $existing['api_key'];
+		}
+		$incoming_plain = '';
+		if ( ! empty( $input['api_key'] ) ) {
+			$incoming_plain = sanitize_text_field( $input['api_key'] );
+		}
+		if ( $incoming_plain !== $existing_plain || $out['base_url'] !== $existing['base_url'] ) {
 			delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
 		}
 
 		// A new API key resets everything the renew flow tracks; unrelated
 		// updates preserve it.
-		if ( $out['api_key'] !== $existing['api_key'] ) {
+		if ( $incoming_plain !== '' && $incoming_plain !== $existing_plain ) {
 			$out['api_key_expires_at'] = 0;
 			$out['api_key_no_expiry']  = false;
 			$out['api_key_dead']       = false;
@@ -177,6 +322,10 @@ class WPD_Settings {
 			$out['api_key_no_expiry']  = (bool) $existing['api_key_no_expiry'];
 			$out['api_key_dead']       = (bool) $existing['api_key_dead'];
 		}
+
+		// Optional security settings
+		$out['pinned_cert_sha256'] = isset( $input['pinned_cert_sha256'] ) ? sanitize_text_field( $input['pinned_cert_sha256'] ) : ( isset( $existing['pinned_cert_sha256'] ) ? $existing['pinned_cert_sha256'] : '' );
+		$out['hmac_secret'] = isset( $input['hmac_secret'] ) ? sanitize_text_field( $input['hmac_secret'] ) : ( isset( $existing['hmac_secret'] ) ? $existing['hmac_secret'] : '' );
 
 		// A different dansal server may ship different vocabularies.
 		if ( $out['base_url'] !== $existing['base_url'] ) {
@@ -351,6 +500,19 @@ class WPD_Settings {
 			wp_send_json_error( array( 'message' => sprintf( __( 'Could not reach dansal server: %s', 'wp-dansal' ), $info->get_error_message() ) ) );
 		}
 
+		// Optional certificate pin check configured in settings.
+		$pinned = $this->get( 'pinned_cert_sha256' );
+		if ( ! empty( $pinned ) ) {
+			$base = $this->get_base_url();
+			$host = wp_parse_url( $base, PHP_URL_HOST );
+			$port = wp_parse_url( $base, PHP_URL_PORT );
+			$port = $port ? (int) $port : 443;
+			$fingerprint = $this->get_peer_cert_sha256( $host, $port );
+			if ( false === $fingerprint || strtolower( trim( $pinned ) ) !== strtolower( trim( $fingerprint ) ) ) {
+				wp_send_json_error( array( 'message' => __( 'TLS certificate pin mismatch for configured dansal base URL.', 'wp-dansal' ) ) );
+			}
+		}
+
 		$token = $api->get_session_token( true );
 		if ( is_wp_error( $token ) ) {
 			/* translators: %s: underlying authentication error message. */
@@ -484,7 +646,16 @@ class WPD_Settings {
 		$existing                       = $previous;
 		$existing['base_url']           = esc_url_raw( untrailingslashit( trim( $body['base_url'] ) ) );
 		$existing['org_id']             = absint( $body['org_id'] );
-		$existing['api_key']            = sanitize_text_field( $api_key );
+		// Store api key encrypted when possible; keep a masked placeholder
+		$plaintext_key = sanitize_text_field( $api_key );
+		$encrypted = $this->encrypt_api_key( $plaintext_key );
+		if ( false !== $encrypted ) {
+			$existing['api_key_encrypted'] = $encrypted;
+			$existing['api_key'] = '***';
+		} else {
+			$existing['api_key'] = $plaintext_key;
+			$existing['api_key_encrypted'] = '';
+		}
 		$existing['api_key_expires_at'] = 0;
 		$existing['api_key_no_expiry']  = false;
 		$existing['api_key_dead']       = false;

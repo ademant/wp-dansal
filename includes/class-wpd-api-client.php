@@ -197,6 +197,18 @@ class WPD_Api_Client {
 				return $token;
 			}
 			$result = $this->do_request( $method, $path, $body, $query, $token );
+			// If we still get a 401, mark the stored publisher API key dead so
+			// the admin reconnect notice surfaces immediately instead of
+			// continuing to retry silently.
+			if ( is_wp_error( $result ) && 'wpd_http_401' === $result->get_error_code() ) {
+				try {
+					if ( method_exists( $this->settings, 'mark_apikey_dead' ) ) {
+						$this->settings->mark_apikey_dead();
+					}
+				} catch ( Exception $e ) {
+					// Non-fatal — fall through to return the error.
+				}
+			}
 		}
 
 		return $result;
@@ -222,6 +234,19 @@ class WPD_Api_Client {
 			// methods get plain JSON.
 			$args['headers']['Content-Type'] = ( 'PATCH' === $method ) ? 'application/merge-patch+json' : 'application/json';
 			$args['body']                    = wp_json_encode( $body );
+		}
+
+		// Optional HMAC request signing when configured in settings. The
+		// signature covers method, path, timestamp and body to prevent replay
+		// and tampering. Servers must agree on the same scheme.
+		$hmac_secret = $this->settings->get( 'hmac_secret' );
+		if ( ! empty( $hmac_secret ) ) {
+			$ts = (string) time();
+			$body_str = isset( $args['body'] ) ? $args['body'] : '';
+			$payload = $method . '\n' . $path . '\n' . $ts . '\n' . $body_str;
+			$sig = hash_hmac( 'sha256', $payload, $hmac_secret );
+			$args['headers']['X-WPD-Timestamp']   = $ts;
+			$args['headers']['X-WPD-Signature']   = $sig;
 		}
 
 		$response = wp_remote_request( $url, $args );
