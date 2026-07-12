@@ -196,6 +196,12 @@ jobs:
       - name: Build zip
         run: make zip
 
+      # Publish a stable-named alias alongside the versioned zip so the
+      # readme can link to a direct-download URL that never changes:
+      # https://github.com/ademant/wp-dansal/releases/latest/download/wp-dansal.zip
+      - name: Duplicate zip as unversioned alias
+        run: cp dist/wp-dansal-*.zip dist/wp-dansal.zip
+
       - name: Upload zip as workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -207,6 +213,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/wp-dansal-*.zip
+          files: |
+            dist/wp-dansal-*.zip
+            dist/wp-dansal.zip
           generate_release_notes: true
           fail_on_unmatched_files: true

@@ -26,11 +26,12 @@ WP Dansal turns WordPress into an editing frontend for the [dansal](https://gith
 
 == Installation ==
 
-1. Upload the plugin folder to `/wp-content/plugins/` (or install via the WordPress admin).
-2. Activate **WP Dansal** in the Plugins menu.
-3. In dansal, open `/admin/users`, click **Connect link** next to your organization's publisher row (or create one).
-4. In WordPress, go to **Settings → Dansal**, paste the one-time link under "Connect via Link", and click **Connect**.
-5. Create locations under **Dance → Locations**, then events under **Dance → Events**.
+1. Download the latest release zip: https://github.com/ademant/wp-dansal/releases/latest/download/wp-dansal.zip
+2. In WordPress: **Plugins → Add New → Upload Plugin**, choose the zip, and install (or extract into `/wp-content/plugins/`).
+3. Activate **WP Dansal** in the Plugins menu.
+4. In dansal, open `/admin/users`, click **Connect link** next to your organization's publisher row (or create one).
+5. In WordPress, go to **Settings → Dansal**, paste the one-time link under "Connect via Link", and click **Connect**.
+6. Create locations under **Dance → Locations**, then events under **Dance → Events**.
 
 == Frequently Asked Questions ==
 
