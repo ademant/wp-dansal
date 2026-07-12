@@ -1,0 +1,41 @@
+name: Release
+
+# Fires when a version tag is pushed. The tag must match the Version:
+# header in wp-dansal.php exactly (e.g. tag "v0.1.9" ↔ header "0.1.9") —
+# a mismatch fails the job before publishing anything, so a mis-tagged
+# push can never ship a zip whose contents disagree with its filename.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-zip:
+    name: Build and publish plugin zip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches plugin header version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          header_version="$(make --silent version)"
+          echo "tag: $tag_version"
+          echo "header: $header_version"
+          if [ "$tag_version" != "$header_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match wp-dansal.php Version header ($header_version)."
+            exit 1
+          fi
+
+      - name: Build zip
+        run: make zip
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/wp-dansal-*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
