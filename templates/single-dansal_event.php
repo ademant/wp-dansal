@@ -9,6 +9,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 wp_enqueue_style( 'wpd-frontend', WPD_PLUGIN_URL . 'assets/css/frontend.css', array(), wpd_asset_ver( 'assets/css/frontend.css' ) );
 
+// Load Leaflet only when we can plausibly draw the map (linked location with
+// coordinates); the actual map div is only emitted under the same guard below.
+$wpd_map_loc_id = (int) get_post_meta( get_queried_object_id(), '_wpd_location_post_id', true );
+$wpd_map_lat    = $wpd_map_loc_id ? get_post_meta( $wpd_map_loc_id, '_wpd_latitude', true ) : '';
+$wpd_map_lng    = $wpd_map_loc_id ? get_post_meta( $wpd_map_loc_id, '_wpd_longitude', true ) : '';
+if ( '' !== $wpd_map_lat && '' !== $wpd_map_lng ) {
+	wp_enqueue_style( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.css', array(), '1.9.4' );
+	wp_enqueue_script( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.js', array(), '1.9.4', true );
+	wp_enqueue_script( 'wpd-map', WPD_PLUGIN_URL . 'assets/js/frontend-map.js', array( 'wpd-leaflet' ), wpd_asset_ver( 'assets/js/frontend-map.js' ), true );
+}
+
 get_header();
 
 while ( have_posts() ) :
@@ -73,6 +84,26 @@ while ( have_posts() ) :
 
 			<?php if ( $loc_post_id ) : ?>
 				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Where:', 'wp-dansal' ); ?></strong> <a href="<?php echo esc_url( get_permalink( $loc_post_id ) ); ?>"><?php echo esc_html( get_the_title( $loc_post_id ) ); ?></a></div>
+				<?php
+				$wpd_ev_lat = get_post_meta( $loc_post_id, '_wpd_latitude', true );
+				$wpd_ev_lng = get_post_meta( $loc_post_id, '_wpd_longitude', true );
+				if ( '' !== $wpd_ev_lat && '' !== $wpd_ev_lng ) :
+					$wpd_ev_points_json = wp_json_encode(
+						array(
+							array(
+								'lat'   => (float) $wpd_ev_lat,
+								'lng'   => (float) $wpd_ev_lng,
+								'title' => get_the_title( $loc_post_id ),
+								'url'   => get_permalink( $loc_post_id ),
+							),
+						)
+					);
+					$wpd_ev_tiles_json = wp_json_encode( wpd_plugin()->frontend->tile_config() );
+					?>
+					<div id="wpd-locations-map" class="wpd-single-map" data-wpd-points="<?php echo esc_attr( $wpd_ev_points_json ); ?>" data-wpd-tiles="<?php echo esc_attr( $wpd_ev_tiles_json ); ?>"></div>
+					<?php
+				endif;
+				?>
 			<?php endif; ?>
 
 			<?php if ( $difficulty ) : ?>

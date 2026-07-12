@@ -54,6 +54,7 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 
 = 0.1.9 =
 * Event edit screen auto-fills the end datetime with start + 2h when end is still empty; existing end values are never touched. Duration filterable via `wpd_default_event_duration` (seconds).
+* Single event page now shows an OpenStreetMap inlay from the linked location's coordinates (same Leaflet component the single-location page uses). Assets only enqueue when the map can actually render, so events without coordinates stay lean.
 
 = 0.1.8 =
 * Connect-link redemption now requires HTTPS (filter `wpd_allow_insecure_connect_url` to opt out for local dev), sends a random challenge dansal must echo back (verified with `hash_equals`), and generates an ephemeral RSA-2048 keypair so dansal returns the API key encrypted rather than in plaintext.
