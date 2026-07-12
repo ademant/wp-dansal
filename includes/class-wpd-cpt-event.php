@@ -174,7 +174,12 @@ class WPD_CPT_Event {
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Assign to series', 'wp-dansal' ); ?></h1>
-			<p><?php printf( esc_html__( 'Event: %s', 'wp-dansal' ), '<strong>' . esc_html( $post->post_title ) . '</strong>' ); ?></p>
+			<p>
+			<?php
+			/* translators: %s: event title (wrapped in <strong>) */
+			printf( esc_html__( 'Event: %s', 'wp-dansal' ), '<strong>' . esc_html( $post->post_title ) . '</strong>' );
+			?>
+			</p>
 			<form method="post" action="<?php echo esc_url( $action_url ); ?>">
 				<table class="form-table" role="presentation">
 					<tr>
@@ -310,6 +315,7 @@ class WPD_CPT_Event {
 			if ( $series ) {
 				return $this->build_hint(
 					$series->post_title,
+					/* translators: 1: series name, 2: time range (e.g. "20:00–22:00") */
 					__( 'Series %1$s: %2$s', 'wp-dansal' ),
 					(string) get_post_meta( $series_post_id, '_wpd_series_start_time_of_day', true ),
 					(string) get_post_meta( $series_post_id, '_wpd_series_end_time_of_day', true )

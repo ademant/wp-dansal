@@ -530,7 +530,7 @@ class WPD_Frontend {
 			$points_html = ob_get_clean();
 			?>
 			<div id="wpd-locations-map" class="wpd-locations-map" data-wpd-points="<?php echo esc_attr( wp_json_encode( $points ) ); ?>" data-wpd-tiles="<?php echo esc_attr( wp_json_encode( $this->tile_config() ) ); ?>"></div>
-			<ul class="wpd-locations-list"><?php echo $points_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — pre-escaped list items ?></ul>
+			<ul class="wpd-locations-list"><?php echo wp_kses_post( $points_html ); ?></ul>
 		</div>
 		<?php
 		return ob_get_clean();

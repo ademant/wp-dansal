@@ -124,15 +124,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The wordpress/plugin-check-action bootstraps a WP install, drops
-      # the plugin into wp-content/plugins/, activates plugin-check, and
-      # runs `wp plugin-check` against it. Errors fail the job; warnings
-      # (categories: general, security, plugin_repo) are surfaced but do
-      # not fail CI until the codebase is warning-clean.
+      # Stage the plugin the same way `make zip` does — only the files that
+      # actually ship in a release get checked. Otherwise plugin-check flags
+      # .editorconfig / phpcs.xml.dist / phpunit.xml.dist as "hidden" or
+      # "application" files even though the release zip excludes them.
+      - name: Stage plugin release layout
+        run: make build
+
       - name: Run plugin-check
         uses: wordpress/plugin-check-action@v1
         with:
-          build-dir: './'
+          build-dir: './build/wp-dansal'
 
   secrets:
     name: Secret scan (gitleaks)

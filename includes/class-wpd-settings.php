@@ -207,7 +207,7 @@ class WPD_Settings {
 		}
 		$params = stream_context_get_params( $client );
 		if ( empty( $params['options']['ssl']['peer_certificate'] ) ) {
-			fclose( $client );
+			fclose( $client ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closing a stream_socket_client resource; WP_Filesystem operates on files, not sockets.
 			return false;
 		}
 		$cert = $params['options']['ssl']['peer_certificate'];

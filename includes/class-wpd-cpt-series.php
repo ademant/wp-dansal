@@ -206,6 +206,7 @@ class WPD_CPT_Series {
 		if ( $dansal_id ) {
 			$result = $this->api->put( "/api/v1/series/{$dansal_id}", $payload );
 			if ( is_wp_error( $result ) ) {
+				/* translators: 1: dansal series id, 2: error message */
 				$this->store_notice( sprintf( __( 'Failed to update dansal series #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $result->get_error_message() ), 'error' );
 			} else {
 				update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
@@ -215,6 +216,7 @@ class WPD_CPT_Series {
 
 		$result = $this->api->post( '/api/v1/series', $payload );
 		if ( is_wp_error( $result ) ) {
+			/* translators: %s: error message from the dansal API */
 			$this->store_notice( sprintf( __( 'Failed to create dansal series: %s', 'wp-dansal' ), $result->get_error_message() ), 'error' );
 			return;
 		}
@@ -222,6 +224,7 @@ class WPD_CPT_Series {
 		if ( $new_id ) {
 			update_post_meta( $post_id, self::META_DANSAL_ID, $new_id );
 			update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
+			/* translators: %d: newly created dansal series id */
 			$this->store_notice( sprintf( __( 'Created dansal series #%d.', 'wp-dansal' ), $new_id ), 'success' );
 		}
 	}
