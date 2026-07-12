@@ -91,7 +91,20 @@ jobs:
         env:
           WP_TESTS_DIR: ${{ github.workspace }}/vendor/wp-phpunit/wp-phpunit
         run: |
-          cp "$WP_TESTS_DIR/wp-tests-config-sample.php" "$WP_TESTS_DIR/wp-tests-config.php"
+          # Prefer the package-provided sample, but fall back to any sample found in vendor
+          # or download a known sample from the wp-phpunit repo if needed.
+          WP_TESTS_DIR=${WP_TESTS_DIR}
+          SAMPLE="$WP_TESTS_DIR/wp-tests-config-sample.php"
+          if [ ! -f "$SAMPLE" ]; then
+            SAMPLE=$(find vendor -type f -name 'wp-tests-config-sample.php' | head -n1 || true)
+          fi
+          if [ -f "$SAMPLE" ]; then
+            cp "$SAMPLE" "$WP_TESTS_DIR/wp-tests-config.php"
+          else
+            echo "No local wp-tests-config-sample.php found; downloading fallback"
+            mkdir -p "$WP_TESTS_DIR"
+            curl -sSfL https://raw.githubusercontent.com/wp-phpunit/wp-phpunit/master/wp-tests-config-sample.php -o "$WP_TESTS_DIR/wp-tests-config.php"
+          fi
           sed -i "s|youremptytestdbnamehere|wordpress_test|" "$WP_TESTS_DIR/wp-tests-config.php"
           sed -i "s|yourusernamehere|root|" "$WP_TESTS_DIR/wp-tests-config.php"
           sed -i "s|yourpasswordhere|root|" "$WP_TESTS_DIR/wp-tests-config.php"
