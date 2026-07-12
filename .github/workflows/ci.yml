@@ -3,7 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -142,3 +145,50 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-zip:
+    name: Build plugin zip
+    needs: [php-lint, phpcs, phpunit, plugin-check, secrets]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only tag pushes must match the header — a workflow_dispatch build is
+      # allowed to run against arbitrary refs so we can smoke-test the zip.
+      - name: Verify tag matches plugin header version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          header_version="$(make --silent version)"
+          echo "tag: $tag_version"
+          echo "header: $header_version"
+          if [ -z "$tag_version" ] || [ -z "$header_version" ]; then
+            echo "::error::Empty tag or header version (tag='$tag_version' header='$header_version')."
+            exit 1
+          fi
+          if [ "$tag_version" != "$header_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match wp-dansal.php Version header ($header_version)."
+            exit 1
+          fi
+
+      - name: Build zip
+        run: make zip
+
+      - name: Upload zip as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp-dansal-plugin-zip
+          path: dist/wp-dansal-*.zip
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/wp-dansal-*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
