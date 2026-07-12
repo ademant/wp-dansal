@@ -199,19 +199,19 @@ class WPD_Settings {
 	private function get_peer_cert_sha256( $host, $port = 443 ) {
 		$errno = 0;
 		$errstr = '';
-		$context = stream_context_create( array('ssl' => array('capture_peer_cert' => true, 'verify_peer' => true, 'verify_peer_name' => true)) );
+		$context = stream_context_create( array( 'ssl' => array( 'capture_peer_cert' => true, 'verify_peer' => true, 'verify_peer_name' => true ) ) );
 		$remote = sprintf('%s:%d', $host, (int) $port);
-		$client = @stream_socket_client( 'ssl://' . $remote, $errno, $errstr, 5, STREAM_CLIENT_CONNECT, $context );
+		$client = stream_socket_client( 'ssl://' . $remote, $errno, $errstr, 5, STREAM_CLIENT_CONNECT, $context );
 		if ( ! $client ) {
 			return false;
 		}
 		$params = stream_context_get_params( $client );
 		if ( empty( $params['options']['ssl']['peer_certificate'] ) ) {
-			@fclose( $client );
+			fclose( $client );
 			return false;
 		}
 		$cert = $params['options']['ssl']['peer_certificate'];
-		@fclose( $client );
+		fclose( $client );
 		$export = '';
 		if ( ! openssl_x509_export( $cert, $export ) ) {
 			return false;
@@ -313,7 +313,7 @@ class WPD_Settings {
 
 		// A new API key resets everything the renew flow tracks; unrelated
 		// updates preserve it.
-		if ( $incoming_plain !== '' && $incoming_plain !== $existing_plain ) {
+		if ( '' !== $incoming_plain && $incoming_plain !== $existing_plain ) {
 			$out['api_key_expires_at'] = 0;
 			$out['api_key_no_expiry']  = false;
 			$out['api_key_dead']       = false;
