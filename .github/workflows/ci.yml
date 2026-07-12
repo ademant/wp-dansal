@@ -94,24 +94,28 @@ jobs:
         env:
           WP_TESTS_DIR: ${{ github.workspace }}/vendor/wp-phpunit/wp-phpunit
         run: |
-          # Prefer the package-provided sample, but fall back to any sample found in vendor
-          # or download a known sample from the wp-phpunit repo if needed.
-          WP_TESTS_DIR=${WP_TESTS_DIR}
-          SAMPLE="$WP_TESTS_DIR/wp-tests-config-sample.php"
-          if [ ! -f "$SAMPLE" ]; then
-            SAMPLE=$(find vendor -type f -name 'wp-tests-config-sample.php' | head -n1 || true)
-          fi
-          if [ -f "$SAMPLE" ]; then
-            cp "$SAMPLE" "$WP_TESTS_DIR/wp-tests-config.php"
-          else
-            echo "No local wp-tests-config-sample.php found; downloading fallback"
-            mkdir -p "$WP_TESTS_DIR"
-            curl -sSfL https://raw.githubusercontent.com/wp-phpunit/wp-phpunit/master/wp-tests-config-sample.php -o "$WP_TESTS_DIR/wp-tests-config.php"
-          fi
-          sed -i "s|youremptytestdbnamehere|wordpress_test|" "$WP_TESTS_DIR/wp-tests-config.php"
-          sed -i "s|yourusernamehere|root|" "$WP_TESTS_DIR/wp-tests-config.php"
-          sed -i "s|yourpasswordhere|root|" "$WP_TESTS_DIR/wp-tests-config.php"
-          sed -i "s|localhost|127.0.0.1|" "$WP_TESTS_DIR/wp-tests-config.php"
+          set -euo pipefail
+          # Write the config inline rather than hunting for a sample file in the
+          # vendored package (which may or may not ship one, depending on the
+          # release) or curl-ing an unpinned upstream URL.
+          mkdir -p "$WP_TESTS_DIR"
+          cat > "$WP_TESTS_DIR/wp-tests-config.php" <<'PHP'
+          <?php
+          define( 'ABSPATH', __DIR__ . '/' );
+          define( 'WP_DEFAULT_THEME', 'default' );
+          define( 'DB_NAME', 'wordpress_test' );
+          define( 'DB_USER', 'root' );
+          define( 'DB_PASSWORD', 'root' );
+          define( 'DB_HOST', '127.0.0.1' );
+          define( 'DB_CHARSET', 'utf8' );
+          define( 'DB_COLLATE', '' );
+          $table_prefix = 'wptests_';
+          define( 'WP_TESTS_DOMAIN', 'example.org' );
+          define( 'WP_TESTS_EMAIL', 'admin@example.org' );
+          define( 'WP_TESTS_TITLE', 'Test Blog' );
+          define( 'WP_PHP_BINARY', 'php' );
+          define( 'WPLANG', '' );
+          PHP
 
       - name: Run PHPUnit
         env:
