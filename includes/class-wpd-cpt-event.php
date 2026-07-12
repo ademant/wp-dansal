@@ -472,8 +472,11 @@ class WPD_CPT_Event {
             'wpd-admin-event',
             'wpdEvent',
             array(
-				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'wpd_search_entity' ),
+				'ajaxUrl'                 => admin_url( 'admin-ajax.php' ),
+				'nonce'                   => wp_create_nonce( 'wpd_search_entity' ),
+				// Auto-fill end datetime with start + this many seconds when
+				// end is still empty (see #58). Filterable per-site.
+				'defaultDurationSeconds'  => (int) apply_filters( 'wpd_default_event_duration', 2 * HOUR_IN_SECONDS ),
 				'i18n'    => array(
 					/* translators: %s: name typed by the user. */
 					'createMusician'   => __( 'Create "%s" as new musician', 'wp-dansal' ),

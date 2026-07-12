@@ -138,4 +138,34 @@
 			} );
 		}, 300 ) );
 	} );
+
+	// #58: When the user picks a start datetime and end is still empty, seed
+	// end with start + defaultDurationSeconds. Only ever fires while end is
+	// empty, so an already-typed end is never clobbered.
+	$( function () {
+		var startEl = document.getElementById( 'wpd_start_time' );
+		var endEl = document.getElementById( 'wpd_end_time' );
+		if ( ! startEl || ! endEl ) {
+			return;
+		}
+		var pad = function ( n ) { return ( '0' + n ).slice( -2 ); };
+		var fill = function () {
+			if ( endEl.value !== '' || startEl.value === '' ) {
+				return;
+			}
+			var d = new Date( startEl.value );
+			if ( isNaN( d.getTime() ) ) {
+				return;
+			}
+			var seconds = parseInt( wpdEvent.defaultDurationSeconds, 10 );
+			if ( ! seconds || seconds < 0 ) {
+				seconds = 7200;
+			}
+			d = new Date( d.getTime() + seconds * 1000 );
+			endEl.value = d.getFullYear() + '-' + pad( d.getMonth() + 1 ) + '-' + pad( d.getDate() )
+				+ 'T' + pad( d.getHours() ) + ':' + pad( d.getMinutes() );
+		};
+		startEl.addEventListener( 'change', fill );
+		startEl.addEventListener( 'blur', fill );
+	} );
 } )( jQuery );
