@@ -78,6 +78,7 @@ while ( have_posts() ) :
 				<?php if ( $cancelled ) : ?>
 					<p class="wpd-cancelled-badge"><?php esc_html_e( 'This event has been cancelled.', 'wp-dansal' ); ?></p>
 				<?php endif; ?>
+				<?php edit_post_link( __( 'Edit event', 'wp-dansal' ), '<p class="wpd-edit-link">', '</p>' ); ?>
 			</header>
 
 			<div class="wpd-meta-row"><strong><?php esc_html_e( 'When:', 'wp-dansal' ); ?></strong> <?php echo esc_html( $format_dt( $start ) ); ?> &ndash; <?php echo esc_html( $format_dt( $end ) ); ?></div>

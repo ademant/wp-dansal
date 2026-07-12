@@ -46,6 +46,7 @@ while ( have_posts() ) :
 		<article <?php post_class(); ?>>
 			<header class="entry-header">
 				<h1 class="entry-title"><?php the_title(); ?></h1>
+				<?php edit_post_link( __( 'Edit location', 'wp-dansal' ), '<p class="wpd-edit-link">', '</p>' ); ?>
 			</header>
 
 			<div class="wpd-meta-row"><?php echo esc_html( trim( "$address, $zipcode $town, $country", ' ,' ) ); ?></div>
