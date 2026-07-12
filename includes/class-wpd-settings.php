@@ -199,9 +199,17 @@ class WPD_Settings {
 	private function get_peer_cert_sha256( $host, $port = 443 ) {
 		$errno = 0;
 		$errstr = '';
-		$context = stream_context_create( array( 'ssl' => array( 'capture_peer_cert' => true, 'verify_peer' => true, 'verify_peer_name' => true ) ) );
-		$remote = sprintf('%s:%d', $host, (int) $port);
-		$client = stream_socket_client( 'ssl://' . $remote, $errno, $errstr, 5, STREAM_CLIENT_CONNECT, $context );
+		$context = stream_context_create(
+			array(
+				'ssl' => array(
+					'capture_peer_cert' => true,
+					'verify_peer'       => true,
+					'verify_peer_name'  => true,
+				),
+			)
+		);
+		$remote  = sprintf( '%s:%d', $host, (int) $port );
+		$client  = stream_socket_client( 'ssl://' . $remote, $errno, $errstr, 5, STREAM_CLIENT_CONNECT, $context );
 		if ( ! $client ) {
 			return false;
 		}
@@ -217,7 +225,7 @@ class WPD_Settings {
 			return false;
 		}
 		// PEM -> DER: strip headers and base64-decode.
-		$lines = preg_split('/\r?\n/', $export);
+		$lines = preg_split( '/\r?\n/', $export );
 		$body = '';
 		foreach ( $lines as $line ) {
 			if ( strpos( $line, '-----' ) === 0 ) {
