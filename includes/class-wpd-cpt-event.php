@@ -1112,7 +1112,17 @@ class WPD_CPT_Event {
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
 			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), 403 );
 		}
-		$event = get_transient( 'wpd_event_pending_pull_' . $post_id );
+		// Re-fetch fresh rather than trusting the stashed snapshot: it can be
+		// up to a day old by the time the admin clicks Accept, so a dansal-side
+		// edit landing in that gap (e.g. a musician added after the notice was
+		// stashed) would otherwise be silently dropped on accept (#71).
+		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
+		$event     = $dansal_id ? $this->api->get( "/api/v1/events/{$dansal_id}" ) : null;
+		if ( is_wp_error( $event ) || ! is_array( $event ) || empty( $event['id'] ) ) {
+			// Fresh fetch failed -- fall back to the stashed snapshot rather
+			// than leaving the admin's Accept click with no effect.
+			$event = get_transient( 'wpd_event_pending_pull_' . $post_id );
+		}
 		if ( is_array( $event ) ) {
 			$this->write_event_post( $post_id, $event );
 		}
