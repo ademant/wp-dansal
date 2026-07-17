@@ -167,5 +167,39 @@
 		};
 		startEl.addEventListener( 'change', fill );
 		startEl.addEventListener( 'blur', fill );
+
+		// Room picker follows the location: on change, ask the server for the
+		// new location's rooms and rebuild the room <select>. The server-side
+		// render seeded whatever room was selected at page load; anything
+		// after that is JS-driven.
+		var $locSel  = $( '.wpd-location-select' );
+		var $roomSel = $( '.wpd-room-select' );
+		if ( $locSel.length && $roomSel.length && wpdEvent.nonceRooms ) {
+			$locSel.on( 'change', function () {
+				var postId = parseInt( $locSel.val(), 10 );
+				// Rebuild starts with the "none" option so a location change
+				// doesn't carry a stale room-id from the previous venue.
+				$roomSel.empty().append(
+					$( '<option value="0" />' ).text( wpdEvent.i18n.noRoom || '— no specific room —' )
+				);
+				if ( ! postId ) {
+					return;
+				}
+				$.getJSON( wpdEvent.ajaxUrl, {
+					action: 'wpd_list_rooms',
+					_wpnonce: wpdEvent.nonceRooms,
+					post_id: postId,
+				} ).done( function ( resp ) {
+					if ( ! resp.success || ! resp.data.rooms ) {
+						return;
+					}
+					resp.data.rooms.forEach( function ( room ) {
+						$roomSel.append(
+							$( '<option />' ).val( room.id ).text( room.name )
+						);
+					} );
+				} );
+			} );
+		}
 	} );
 } )( jQuery );

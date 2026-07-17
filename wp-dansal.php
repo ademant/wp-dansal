@@ -3,7 +3,7 @@
  * Plugin Name: WP Dansal
  * Plugin URI: https://github.com/ademant/wp-dansal
  * Description: Manage dance events and locations in WordPress, backed by a dansal server (https://github.com/ademant/dansal) as the storage/publishing backend.
- * Version: 0.1.11
+ * Version: 0.2.0
  * Author: ademant
  * License: GPL-2.0-or-later
  * Text Domain: wp-dansal
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPD_VERSION', '0.1.11' );
+define( 'WPD_VERSION', '0.2.0' );
 define( 'WPD_PLUGIN_FILE', __FILE__ );
 define( 'WPD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

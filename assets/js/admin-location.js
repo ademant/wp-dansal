@@ -119,5 +119,82 @@
 				$( '#wpd-nominatim-search' ).trigger( 'click' );
 			}
 		} );
+
+		// Rooms panel (only rendered when the location is already synced;
+		// see WPD_CPT_Location::render_meta_box).
+		var $rooms = $( '#wpd-rooms' );
+		if ( $rooms.length ) {
+			var postId = $rooms.data( 'post-id' );
+
+			var renderRooms = function ( rooms ) {
+				$rooms.empty();
+				if ( ! rooms || ! rooms.length ) {
+					$rooms.append( $( '<p />' ).addClass( 'description' ).text( wpdLocation.i18n.noRooms ) );
+					return;
+				}
+				var $ul = $( '<ul />' ).addClass( 'wpd-rooms-list' );
+				rooms.forEach( function ( room ) {
+					var $btn = $( '<button type="button" class="button-link wpd-room-remove" />' )
+						.text( wpdLocation.i18n.removeRoom )
+						.attr( 'data-room-id', room.id );
+					$ul.append(
+						$( '<li />' )
+							.append( $( '<span />' ).text( room.name ) )
+							.append( ' — ' )
+							.append( $btn )
+					);
+				} );
+				$rooms.append( $ul );
+			};
+
+			$.getJSON( wpdLocation.ajaxUrl, {
+				action: 'wpd_list_rooms',
+				_wpnonce: wpdLocation.nonceRooms,
+				post_id: postId,
+			} ).done( function ( resp ) {
+				if ( resp.success ) {
+					renderRooms( resp.data.rooms );
+				}
+			} );
+
+			$( '#wpd-room-add' ).on( 'click', function () {
+				var name = $.trim( $( '#wpd-room-new-name' ).val() );
+				if ( ! name ) {
+					return;
+				}
+				$.post( wpdLocation.ajaxUrl, {
+					action: 'wpd_add_room',
+					_wpnonce: wpdLocation.nonceRooms,
+					post_id: postId,
+					name: name,
+				}, function ( resp ) {
+					if ( resp.success ) {
+						renderRooms( resp.data.rooms );
+						$( '#wpd-room-new-name' ).val( '' );
+					} else {
+						window.alert( ( resp.data && resp.data.message ) || wpdLocation.i18n.roomsError );
+					}
+				}, 'json' );
+			} );
+
+			$rooms.on( 'click', '.wpd-room-remove', function () {
+				var roomId = $( this ).data( 'room-id' );
+				if ( ! window.confirm( wpdLocation.i18n.confirmRemove ) ) {
+					return;
+				}
+				$.post( wpdLocation.ajaxUrl, {
+					action: 'wpd_delete_room',
+					_wpnonce: wpdLocation.nonceRooms,
+					post_id: postId,
+					room_id: roomId,
+				}, function ( resp ) {
+					if ( resp.success ) {
+						renderRooms( resp.data.rooms );
+					} else {
+						window.alert( ( resp.data && resp.data.message ) || wpdLocation.i18n.roomsError );
+					}
+				}, 'json' );
+			} );
+		}
 	} );
 } )( jQuery );

@@ -40,6 +40,9 @@ class WPD_CPT_Location {
 		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'wp_ajax_wpd_check_location_duplicate', array( $this, 'ajax_check_duplicate' ) );
+		add_action( 'wp_ajax_wpd_list_rooms', array( $this, 'ajax_list_rooms' ) );
+		add_action( 'wp_ajax_wpd_add_room', array( $this, 'ajax_add_room' ) );
+		add_action( 'wp_ajax_wpd_delete_room', array( $this, 'ajax_delete_room' ) );
 		add_action( 'admin_notices', array( $this, 'show_sync_notices' ) );
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
@@ -205,8 +208,105 @@ class WPD_CPT_Location {
 			</table>
 			<input type="hidden" id="wpd_osm_id" name="wpd_osm_id" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_osm_id' ) ); ?>" />
 			<input type="hidden" id="wpd_osm_type" name="wpd_osm_type" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_osm_type' ) ); ?>" />
+			<?php if ( $dansal_id ) : ?>
+				<hr />
+				<h4><?php esc_html_e( 'Rooms', 'wp-dansal' ); ?></h4>
+				<p class="description"><?php esc_html_e( 'Named sub-areas of this venue (e.g. "Grand Hall", "Studio 2"). Events can be assigned to a specific room.', 'wp-dansal' ); ?></p>
+				<div id="wpd-rooms" data-post-id="<?php echo esc_attr( $post->ID ); ?>"></div>
+				<p>
+					<input type="text" id="wpd-room-new-name" class="regular-text" placeholder="<?php esc_attr_e( 'e.g. Grand Hall', 'wp-dansal' ); ?>" />
+					<button type="button" class="button" id="wpd-room-add"><?php esc_html_e( 'Add room', 'wp-dansal' ); ?></button>
+				</p>
+			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Rooms live server-side (dansal is the source of truth) but we snapshot
+	 * the list into post meta on every pull-sync so the event picker can
+	 * render without a round-trip. Callers that need a fresh list (metabox,
+	 * "location changed" AJAX in the event editor) should fetch it here.
+	 *
+	 * @return array List of {id, name} rooms; empty on error.
+	 */
+	public function fetch_rooms_for_post( $post_id ) {
+		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
+		if ( ! $dansal_id ) {
+			return array();
+		}
+		$rooms = $this->api->get_public( "/api/v1/locations/{$dansal_id}/rooms" );
+		if ( is_wp_error( $rooms ) || ! is_array( $rooms ) ) {
+			// Fall back to the cached list from the last successful sync so
+			// the picker keeps working while dansal is briefly unreachable.
+			$cached = get_post_meta( $post_id, '_wpd_rooms_cache', true );
+			return is_array( $cached ) ? $cached : array();
+		}
+		$out = array();
+		foreach ( $rooms as $room ) {
+			if ( is_array( $room ) && isset( $room['id'], $room['name'] ) ) {
+				$out[] = array(
+					'id'   => (int) $room['id'],
+					'name' => (string) $room['name'],
+				);
+			}
+		}
+		update_post_meta( $post_id, '_wpd_rooms_cache', $out );
+		return $out;
+	}
+
+	public function ajax_list_rooms() {
+		check_ajax_referer( 'wpd_rooms' );
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
+		}
+		$post_id = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid location.', 'wp-dansal' ) ) );
+		}
+		wp_send_json_success( array( 'rooms' => $this->fetch_rooms_for_post( $post_id ) ) );
+	}
+
+	public function ajax_add_room() {
+		check_ajax_referer( 'wpd_rooms' );
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
+		}
+		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+		$name    = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) || '' === trim( $name ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid input.', 'wp-dansal' ) ) );
+		}
+		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
+		if ( ! $dansal_id ) {
+			wp_send_json_error( array( 'message' => __( 'Location is not synced yet — save it first.', 'wp-dansal' ) ) );
+		}
+		$result = $this->api->post( "/api/v1/locations/{$dansal_id}/rooms", array( 'name' => $name ) );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+		wp_send_json_success( array( 'rooms' => $this->fetch_rooms_for_post( $post_id ) ) );
+	}
+
+	public function ajax_delete_room() {
+		check_ajax_referer( 'wpd_rooms' );
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
+		}
+		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+		$room_id = isset( $_POST['room_id'] ) ? absint( $_POST['room_id'] ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) || ! $room_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid input.', 'wp-dansal' ) ) );
+		}
+		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
+		if ( ! $dansal_id ) {
+			wp_send_json_error( array( 'message' => __( 'Location is not synced yet.', 'wp-dansal' ) ) );
+		}
+		$result = $this->api->delete( "/api/v1/locations/{$dansal_id}/rooms/{$room_id}" );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+		wp_send_json_success( array( 'rooms' => $this->fetch_rooms_for_post( $post_id ) ) );
 	}
 
 	public function enqueue_admin_assets( $hook ) {
@@ -223,6 +323,7 @@ class WPD_CPT_Location {
 				'ajaxUrl'          => admin_url( 'admin-ajax.php' ),
 				'nonceSearch'      => wp_create_nonce( 'wpd_nominatim_search' ),
 				'nonceDuplicate'   => wp_create_nonce( 'wpd_check_location_duplicate' ),
+				'nonceRooms'       => wp_create_nonce( 'wpd_rooms' ),
 				'i18n'             => array(
 					'noResults'      => __( 'No matches found.', 'wp-dansal' ),
 					'checking'       => __( 'Checking dansal for existing locations…', 'wp-dansal' ),
@@ -231,6 +332,10 @@ class WPD_CPT_Location {
 					'createNew'      => __( 'Create new location anyway', 'wp-dansal' ),
 					/* translators: %d is replaced client-side (JS .replace('%d', id)) with the dansal location ID. */
 					'willAssign'     => __( 'On save, your organization will be assigned to dansal location #%d instead of creating a new one.', 'wp-dansal' ),
+					'noRooms'        => __( 'No rooms yet.', 'wp-dansal' ),
+					'removeRoom'     => __( 'Remove', 'wp-dansal' ),
+					'confirmRemove'  => __( 'Remove this room? Any event using it will lose its room assignment.', 'wp-dansal' ),
+					'roomsError'     => __( 'Failed to update rooms.', 'wp-dansal' ),
 				),
             )
         );
@@ -639,6 +744,22 @@ class WPD_CPT_Location {
 		foreach ( array( 'wheelchair', 'bar', 'kitchen' ) as $attr ) {
 			update_post_meta( $post_id, '_wpd_attr_' . $attr, ! empty( $attrs[ $attr ] ) ? '1' : '' );
 		}
+
+		// dansal now embeds a location's rooms (API.md → Locations → Rooms).
+		// Snapshot them so the event picker can render without a round-trip;
+		// authoritative list stays server-side.
+		$rooms_cache = array();
+		if ( isset( $loc['rooms'] ) && is_array( $loc['rooms'] ) ) {
+			foreach ( $loc['rooms'] as $room ) {
+				if ( is_array( $room ) && isset( $room['id'], $room['name'] ) ) {
+					$rooms_cache[] = array(
+						'id'   => (int) $room['id'],
+						'name' => (string) $room['name'],
+					);
+				}
+			}
+		}
+		update_post_meta( $post_id, '_wpd_rooms_cache', $rooms_cache );
 
 		update_post_meta( $post_id, self::META_DANSAL_ID, (int) $loc['id'] );
 		update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );

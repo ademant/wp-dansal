@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.1.11
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,10 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.2.0 =
+* Rooms: named sub-locations (e.g. "Grand Hall", "Studio 2") within a venue. Managed from the location edit screen (add/remove); events can be assigned to a specific room from the event edit screen, and the room name shows on the single-event page. Backed by dansal's `/api/v1/locations/{id}/rooms` endpoints and `Event.room_id`.
+* Clearing an event's location now issues `DELETE /api/v1/events/{id}/location` instead of a PATCH — merge-patch can't clear a nullable `*int` reference, so the previous behavior silently left the old location on dansal.
 
 = 0.1.11 =
 * Release job now publishes an unversioned `wp-dansal.zip` alias next to the versioned zip, so the readme can link to `.../releases/latest/download/wp-dansal.zip` as a stable direct-download URL.

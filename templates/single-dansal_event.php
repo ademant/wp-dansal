@@ -84,7 +84,16 @@ while ( have_posts() ) :
 			<div class="wpd-meta-row"><strong><?php esc_html_e( 'When:', 'wp-dansal' ); ?></strong> <?php echo esc_html( $format_dt( $start ) ); ?> &ndash; <?php echo esc_html( $format_dt( $end ) ); ?></div>
 
 			<?php if ( $loc_post_id ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Where:', 'wp-dansal' ); ?></strong> <a href="<?php echo esc_url( get_permalink( $loc_post_id ) ); ?>"><?php echo esc_html( get_the_title( $loc_post_id ) ); ?></a></div>
+				<?php
+				$wpd_room_name = get_post_meta( $wpd_post_id, '_wpd_room_name', true );
+				?>
+				<div class="wpd-meta-row">
+					<strong><?php esc_html_e( 'Where:', 'wp-dansal' ); ?></strong>
+					<a href="<?php echo esc_url( get_permalink( $loc_post_id ) ); ?>"><?php echo esc_html( get_the_title( $loc_post_id ) ); ?></a>
+					<?php if ( $wpd_room_name ) : ?>
+						<span class="wpd-room-name"> — <?php echo esc_html( $wpd_room_name ); ?></span>
+					<?php endif; ?>
+				</div>
 				<?php
 				$wpd_ev_lat = get_post_meta( $loc_post_id, '_wpd_latitude', true );
 				$wpd_ev_lng = get_post_meta( $loc_post_id, '_wpd_longitude', true );

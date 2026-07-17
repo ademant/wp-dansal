@@ -484,6 +484,7 @@ class WPD_CPT_Event {
             array(
 				'ajaxUrl'                 => admin_url( 'admin-ajax.php' ),
 				'nonce'                   => wp_create_nonce( 'wpd_search_entity' ),
+				'nonceRooms'              => wp_create_nonce( 'wpd_rooms' ),
 				// Auto-fill end datetime with start + this many seconds when
 				// end is still empty (see #58). Filterable per-site.
 				'defaultDurationSeconds'  => (int) apply_filters( 'wpd_default_event_duration', 2 * HOUR_IN_SECONDS ),
@@ -497,6 +498,7 @@ class WPD_CPT_Event {
 					'promoteTitle'     => __( 'Create / edit local copy', 'wp-dansal' ),
 					'editLocal'        => __( 'Open local copy', 'wp-dansal' ),
 					'promoteFailed'    => __( 'Could not create local copy.', 'wp-dansal' ),
+					'noRoom'           => __( '— no specific room —', 'wp-dansal' ),
 				),
             )
         );
@@ -726,6 +728,11 @@ class WPD_CPT_Event {
 			'tags'               => array_values( array_filter( explode( ',', $get( '_wpd_tags' ) ) ) ),
 			'organization_id'    => $this->settings->get_org_id(),
 			'location_id'        => $location_dansal_id ? $location_dansal_id : null,
+			// Room is a nullable sub-scope of the venue; clearing to null in a
+			// PATCH body is fine here because dansal treats a *int room_id
+			// consistently with the create/write path (unlike location_id,
+			// see the DELETE .../location dance in sync_to_dansal).
+			'room_id'            => (int) $get( '_wpd_room_id' ) ? (int) $get( '_wpd_room_id' ) : null,
 			'pricing'            => $pricing,
 			'musicians'          => array_values( array_filter( array_map( 'absint', explode( ',', $get( '_wpd_musician_ids' ) ) ) ) ),
 			'instructors'        => array_values( array_filter( array_map( 'absint', explode( ',', $get( '_wpd_instructor_ids' ) ) ) ) ),
@@ -787,6 +794,13 @@ class WPD_CPT_Event {
 					return null !== $v;
 				}
 			);
+			// room_id is the one *int field dansal explicitly treats as
+			// clearable via merge-patch null (API.md → Events: "clearing it
+			// to null is unambiguous in a merge-patch"), so re-add it if the
+			// user cleared it — array_filter stripped the null a moment ago.
+			if ( array_key_exists( 'room_id', $payload ) && null === $payload['room_id'] ) {
+				$patch['room_id'] = null;
+			}
 			$result = $this->api->patch( "/api/v1/events/{$dansal_id}", $patch );
 			if ( is_wp_error( $result ) ) {
 				/* translators: 1: dansal event ID, 2: underlying error message. */
@@ -1162,6 +1176,9 @@ class WPD_CPT_Event {
 		// Baseline for detecting a user-driven "clear location" on the next
 		// push — see sync_to_dansal() for the DELETE .../location call.
 		update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, $location_id );
+
+		update_post_meta( $post_id, '_wpd_room_id', isset( $event['room_id'] ) ? (int) $event['room_id'] : '' );
+		update_post_meta( $post_id, '_wpd_room_name', isset( $event['room_name'] ) ? (string) $event['room_name'] : '' );
 
 		$tags = isset( $event['tags'] ) && is_array( $event['tags'] ) ? array_map( 'sanitize_key', $event['tags'] ) : array();
 		update_post_meta( $post_id, '_wpd_tags', $tags ? ',' . implode( ',', $tags ) . ',' : '' );

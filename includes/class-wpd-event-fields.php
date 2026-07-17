@@ -26,6 +26,7 @@ class WPD_Event_Fields {
 	public static function overlay_keys() {
 		return array(
 			'_wpd_location_post_id',
+			'_wpd_room_id',
 			'_wpd_tags',
 			'_wpd_dance_ids',
 			'_wpd_has_ball',
@@ -112,13 +113,31 @@ class WPD_Event_Fields {
 		<tr>
 			<th><label><?php esc_html_e( 'Location', 'wp-dansal' ); ?></label></th>
 			<td>
-				<select name="<?php echo esc_attr( $name( '_wpd_location_post_id' ) ); ?>">
+				<select name="<?php echo esc_attr( $name( '_wpd_location_post_id' ) ); ?>" class="wpd-location-select">
 					<option value=""><?php esc_html_e( '— select a synced location —', 'wp-dansal' ); ?></option>
 					<?php foreach ( $location_posts as $loc ) : ?>
 						<option value="<?php echo esc_attr( $loc->ID ); ?>" <?php selected( $v( '_wpd_location_post_id' ), $loc->ID ); ?>><?php echo esc_html( $loc->post_title ); ?></option>
 					<?php endforeach; ?>
 				</select>
 				<p class="description"><?php esc_html_e( 'Only locations already synced to dansal (see Dance Locations) can be attached to an event.', 'wp-dansal' ); ?></p>
+			</td>
+		</tr>
+		<tr class="wpd-room-row">
+			<th><label><?php esc_html_e( 'Room', 'wp-dansal' ); ?></label></th>
+			<td>
+				<?php
+				$current_location_post = (int) $v( '_wpd_location_post_id' );
+				$rooms_cache           = $current_location_post ? get_post_meta( $current_location_post, '_wpd_rooms_cache', true ) : array();
+				$rooms_cache           = is_array( $rooms_cache ) ? $rooms_cache : array();
+				$current_room          = (int) $v( '_wpd_room_id' );
+				?>
+				<select name="<?php echo esc_attr( $name( '_wpd_room_id' ) ); ?>" class="wpd-room-select">
+					<option value="0"><?php esc_html_e( '— no specific room —', 'wp-dansal' ); ?></option>
+					<?php foreach ( $rooms_cache as $room ) : ?>
+						<option value="<?php echo esc_attr( $room['id'] ); ?>" <?php selected( $current_room, $room['id'] ); ?>><?php echo esc_html( $room['name'] ); ?></option>
+					<?php endforeach; ?>
+				</select>
+				<p class="description"><?php esc_html_e( 'Optional — pick a specific named room within the venue. Rooms are managed on the location edit screen.', 'wp-dansal' ); ?></p>
 			</td>
 		</tr>
 		<tr>
@@ -317,6 +336,11 @@ class WPD_Event_Fields {
 		$dances               = isset( $input['_wpd_dance_ids'] ) ? array_map( 'absint', (array) $input['_wpd_dance_ids'] ) : array();
 		$dances               = array_values( array_filter( $dances ) );
 		$out['_wpd_dance_ids'] = implode( ',', $dances );
+
+		$out['_wpd_room_id'] = isset( $input['_wpd_room_id'] ) ? (string) absint( $input['_wpd_room_id'] ) : '';
+		if ( '0' === $out['_wpd_room_id'] ) {
+			$out['_wpd_room_id'] = '';
+		}
 
 		return $out;
 	}
