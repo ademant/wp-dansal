@@ -17,9 +17,10 @@ class WPD_CPT_Event {
 	// frontend template, data attribute, or public JSON payload, because
 	// exposing it lets an outsider correlate this WP site with any other
 	// site publishing to the same dansal instance.
-	const META_DANSAL_ID      = '_wpd_dansal_id';
-	const META_LAST_SYNCED_AT = '_wpd_last_synced_at';
-	const POST_TYPE           = 'dansal_event';
+	const META_DANSAL_ID              = '_wpd_dansal_id';
+	const META_LAST_SYNCED_AT         = '_wpd_last_synced_at';
+	const META_LAST_SYNCED_LOCATION   = '_wpd_last_synced_location_dansal_id';
+	const POST_TYPE                   = 'dansal_event';
 
 	/** @var WPD_Api_Client */
 	private $api;
@@ -747,13 +748,34 @@ class WPD_CPT_Event {
 		$payload   = $this->build_payload( $post_id );
 		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
 
-		if ( empty( $payload['location_id'] ) ) {
+		// CREATE requires a location; an event without one cannot be created
+		// server-side. UPDATE (below) accepts a null location — see the
+		// DELETE .../location call that clears a previously-set location.
+		if ( ! $dansal_id && empty( $payload['location_id'] ) ) {
 			/* translators: %s: event title. */
 			$this->store_notice( sprintf( __( 'Event "%s" was saved locally but not synced to dansal: select a synced location first.', 'wp-dansal' ), get_the_title( $post_id ) ), 'error' );
 			return;
 		}
 
 		if ( $dansal_id ) {
+			$current_location = ! empty( $payload['location_id'] ) ? (int) $payload['location_id'] : 0;
+			$prior_location   = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, true );
+
+			// Clearing a nullable *int reference (location_id, organization_id)
+			// via PATCH is not possible: merge-patch can't distinguish "field
+			// omitted" from "explicitly null" for a plain scalar, and dansal's
+			// PATCH handler ignores such omissions. The dansal API exposes
+			// DELETE /events/{id}/location (see dansal API.md → Events →
+			// Relationship sub-resources) precisely for this transition.
+			if ( $prior_location && 0 === $current_location ) {
+				$clear = $this->api->delete( "/api/v1/events/{$dansal_id}/location" );
+				if ( is_wp_error( $clear ) ) {
+					/* translators: 1: dansal event ID, 2: underlying error message. */
+					$this->store_notice( sprintf( __( 'Failed to clear location on dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $clear->get_error_message() ), 'error' );
+					return;
+				}
+			}
+
 			// PATCH (RFC 7396 merge-patch) so fields the plugin doesn't manage
 			// (timetable, images, pricing tiers added via dansal admin) survive
 			// a WP-side save. Strip null values so an unset optional field
@@ -775,6 +797,7 @@ class WPD_CPT_Event {
 				// dansal "newer" than what we just wrote and pull it right
 				// back on top of itself.
 				update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
+				update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, $current_location );
 			}
 			return;
 		}
@@ -793,6 +816,7 @@ class WPD_CPT_Event {
 		if ( $new_id ) {
 			update_post_meta( $post_id, self::META_DANSAL_ID, $new_id );
 			update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
+			update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, ! empty( $payload['location_id'] ) ? (int) $payload['location_id'] : 0 );
 			/* translators: %d: newly created dansal event ID. */
 			$this->store_notice( sprintf( __( 'Created dansal event #%d.', 'wp-dansal' ), $new_id ), 'success' );
 		}
@@ -1135,6 +1159,9 @@ class WPD_CPT_Event {
 		$location_id      = isset( $event['location_id'] ) ? (int) $event['location_id'] : 0;
 		$location_post_id = $location_id ? WPD_CPT_Location::find_post_id_by_dansal_id( $location_id ) : 0;
 		update_post_meta( $post_id, '_wpd_location_post_id', $location_post_id ? $location_post_id : '' );
+		// Baseline for detecting a user-driven "clear location" on the next
+		// push — see sync_to_dansal() for the DELETE .../location call.
+		update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, $location_id );
 
 		$tags = isset( $event['tags'] ) && is_array( $event['tags'] ) ? array_map( 'sanitize_key', $event['tags'] ) : array();
 		update_post_meta( $post_id, '_wpd_tags', $tags ? ',' . implode( ',', $tags ) . ',' : '' );
