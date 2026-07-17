@@ -18,6 +18,8 @@ Saving an event or location automatically syncs it to dansal (create on first sa
 
 You can display events using the `[dansal_events]` shortcode: upcoming events as a list or a monthly calendar (`view="list"` or `view="calendar"`, plus `location`, `tag`, `limit`, `show_past` attributes). The `[dansal_locations]` shortcode renders a directory of locations with a self-hosted Leaflet map. Single templates are available for individual events and locations.
 
+`[dansal_events]` can also blend in events from *other* organizations/cities on the same dansal instance instead of just this site's own synced events, via `org="slug1,slug2"`, `country="de,fr"`, `bbox="minLng,minLat,maxLng,maxLat"`, `lat`/`lon`/`radius_km`, and `exclude_own_org="1"`. These are fetched live from dansal's public `GET /api/v1/events` (not synced as local posts) and rendered with the same list/calendar markup; events/locations/orgs that have no page on this WordPress site link out to dansal-web instead, using the optional **Dansal Web URL** setting (falls back to the API base URL).
+
 ## Theme template overrides
 
 Any of the plugin's templates can be overridden by copying it into your

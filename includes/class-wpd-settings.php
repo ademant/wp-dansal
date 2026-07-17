@@ -22,6 +22,13 @@ class WPD_Settings {
 	private function defaults() {
 		return array(
 			'base_url'        => '',
+			// Optional — the dansal-web frontend (public site) base URL, used
+			// only to build outbound links to entities that live on other
+			// orgs and therefore have no local WP permalink (see
+			// WPD_Remote_Events). dansal's REST API and dansal-web are
+			// commonly separate hosts, so this can't be derived from
+			// base_url. Falls back to base_url when empty.
+			'web_url'         => '',
 			'org_id'          => '',
 			// Deprecated: kept for UI placeholder only. Real key may be stored
 			// encrypted in 'api_key_encrypted'. Do NOT store plaintext here.
@@ -71,6 +78,16 @@ class WPD_Settings {
 
 	public function get_base_url() {
 		return untrailingslashit( trim( (string) $this->get( 'base_url' ) ) );
+	}
+
+	/**
+	 * dansal-web frontend base URL, for links to entities without a local
+	 * permalink (e.g. another org's event). Falls back to the API base URL
+	 * when not explicitly configured.
+	 */
+	public function get_web_url() {
+		$web = untrailingslashit( trim( (string) $this->get( 'web_url' ) ) );
+		return '' !== $web ? $web : $this->get_base_url();
 	}
 
 	public function get_org_id() {
@@ -282,6 +299,13 @@ class WPD_Settings {
 			$out['base_url'] = $existing['base_url'];
 		}
 
+		$raw_web = isset( $input['web_url'] ) ? trim( $input['web_url'] ) : $existing['web_url'];
+		if ( '' === $raw_web || preg_match( $scheme_re, $raw_web ) ) {
+			$out['web_url'] = '' !== $raw_web ? esc_url_raw( untrailingslashit( $raw_web ) ) : '';
+		} else {
+			$out['web_url'] = $existing['web_url'];
+		}
+
 		$out['org_id']          = isset( $input['org_id'] ) ? absint( $input['org_id'] ) : $existing['org_id'];
 		$out['nominatim_email'] = isset( $input['nominatim_email'] ) ? sanitize_email( $input['nominatim_email'] ) : $existing['nominatim_email'];
 		$out['dedup_radius_km'] = isset( $input['dedup_radius_km'] ) ? (float) str_replace( ',', '.', (string) $input['dedup_radius_km'] ) : $existing['dedup_radius_km'];
@@ -401,6 +425,13 @@ class WPD_Settings {
 							<th scope="row"><label for="wpd_base_url"><?php esc_html_e( 'Dansal Base URL', 'wp-dansal' ); ?></label></th>
 							<td>
 								<input type="url" id="wpd_base_url" name="<?php echo esc_attr( self::OPTION ); ?>[base_url]" value="<?php echo esc_attr( $o['base_url'] ); ?>" class="regular-text" placeholder="https://api.dansal.example.com" />
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpd_web_url"><?php esc_html_e( 'Dansal Web URL', 'wp-dansal' ); ?></label></th>
+							<td>
+								<input type="url" id="wpd_web_url" name="<?php echo esc_attr( self::OPTION ); ?>[web_url]" value="<?php echo esc_attr( $o['web_url'] ); ?>" class="regular-text" placeholder="https://dansal.example.com" />
+								<p class="description"><?php esc_html_e( 'Optional. The dansal-web public site, only used to link to events/orgs/locations from other organizations that have no page on this WordPress site. Leave blank to reuse the base URL above.', 'wp-dansal' ); ?></p>
 							</td>
 						</tr>
 						<tr>

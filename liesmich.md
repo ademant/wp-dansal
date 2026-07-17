@@ -18,6 +18,8 @@ Das Speichern eines Events oder Orts synchronisiert es automatisch mit dansal (E
 
 Events können mit dem Shortcode `[dansal_events]` angezeigt werden: anstehende Events als Liste oder als Monatskalender (`view="list"` oder `view="calendar"` sowie die Attribute `location`, `tag`, `limit`, `show_past`). Der Shortcode `[dansal_locations]` gibt ein Verzeichnis der Orte mit einer selbst gehosteten Leaflet-Karte aus. Einzelne Vorlagen stehen für einzelne Events und Orte zur Verfügung.
 
+`[dansal_events]` kann auch Events *anderer* Organisationen/Städte auf derselben dansal-Instanz einblenden, statt nur die lokal synchronisierten eigenen Events — über `org="slug1,slug2"`, `country="de,fr"`, `bbox="minLng,minLat,maxLng,maxLat"`, `lat`/`lon`/`radius_km` sowie `exclude_own_org="1"`. Diese Events werden live über dansals öffentliches `GET /api/v1/events` abgerufen (nicht als lokale Beiträge synchronisiert) und mit denselben Listen-/Kalendervorlagen dargestellt; Events/Orte/Organisationen ohne eigene Seite auf dieser WordPress-Site verlinken stattdessen auf dansal-web, über die optionale Einstellung **Dansal Web URL** (fällt auf die API-Basis-URL zurück, falls leer).
+
 ## Template-Überschreibungen im Theme
 
 Jede der Plugin-Vorlagen kann überschrieben werden, indem Sie sie in Ihr (Child-)Theme in einem Unterverzeichnis `dansal/` kopieren. `locate_template()` wählt zuerst die Kopie im Child-Theme, dann die des Parent-Themes und fällt schließlich auf die Standardvorlage des Plugins zurück:

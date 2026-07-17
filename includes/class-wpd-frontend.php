@@ -20,8 +20,12 @@ class WPD_Frontend {
 	/** @var WPD_Settings */
 	private $settings;
 
-	public function __construct( WPD_Settings $settings ) {
-		$this->settings = $settings;
+	/** @var WPD_Remote_Events */
+	private $remote_events;
+
+	public function __construct( WPD_Settings $settings, WPD_Remote_Events $remote_events ) {
+		$this->settings      = $settings;
+		$this->remote_events = $remote_events;
 
 		add_shortcode( 'dansal_events', array( $this, 'shortcode_events' ) );
 		add_shortcode( 'dansal_locations', array( $this, 'shortcode_locations' ) );
@@ -124,25 +128,45 @@ class WPD_Frontend {
 
 	/**
 	 * [dansal_events location="123" tag="bal-folk" limit="20" view="list|calendar" show_past="0"]
+	 *
+	 * Remote-query attributes surface events from OTHER organizations/cities
+	 * on the same dansal instance, fetched live via GET /api/v1/events
+	 * instead of the locally synced dansal_event CPTs (those only ever hold
+	 * this site's own org). Setting any of them switches list/calendar
+	 * rendering to the remote path; `location`/`tag` still apply (`tag` is
+	 * also a dansal query param, `location` is WP-post-ID-scoped and is
+	 * therefore ignored remotely):
+	 *
+	 * [dansal_events org="balfolkberlin,other-city" country="de,fr"
+	 *  bbox="minLng,minLat,maxLng,maxLat" lat="52.5" lon="13.4" radius_km="50"
+	 *  exclude_own_org="1"]
 	 */
 	public function shortcode_events( $atts ) {
 		$atts = shortcode_atts(
             array(
-				'location'  => '',
-				'tag'       => '',
-				'limit'     => 20,
-				'view'      => 'list',
-				'show_past' => 0,
-				'month'     => '',
-				'year'      => '',
+				'location'        => '',
+				'tag'             => '',
+				'limit'           => 20,
+				'view'            => 'list',
+				'show_past'       => 0,
+				'month'           => '',
+				'year'            => '',
+				'org'             => '',
+				'country'         => '',
+				'bbox'            => '',
+				'lat'             => '',
+				'lon'             => '',
+				'radius_km'       => '',
+				'exclude_own_org' => 0,
             ),
             $atts,
             'dansal_events'
         );
 
-		// Bound every attribute before it reaches WP_Query. Author input from
-		// shortcodes can come from lower-trust roles or copy-pasted snippets,
-		// so we cap limits, whitelist enums, and coerce IDs/dates.
+		// Bound every attribute before it reaches WP_Query or the dansal API.
+		// Author input from shortcodes can come from lower-trust roles or
+		// copy-pasted snippets, so we cap limits, whitelist enums, and coerce
+		// IDs/dates.
 		$atts['location']  = absint( $atts['location'] );
 		$atts['tag']       = sanitize_key( $atts['tag'] );
 		$atts['limit']     = max( 1, min( 100, absint( $atts['limit'] ) ) );
@@ -153,15 +177,80 @@ class WPD_Frontend {
 		$year              = absint( $atts['year'] );
 		$atts['year']      = ( $year >= 1970 && $year <= 2100 ) ? $year : '';
 
+		$atts['org']             = array_values( array_filter( array_map( 'sanitize_title', explode( ',', (string) $atts['org'] ) ) ) );
+		$atts['country']         = $this->sanitize_country_list( $atts['country'] );
+		$atts['bbox']            = $this->sanitize_bbox( $atts['bbox'] );
+		$atts['lat']             = is_numeric( $atts['lat'] ) ? (float) $atts['lat'] : '';
+		$atts['lon']             = is_numeric( $atts['lon'] ) ? (float) $atts['lon'] : '';
+		$atts['radius_km']       = is_numeric( $atts['radius_km'] ) && $atts['radius_km'] > 0 ? (float) $atts['radius_km'] : '';
+		$atts['exclude_own_org'] = ! empty( $atts['exclude_own_org'] ) && '0' !== (string) $atts['exclude_own_org'] ? 1 : 0;
+		// Proximity search needs all three parts; a partial lat/lon/radius_km
+		// combination is silently dropped rather than sent to dansal, which
+		// would otherwise ignore it anyway (see API.md, GET /api/v1/events).
+		if ( '' === $atts['lat'] || '' === $atts['lon'] || '' === $atts['radius_km'] ) {
+			$atts['lat']       = '';
+			$atts['lon']       = '';
+			$atts['radius_km'] = '';
+		}
+
 		$this->enqueue_frontend_style();
 
+		$remote = $this->is_remote_query( $atts );
+
 		if ( 'calendar' === $atts['view'] ) {
-			return $this->render_calendar( $atts );
+			return $remote ? $this->render_calendar_remote( $atts ) : $this->render_calendar( $atts );
 		}
 		if ( 'mini' === $atts['view'] ) {
 			return $this->render_mini_calendar( $atts );
 		}
-		return $this->render_list( $atts );
+		return $remote ? $this->render_list_remote( $atts ) : $this->render_list( $atts );
+	}
+
+	/**
+	 * True once any attribute asks for events dansal knows about but this
+	 * site hasn't synced locally (another org, a place/country filter, a
+	 * proximity search). `mini` view never goes remote — it's a compact
+	 * sidebar widget tied to this site's own synced events.
+	 */
+	private function is_remote_query( $atts ) {
+		return ! empty( $atts['org'] )
+			|| ! empty( $atts['country'] )
+			|| ! empty( $atts['bbox'] )
+			|| '' !== $atts['lat']
+			|| ! empty( $atts['exclude_own_org'] );
+	}
+
+	/**
+	 * @return string Comma-separated, uppercased, deduped 2-letter codes —
+	 *                dansal's `country=` filter passes this straight through.
+	 */
+	private function sanitize_country_list( $raw ) {
+		$codes = array();
+		foreach ( explode( ',', (string) $raw ) as $code ) {
+			$code = strtoupper( trim( $code ) );
+			if ( preg_match( '/^[A-Z]{2}$/', $code ) ) {
+				$codes[] = $code;
+			}
+		}
+		return implode( ',', array_values( array_unique( $codes ) ) );
+	}
+
+	/**
+	 * @return string 'minLng,minLat,maxLng,maxLat' when all four values are
+	 *                numeric, else '' (dansal's `bbox=` filter is all-or-nothing).
+	 */
+	private function sanitize_bbox( $raw ) {
+		$parts = explode( ',', (string) $raw );
+		if ( 4 !== count( $parts ) ) {
+			return '';
+		}
+		$parts = array_map( 'trim', $parts );
+		foreach ( $parts as $part ) {
+			if ( ! is_numeric( $part ) ) {
+				return '';
+			}
+		}
+		return implode( ',', array_map( 'floatval', $parts ) );
 	}
 
 	private function base_meta_query( $atts ) {
@@ -184,6 +273,167 @@ class WPD_Frontend {
 			);
 		}
 		return $meta_query;
+	}
+
+	/**
+	 * dansal query params shared by the remote list and calendar renderers —
+	 * everything from shortcode_events()'s remote-query attributes except
+	 * time bounds and organization_id/limit, which each caller sets itself
+	 * (calendar needs a month window; a multi-org fetch needs one
+	 * organization_id per request — see WPD_Remote_Events::fetch_events_for_orgs()).
+	 */
+	private function build_remote_query( $atts ) {
+		$query = array();
+		if ( ! empty( $atts['tag'] ) ) {
+			$query['tag'] = $atts['tag'];
+		}
+		if ( ! empty( $atts['country'] ) ) {
+			$query['country'] = $atts['country'];
+		}
+		if ( ! empty( $atts['bbox'] ) ) {
+			$query['bbox'] = $atts['bbox'];
+		}
+		if ( '' !== $atts['lat'] ) {
+			$query['lat']       = $atts['lat'];
+			$query['lon']       = $atts['lon'];
+			$query['radius_km'] = $atts['radius_km'];
+		}
+		return $query;
+	}
+
+	/**
+	 * Resolve org= slugs and run either the single-request or per-org-merge
+	 * fetch, then drop the local org's own events when exclude_own_org is
+	 * set. Shared by render_list_remote() and render_calendar_remote().
+	 *
+	 * @param array $query Base query from build_remote_query(), plus
+	 *                      whatever time-range params the caller already added.
+	 * @param int   $limit
+	 */
+	private function fetch_remote_events( $atts, $query, $limit ) {
+		$org_ids = $this->remote_events->resolve_org_ids( $atts['org'] );
+
+		if ( ! empty( $atts['org'] ) && empty( $org_ids ) ) {
+			// Every requested org= slug failed to resolve — show nothing
+			// rather than silently falling back to "all organizations".
+			$events = array();
+		} elseif ( ! empty( $org_ids ) ) {
+			$events = $this->remote_events->fetch_events_for_orgs( $org_ids, $query, $limit );
+		} else {
+			$query['limit'] = $limit;
+			$events         = $this->remote_events->fetch_events( $query );
+			if ( is_wp_error( $events ) ) {
+				$events = array();
+			}
+		}
+
+		if ( ! empty( $atts['exclude_own_org'] ) ) {
+			$local_org_id = $this->settings->get_org_id();
+			$events       = array_values(
+                array_filter(
+                    $events,
+                    function ( $event ) use ( $local_org_id ) {
+						return ! ( $local_org_id && isset( $event['organization_id'] ) && (int) $event['organization_id'] === $local_org_id );
+                    }
+                )
+            );
+		}
+
+		return $events;
+	}
+
+	/**
+	 * @return string Link to the dansal-web single event page. Remote events
+	 *                have no local WP permalink, so this is always the
+	 *                dansal-web URL, not a site-relative one.
+	 */
+	private function remote_event_url( $event ) {
+		$id = isset( $event['id'] ) ? absint( $event['id'] ) : 0;
+		return $id ? $this->settings->get_web_url() . '/events/' . $id : '';
+	}
+
+	private function remote_org_url( $slug ) {
+		return $this->settings->get_web_url() . '/org/' . rawurlencode( $slug );
+	}
+
+	private function remote_location_url( $id ) {
+		return $this->settings->get_web_url() . '/location/' . absint( $id );
+	}
+
+	/**
+	 * @return string[] Same shape as event_type_keys(), read from a dansal
+	 *                   API event array instead of dansal_event post meta.
+	 */
+	private function event_type_keys_remote( $event ) {
+		$flags  = array(
+			'ball'     => ! empty( $event['has_ball'] ),
+			'workshop' => ! empty( $event['has_workshop'] ),
+			'festival' => ! empty( $event['has_festival'] ),
+		);
+		$active = array_keys( array_filter( $flags ) );
+		return $active ? $active : array( 'other' );
+	}
+
+	/**
+	 * Event card for a raw dansal API event array (GET /api/v1/events),
+	 * counterpart to render_event_card() for locally synced posts. Links to
+	 * dansal-web throughout since these events/locations/orgs have no local
+	 * WP page. Shows the organization name/link only when it differs from
+	 * this site's own org, so a mixed listing makes clear whose event it is.
+	 */
+	private function render_event_card_remote( $event ) {
+		$cancelled = ! empty( $event['is_cancelled'] );
+		$title     = isset( $event['title'] ) ? (string) $event['title'] : '';
+		$start     = isset( $event['start_time'] ) ? (string) $event['start_time'] : '';
+
+		$org_id       = isset( $event['organization_id'] ) ? (int) $event['organization_id'] : 0;
+		$local_org_id = $this->settings->get_org_id();
+		$org          = ( $org_id && $org_id !== $local_org_id ) ? $this->remote_events->org_info( $org_id ) : null;
+
+		$location = isset( $event['location']['location'] ) ? (string) $event['location']['location'] : '';
+		$loc_id   = isset( $event['location']['id'] ) ? absint( $event['location']['id'] ) : 0;
+		?>
+		<article class="wpd-event-card wpd-event-card-remote<?php echo $cancelled ? ' wpd-cancelled' : ''; ?>">
+			<div class="wpd-event-date"><?php echo esc_html( $this->format_datetime( $start ) ); ?></div>
+			<h3 class="wpd-event-title"><a href="<?php echo esc_url( $this->remote_event_url( $event ) ); ?>"><?php echo esc_html( $title ); ?></a></h3>
+			<?php if ( $cancelled ) : ?>
+				<p class="wpd-cancelled-badge"><?php esc_html_e( 'Cancelled', 'wp-dansal' ); ?></p>
+			<?php endif; ?>
+			<?php if ( '' !== $location ) : ?>
+				<p class="wpd-event-location">
+					<?php if ( $loc_id ) : ?>
+						<a href="<?php echo esc_url( $this->remote_location_url( $loc_id ) ); ?>"><?php echo esc_html( $location ); ?></a>
+					<?php else : ?>
+						<?php echo esc_html( $location ); ?>
+					<?php endif; ?>
+				</p>
+			<?php endif; ?>
+			<?php if ( $org ) : ?>
+				<p class="wpd-event-org"><a href="<?php echo esc_url( $this->remote_org_url( $org['slug'] ) ); ?>"><?php echo esc_html( $org['name'] ); ?></a></p>
+			<?php endif; ?>
+		</article>
+		<?php
+	}
+
+	private function render_list_remote( $atts ) {
+		$query = $this->build_remote_query( $atts );
+		if ( ! empty( $atts['show_past'] ) ) {
+			$query['include_past'] = 'true';
+		}
+
+		$events = $this->fetch_remote_events( $atts, $query, $atts['limit'] );
+		$events = array_slice( $events, 0, $atts['limit'] );
+
+		ob_start();
+		echo '<div class="wpd-events-list">';
+		if ( empty( $events ) ) {
+			echo '<p class="wpd-no-events">' . esc_html__( 'No upcoming events.', 'wp-dansal' ) . '</p>';
+		}
+		foreach ( $events as $event ) {
+			$this->render_event_card_remote( $event );
+		}
+		echo '</div>';
+		return ob_get_clean();
 	}
 
 	private function render_list( $atts ) {
@@ -346,6 +596,90 @@ class WPD_Frontend {
 										<?php $types = $this->event_type_keys( $eid ); ?>
 										<li class="wpd-day-event wpd-day-event-<?php echo esc_attr( $types[0] ); ?>">
 											<a href="<?php echo esc_url( get_permalink( $eid ) ); ?>"><?php echo esc_html( get_the_title( $eid ) ); ?></a>
+										</li>
+									<?php endforeach; ?>
+								</ul>
+							<?php endif; ?>
+						</td>
+					<?php endfor; ?>
+				</tr></tbody>
+			</table>
+		</div>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * Remote counterpart to render_calendar() — same markup, but the month's
+	 * events come from GET /api/v1/events (start_time_after/before bounding
+	 * the month) instead of a local WP_Query. include_past is always forced
+	 * on so browsing to a past month still shows its events, matching
+	 * render_calendar()'s unconditional BETWEEN on _wpd_start_time.
+	 */
+	private function render_calendar_remote( $atts ) {
+		$month         = $atts['month'] ? absint( $atts['month'] ) : (int) current_time( 'n' );
+		$year          = $atts['year'] ? absint( $atts['year'] ) : (int) current_time( 'Y' );
+		$days_in_month = (int) gmdate( 't', mktime( 0, 0, 0, $month, 1, $year ) );
+
+		$query                      = $this->build_remote_query( $atts );
+		$query['include_past']      = 'true';
+		$query['start_time_after']  = mktime( 0, 0, 0, $month, 1, $year ) - 1;
+		$query['start_time_before'] = mktime( 23, 59, 59, $month, $days_in_month, $year ) + 1;
+
+		$events = $this->fetch_remote_events( $atts, $query, 1000 );
+
+		$by_day = array();
+		foreach ( $events as $event ) {
+			$day = (int) substr( (string) ( isset( $event['start_time'] ) ? $event['start_time'] : '' ), 8, 2 );
+			if ( $day >= 1 && $day <= 31 ) {
+				$by_day[ $day ][] = $event;
+			}
+		}
+
+		$first_weekday = (int) gmdate( 'N', mktime( 0, 0, 0, $month, 1, $year ) ); // 1 (Mon) .. 7 (Sun)
+
+		ob_start();
+		?>
+		<div class="wpd-calendar">
+			<h3 class="wpd-calendar-title"><?php echo esc_html( date_i18n( 'F Y', mktime( 0, 0, 0, $month, 1, $year ) ) ); ?></h3>
+			<div class="wpd-calendar-legend">
+				<?php
+				foreach (
+					array(
+						'ball'     => __( 'Ball', 'wp-dansal' ),
+						'workshop' => __( 'Workshop', 'wp-dansal' ),
+						'festival' => __( 'Festival', 'wp-dansal' ),
+						'other'    => __( 'Other', 'wp-dansal' ),
+					) as $type => $label
+				) :
+					?>
+					<span class="wpd-calendar-legend-item"><i class="wpd-mini-dot wpd-mini-dot-<?php echo esc_attr( $type ); ?>"></i> <?php echo esc_html( $label ); ?></span>
+				<?php endforeach; ?>
+			</div>
+			<table class="wpd-calendar-table">
+				<thead><tr>
+					<?php foreach ( array( 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ) as $d ) : ?>
+						<th><?php echo esc_html( $d ); ?></th>
+					<?php endforeach; ?>
+				</tr></thead>
+				<tbody><tr>
+					<?php for ( $i = 1; $i < $first_weekday; $i++ ) : ?>
+						<td class="wpd-empty"></td>
+					<?php endfor; ?>
+					<?php
+					for ( $day = 1; $day <= $days_in_month; $day++ ) :
+						if ( ( $day + $first_weekday - 2 ) % 7 === 0 && $day > 1 ) :
+							echo '</tr><tr>';
+						endif;
+						?>
+						<td class="<?php echo isset( $by_day[ $day ] ) ? 'wpd-has-events' : ''; ?>">
+							<div class="wpd-day-number"><?php echo esc_html( $day ); ?></div>
+							<?php if ( isset( $by_day[ $day ] ) ) : ?>
+								<ul class="wpd-day-events">
+									<?php foreach ( $by_day[ $day ] as $event ) : ?>
+										<?php $types = $this->event_type_keys_remote( $event ); ?>
+										<li class="wpd-day-event wpd-day-event-<?php echo esc_attr( $types[0] ); ?>">
+											<a href="<?php echo esc_url( $this->remote_event_url( $event ) ); ?>"><?php echo esc_html( isset( $event['title'] ) ? $event['title'] : '' ); ?></a>
 										</li>
 									<?php endforeach; ?>
 								</ul>

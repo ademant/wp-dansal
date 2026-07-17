@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,7 @@ WP Dansal turns WordPress into an editing frontend for the [dansal](https://gith
 * Creating a location searches OpenStreetMap (Nominatim) for the address, then checks dansal for an existing location (by OSM id, then by proximity) before creating a duplicate.
 * Saving an event or location syncs it to dansal (create on first save, update thereafter), using a publisher API key scoped to one organization.
 * `[dansal_events]` shortcode for upcoming events as a list or a monthly calendar, with `location`, `tag`, `limit`, `view`, `show_past` attributes.
+* `[dansal_events]` can also surface events from *other* organizations/cities on the same dansal instance — `org`, `country`, `bbox`, `lat`/`lon`/`radius_km`, `exclude_own_org` — fetched live from dansal's public REST API and rendered in the same list/calendar templates as local events.
 * `[dansal_locations]` shortcode for a directory of locations with a self-hosted Leaflet map.
 * Single and archive templates for events and locations, with theme override support at `{theme}/dansal/`.
 * Filter hooks for OSM tile source (`wpd_tile_url_template`), HTTP timeouts (`wpd_http_timeout`), and content wipe on uninstall (`wpd_uninstall_delete_content`).
@@ -52,6 +53,10 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.3.0 =
+* `[dansal_events]` shortcode can now show events from other organizations/cities on the same dansal instance, fetched live via `GET /api/v1/events` instead of the locally synced `dansal_event` posts: `org="slug1,slug2"` (resolved against `GET /api/v1/organizations`, cached), `country="de,fr"`, `bbox="minLng,minLat,maxLng,maxLat"`, `lat`/`lon`/`radius_km` proximity search, and `exclude_own_org="1"`. Remote results reuse the existing list/calendar templates and link out to dansal-web for events/orgs/locations that have no page on this WordPress site.
+* New optional **Dansal Web URL** setting (falls back to the API base URL) used to build those outbound dansal-web links.
 
 = 0.2.0 =
 * Rooms: named sub-locations (e.g. "Grand Hall", "Studio 2") within a venue. Managed from the location edit screen (add/remove); events can be assigned to a specific room from the event edit screen, and the room name shows on the single-event page. Backed by dansal's `/api/v1/locations/{id}/rooms` endpoints and `Event.room_id`.

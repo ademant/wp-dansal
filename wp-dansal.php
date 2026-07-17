@@ -3,7 +3,7 @@
  * Plugin Name: WP Dansal
  * Plugin URI: https://github.com/ademant/wp-dansal
  * Description: Manage dance events and locations in WordPress, backed by a dansal server (https://github.com/ademant/dansal) as the storage/publishing backend.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Author: ademant
  * License: GPL-2.0-or-later
  * Text Domain: wp-dansal
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPD_VERSION', '0.2.0' );
+define( 'WPD_VERSION', '0.3.0' );
 define( 'WPD_PLUGIN_FILE', __FILE__ );
 define( 'WPD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -55,6 +55,7 @@ require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-series.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-person.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-musician.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-instructor.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-remote-events.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-frontend.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-widget-mini-calendar.php';
 
@@ -76,6 +77,7 @@ final class WPD_Plugin {
 	public $cpt_series;
 	public $cpt_musician;
 	public $cpt_instructor;
+	public $remote_events;
 	public $frontend;
 
 	public static function instance() {
@@ -96,7 +98,8 @@ final class WPD_Plugin {
 		$this->cpt_series   = new WPD_CPT_Series( $this->api, $this->settings, $this->event_fields );
 		$this->cpt_musician   = new WPD_CPT_Musician( $this->api, $this->settings );
 		$this->cpt_instructor = new WPD_CPT_Instructor( $this->api, $this->settings );
-		$this->frontend     = new WPD_Frontend( $this->settings );
+		$this->remote_events  = new WPD_Remote_Events( $this->settings, $this->api );
+		$this->frontend     = new WPD_Frontend( $this->settings, $this->remote_events );
 
 		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
 		add_action( 'init', array( $this, 'ensure_cron_scheduled' ) );
