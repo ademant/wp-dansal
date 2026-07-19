@@ -31,8 +31,36 @@ while ( have_posts() ) :
 	$loc_post_id  = get_post_meta( $wpd_post_id, '_wpd_location_post_id', true );
 	$booking_url  = get_post_meta( $wpd_post_id, '_wpd_booking_url', true );
 	$tags         = array_filter( explode( ',', get_post_meta( $wpd_post_id, '_wpd_tags', true ) ) );
-	$musicians    = array_filter( explode( '|', get_post_meta( $wpd_post_id, '_wpd_musician_names', true ) ) );
-	$instructors  = array_filter( explode( '|', get_post_meta( $wpd_post_id, '_wpd_instructor_names', true ) ) );
+	$wpd_web_base = wpd_plugin()->settings->get_web_url();
+	if ( '' === $wpd_web_base ) {
+		$wpd_web_base = untrailingslashit( wpd_plugin()->settings->get_base_url() );
+	}
+	$wpd_link_people = function ( $names_meta, $ids_meta, $post_type, $web_path ) use ( $wpd_post_id, $wpd_web_base ) {
+		$names = array_values( array_filter( explode( '|', (string) get_post_meta( $wpd_post_id, $names_meta, true ) ) ) );
+		$ids   = array_values( array_filter( array_map( 'absint', explode( ',', (string) get_post_meta( $wpd_post_id, $ids_meta, true ) ) ) ) );
+		$out   = array();
+		foreach ( $names as $i => $name ) {
+			$did = isset( $ids[ $i ] ) ? (int) $ids[ $i ] : 0;
+			$url = '';
+			if ( $did ) {
+				$local = get_posts( array(
+					'post_type'      => $post_type,
+					'post_status'    => 'publish',
+					'posts_per_page' => 1,
+					'meta_key'       => '_wpd_dansal_id',
+					'meta_value'     => $did,
+					'fields'         => 'ids',
+				) );
+				$url = $local ? get_permalink( (int) $local[0] ) : ( $wpd_web_base . $web_path . $did );
+			}
+			$out[] = $url
+				? '<a href="' . esc_url( $url ) . '">' . esc_html( $name ) . '</a>'
+				: esc_html( $name );
+		}
+		return $out;
+	};
+	$musicians   = $wpd_link_people( '_wpd_musician_names', '_wpd_musician_ids', 'dansal_musician', '/musicians/' );
+	$instructors = $wpd_link_people( '_wpd_instructor_names', '_wpd_instructor_ids', 'dansal_instructor', '/instructors/' );
 	$pricing_type = get_post_meta( $wpd_post_id, '_wpd_pricing_type', true );
 	$food         = get_post_meta( $wpd_post_id, '_wpd_food', true );
 	$drink        = get_post_meta( $wpd_post_id, '_wpd_drink', true );
@@ -125,11 +153,12 @@ while ( have_posts() ) :
 			<?php endif; ?>
 
 			<?php if ( $musicians ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Musicians:', 'wp-dansal' ); ?></strong> <?php echo esc_html( implode( ', ', $musicians ) ); ?></div>
+				<?php // Each item in $musicians is already an <a>…</a> with esc_html() on the display text and esc_url() on the href — see $wpd_link_people above; the separator is a static ", ". ?>
+				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Musicians:', 'wp-dansal' ); ?></strong> <?php echo implode( ', ', $musicians ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
 			<?php endif; ?>
 
 			<?php if ( $instructors ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Instructors:', 'wp-dansal' ); ?></strong> <?php echo esc_html( implode( ', ', $instructors ) ); ?></div>
+				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Instructors:', 'wp-dansal' ); ?></strong> <?php echo implode( ', ', $instructors ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
 			<?php endif; ?>
 
 			<?php if ( $pricing_type ) : ?>
