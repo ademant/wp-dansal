@@ -202,6 +202,14 @@ while ( have_posts() ) :
 					<a class="wp-block-button__link wp-element-button" href="<?php echo esc_url( $booking_url ); ?>" rel="nofollow noopener"><?php esc_html_e( 'Book / Tickets', 'wp-dansal' ); ?></a>
 				</div>
 			<?php endif; ?>
+
+			<?php
+			$wpd_event_dansal_id = (int) get_post_meta( $wpd_post_id, '_wpd_dansal_id', true );
+			if ( $wpd_event_dansal_id ) :
+				$wpd_ics_url = $wpd_web_base . '/events/' . $wpd_event_dansal_id . '.ics';
+				?>
+				<p class="wpd-ical-link"><a href="<?php echo esc_url( $wpd_ics_url ); ?>" rel="nofollow"><?php esc_html_e( 'Add to calendar (.ics)', 'wp-dansal' ); ?></a></p>
+			<?php endif; ?>
 		</article>
 	</main>
 	</div><!-- #primary -->
