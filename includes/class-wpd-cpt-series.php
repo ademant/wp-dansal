@@ -96,8 +96,51 @@ class WPD_CPT_Series {
 
 		$start_time = get_post_meta( $post->ID, '_wpd_series_start_time_of_day', true );
 		$end_time   = get_post_meta( $post->ID, '_wpd_series_end_time_of_day', true );
+
+		$owner_type = get_post_meta( $post->ID, '_wpd_series_owner_type', true );
+		if ( ! in_array( $owner_type, array( 'organization', 'musician', 'instructor' ), true ) ) {
+			$owner_type = 'organization';
+		}
+		$owner_dansal_id = (int) get_post_meta( $post->ID, '_wpd_series_owner_dansal_id', true );
+
+		$musician_options   = $this->owner_entity_options( WPD_CPT_Musician::POST_TYPE );
+		$instructor_options = $this->owner_entity_options( WPD_CPT_Instructor::POST_TYPE );
 		?>
 		<table class="form-table">
+			<tr>
+				<th><label for="wpd_series_owner_type"><?php esc_html_e( 'Owner', 'wp-dansal' ); ?></label></th>
+				<td>
+					<select id="wpd_series_owner_type" name="wpd_series_owner_type">
+						<option value="organization" <?php selected( $owner_type, 'organization' ); ?>><?php esc_html_e( 'Organization (this publisher)', 'wp-dansal' ); ?></option>
+						<option value="musician"     <?php selected( $owner_type, 'musician' ); ?>><?php esc_html_e( 'Musician', 'wp-dansal' ); ?></option>
+						<option value="instructor"   <?php selected( $owner_type, 'instructor' ); ?>><?php esc_html_e( 'Instructor', 'wp-dansal' ); ?></option>
+					</select>
+					<select name="wpd_series_owner_musician_id" class="wpd-series-owner-picker" data-for="musician" style="<?php echo 'musician' === $owner_type ? '' : 'display:none;'; ?>">
+						<option value="0">— <?php esc_html_e( 'Select musician', 'wp-dansal' ); ?> —</option>
+						<?php foreach ( $musician_options as $opt ) : ?>
+							<option value="<?php echo esc_attr( $opt['dansal_id'] ); ?>" <?php selected( 'musician' === $owner_type && $owner_dansal_id === $opt['dansal_id'] ); ?>><?php echo esc_html( $opt['title'] ); ?></option>
+						<?php endforeach; ?>
+					</select>
+					<select name="wpd_series_owner_instructor_id" class="wpd-series-owner-picker" data-for="instructor" style="<?php echo 'instructor' === $owner_type ? '' : 'display:none;'; ?>">
+						<option value="0">— <?php esc_html_e( 'Select instructor', 'wp-dansal' ); ?> —</option>
+						<?php foreach ( $instructor_options as $opt ) : ?>
+							<option value="<?php echo esc_attr( $opt['dansal_id'] ); ?>" <?php selected( 'instructor' === $owner_type && $owner_dansal_id === $opt['dansal_id'] ); ?>><?php echo esc_html( $opt['title'] ); ?></option>
+						<?php endforeach; ?>
+					</select>
+					<p class="description"><?php esc_html_e( 'Musician/instructor pickers only list entities you have synced locally. Add them under Dance → Musicians / Instructors first.', 'wp-dansal' ); ?></p>
+					<script>
+					(function () {
+						var sel = document.getElementById('wpd_series_owner_type');
+						if (!sel) { return; }
+						sel.addEventListener('change', function () {
+							document.querySelectorAll('.wpd-series-owner-picker').forEach(function (p) {
+								p.style.display = ( p.getAttribute('data-for') === sel.value ) ? '' : 'none';
+							});
+						});
+					})();
+					</script>
+				</td>
+			</tr>
 			<tr>
 				<th><label for="wpd_series_start_time"><?php esc_html_e( 'Default start time of day', 'wp-dansal' ); ?></label></th>
 				<td><input type="time" id="wpd_series_start_time" name="wpd_series_start_time_of_day" value="<?php echo esc_attr( $start_time ); ?>" /></td>
@@ -163,6 +206,19 @@ class WPD_CPT_Series {
 		update_post_meta( $post_id, '_wpd_series_start_time_of_day', $this->sanitize_time_of_day( isset( $_POST['wpd_series_start_time_of_day'] ) ? wp_unslash( $_POST['wpd_series_start_time_of_day'] ) : '' ) );
 		update_post_meta( $post_id, '_wpd_series_end_time_of_day', $this->sanitize_time_of_day( isset( $_POST['wpd_series_end_time_of_day'] ) ? wp_unslash( $_POST['wpd_series_end_time_of_day'] ) : '' ) );
 
+		$owner_type = isset( $_POST['wpd_series_owner_type'] ) ? sanitize_text_field( wp_unslash( $_POST['wpd_series_owner_type'] ) ) : 'organization';
+		if ( ! in_array( $owner_type, array( 'organization', 'musician', 'instructor' ), true ) ) {
+			$owner_type = 'organization';
+		}
+		$owner_dansal_id = 0;
+		if ( 'musician' === $owner_type ) {
+			$owner_dansal_id = isset( $_POST['wpd_series_owner_musician_id'] ) ? absint( $_POST['wpd_series_owner_musician_id'] ) : 0;
+		} elseif ( 'instructor' === $owner_type ) {
+			$owner_dansal_id = isset( $_POST['wpd_series_owner_instructor_id'] ) ? absint( $_POST['wpd_series_owner_instructor_id'] ) : 0;
+		}
+		update_post_meta( $post_id, '_wpd_series_owner_type', $owner_type );
+		update_post_meta( $post_id, '_wpd_series_owner_dansal_id', $owner_dansal_id );
+
 		$overlay_input = isset( $_POST['wpd_series'] ) && is_array( $_POST['wpd_series'] ) ? $_POST['wpd_series'] : array();
 		$overlay       = WPD_Event_Fields::sanitize_field_group( $overlay_input );
 		foreach ( WPD_Event_Fields::overlay_keys() as $key ) {
@@ -189,14 +245,66 @@ class WPD_CPT_Series {
 		$location_post_id = (int) get_post_meta( $post_id, '_wpd_location_post_id', true );
 		$location_dansal  = $location_post_id ? (int) get_post_meta( $location_post_id, WPD_CPT_Location::META_DANSAL_ID, true ) : 0;
 
-		return array(
-			'title'              => get_the_title( $post_id ),
-			'description'        => $post ? $post->post_content : '',
-			'organization_id'    => $this->settings->get_org_id(),
-			'default_location_id' => $location_dansal ? $location_dansal : null,
-			'default_start_time' => (string) get_post_meta( $post_id, '_wpd_series_start_time_of_day', true ),
-			'default_end_time'   => (string) get_post_meta( $post_id, '_wpd_series_end_time_of_day', true ),
+		$owner_type      = (string) get_post_meta( $post_id, '_wpd_series_owner_type', true );
+		$owner_dansal_id = (int) get_post_meta( $post_id, '_wpd_series_owner_dansal_id', true );
+		$owner_fields    = array(
+			'organization_id' => null,
+			'musician_id'     => null,
+			'instructor_id'   => null,
 		);
+		if ( 'musician' === $owner_type && $owner_dansal_id ) {
+			$owner_fields['musician_id'] = $owner_dansal_id;
+		} elseif ( 'instructor' === $owner_type && $owner_dansal_id ) {
+			$owner_fields['instructor_id'] = $owner_dansal_id;
+		} else {
+			$owner_fields['organization_id'] = $this->settings->get_org_id();
+		}
+
+		return array_merge(
+			$owner_fields,
+			array(
+				'title'               => get_the_title( $post_id ),
+				'description'         => $post ? $post->post_content : '',
+				'default_location_id' => $location_dansal ? $location_dansal : null,
+				'default_start_time'  => (string) get_post_meta( $post_id, '_wpd_series_start_time_of_day', true ),
+				'default_end_time'    => (string) get_post_meta( $post_id, '_wpd_series_end_time_of_day', true ),
+			)
+		);
+	}
+
+	/**
+	 * All local WP posts of a given musician/instructor type that carry a
+	 * dansal id, formatted for the owner-picker dropdown.
+	 *
+	 * @return array<int, array{dansal_id:int,title:string}>
+	 */
+	private function owner_entity_options( $post_type ) {
+		$posts = get_posts(
+			array(
+				'post_type'      => $post_type,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+				'meta_query'     => array(
+					array(
+						'key'     => WPD_CPT_Person::META_DANSAL_ID,
+						'compare' => 'EXISTS',
+					),
+				),
+			)
+		);
+		$out = array();
+		foreach ( $posts as $p ) {
+			$did = (int) get_post_meta( $p->ID, WPD_CPT_Person::META_DANSAL_ID, true );
+			if ( $did ) {
+				$out[] = array(
+					'dansal_id' => $did,
+					'title'     => $p->post_title,
+				);
+			}
+		}
+		return $out;
 	}
 
 	private function sync_to_dansal( $post_id ) {
@@ -239,15 +347,34 @@ class WPD_CPT_Series {
 		}
 		set_transient( 'wpd_series_pull_lock', 1, 30 );
 
-		$result = $this->api->get_all_pages( '/api/v1/series', array( 'org_id' => $this->settings->get_org_id() ) );
-		if ( is_wp_error( $result ) || ! is_array( $result ) ) {
-			return;
+		// Series can be owned by the publisher's org OR by any musician /
+		// instructor synced locally. API.md L753: org_id / musician_id /
+		// instructor_id filters, mutually exclusive per series but we walk
+		// all three universes and de-dupe by dansal id.
+		$seen    = array();
+		$queries = array( array( 'org_id' => $this->settings->get_org_id() ) );
+		foreach ( $this->owner_entity_options( WPD_CPT_Musician::POST_TYPE ) as $opt ) {
+			$queries[] = array( 'musician_id' => $opt['dansal_id'] );
 		}
-		foreach ( $result as $series ) {
-			if ( ! is_array( $series ) || empty( $series['id'] ) ) {
+		foreach ( $this->owner_entity_options( WPD_CPT_Instructor::POST_TYPE ) as $opt ) {
+			$queries[] = array( 'instructor_id' => $opt['dansal_id'] );
+		}
+		foreach ( $queries as $query ) {
+			$result = $this->api->get_all_pages( '/api/v1/series', $query );
+			if ( is_wp_error( $result ) || ! is_array( $result ) ) {
 				continue;
 			}
-			$this->pull_one_series( $series );
+			foreach ( $result as $series ) {
+				if ( ! is_array( $series ) || empty( $series['id'] ) ) {
+					continue;
+				}
+				$did = (int) $series['id'];
+				if ( isset( $seen[ $did ] ) ) {
+					continue;
+				}
+				$seen[ $did ] = true;
+				$this->pull_one_series( $series );
+			}
 		}
 	}
 
@@ -294,6 +421,17 @@ class WPD_CPT_Series {
 		update_post_meta( $post_id, '_wpd_series_end_time_of_day', isset( $series['default_end_time'] ) ? $series['default_end_time'] : '' );
 		update_post_meta( $post_id, self::META_DANSAL_ID, $dansal_id );
 		update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
+
+		if ( ! empty( $series['musician_id'] ) ) {
+			update_post_meta( $post_id, '_wpd_series_owner_type', 'musician' );
+			update_post_meta( $post_id, '_wpd_series_owner_dansal_id', (int) $series['musician_id'] );
+		} elseif ( ! empty( $series['instructor_id'] ) ) {
+			update_post_meta( $post_id, '_wpd_series_owner_type', 'instructor' );
+			update_post_meta( $post_id, '_wpd_series_owner_dansal_id', (int) $series['instructor_id'] );
+		} else {
+			update_post_meta( $post_id, '_wpd_series_owner_type', 'organization' );
+			update_post_meta( $post_id, '_wpd_series_owner_dansal_id', 0 );
+		}
 	}
 
 	public static function find_post_id_by_dansal_id( $dansal_id ) {
