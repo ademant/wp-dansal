@@ -239,7 +239,7 @@ class WPD_CPT_Series {
 		}
 		set_transient( 'wpd_series_pull_lock', 1, 30 );
 
-		$result = $this->api->get( '/api/v1/series', array( 'org_id' => $this->settings->get_org_id() ) );
+		$result = $this->api->get_all_pages( '/api/v1/series', array( 'org_id' => $this->settings->get_org_id() ) );
 		if ( is_wp_error( $result ) || ! is_array( $result ) ) {
 			return;
 		}

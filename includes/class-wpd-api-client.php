@@ -341,6 +341,38 @@ class WPD_Api_Client {
 		return $this->request( 'GET', $path, null, $query );
 	}
 
+	/**
+	 * Walk every page of a list endpoint. API.md L706 documents `limit`
+	 * (default 100, max 1000) + `offset` + `X-Total-Count`. We use a
+	 * short-response stop condition instead of the header so we don't need
+	 * to plumb headers through handle_response(). Hard-capped at 5000 rows
+	 * (`wpd_full_sync_cap` filter) so a runaway org can never stall an admin
+	 * page load.
+	 *
+	 * @return array|WP_Error Concatenated row list, or the first WP_Error hit.
+	 */
+	public function get_all_pages( $path, $query = array() ) {
+		$limit  = 500;
+		$cap    = (int) apply_filters( 'wpd_full_sync_cap', 5000, $path );
+		$offset = 0;
+		$out    = array();
+		while ( true ) {
+			$page = $this->get( $path, array_merge( $query, array( 'limit' => $limit, 'offset' => $offset ) ) );
+			if ( is_wp_error( $page ) ) {
+				return $page;
+			}
+			if ( ! is_array( $page ) || empty( $page ) ) {
+				break;
+			}
+			$out = array_merge( $out, $page );
+			if ( count( $page ) < $limit || count( $out ) >= $cap ) {
+				break;
+			}
+			$offset += $limit;
+		}
+		return $out;
+	}
+
 	public function post( $path, $body ) {
 		return $this->request( 'POST', $path, $body );
 	}

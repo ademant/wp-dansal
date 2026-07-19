@@ -853,7 +853,7 @@ class WPD_CPT_Event {
 		}
 		set_transient( 'wpd_event_pull_lock', 1, 30 );
 
-		$result = $this->api->get( '/api/v1/events', array( 'organization_id' => $this->settings->get_org_id() ) );
+		$result = $this->api->get_all_pages( '/api/v1/events', array( 'organization_id' => $this->settings->get_org_id() ) );
 		if ( is_wp_error( $result ) ) {
 			return;
 		}
