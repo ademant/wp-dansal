@@ -80,6 +80,66 @@ class WPD_CPT_Series {
 
 	public function add_meta_boxes() {
 		add_meta_box( 'wpd_series_details', __( 'Dansal Series Details', 'wp-dansal' ), array( $this, 'render_meta_box' ), self::POST_TYPE, 'normal', 'high' );
+		add_meta_box( 'wpd_series_events', __( 'Events in this series', 'wp-dansal' ), array( $this, 'render_events_box' ), self::POST_TYPE, 'normal', 'default' );
+	}
+
+	/**
+	 * Lists this series' events via GET /api/v1/series/{id}/events. Each row
+	 * links to the local dansal_event post when synced, otherwise out to
+	 * dansal-web /events/{id}.
+	 */
+	public function render_events_box( $post ) {
+		$dansal_id = (int) get_post_meta( $post->ID, self::META_DANSAL_ID, true );
+		if ( ! $dansal_id ) {
+			echo '<p>' . esc_html__( 'Save the series first to see the events assigned to it.', 'wp-dansal' ) . '</p>';
+			return;
+		}
+		if ( ! $this->settings->is_configured() ) {
+			echo '<p>' . esc_html__( 'Connect to dansal in Settings to load series events.', 'wp-dansal' ) . '</p>';
+			return;
+		}
+
+		$events = $this->api->get( "/api/v1/series/{$dansal_id}/events" );
+		if ( is_wp_error( $events ) ) {
+			printf( '<p>%s</p>', esc_html( sprintf(
+				/* translators: %s: error message from dansal */
+				__( 'Could not load series events: %s', 'wp-dansal' ),
+				$events->get_error_message()
+			) ) );
+			return;
+		}
+		if ( ! is_array( $events ) || empty( $events ) ) {
+			echo '<p>' . esc_html__( 'No events belong to this series yet.', 'wp-dansal' ) . '</p>';
+			return;
+		}
+
+		$web_base = $this->settings->get_web_url();
+		if ( '' === $web_base ) {
+			$web_base = untrailingslashit( $this->settings->get_base_url() );
+		}
+		echo '<ul class="wpd-series-events">';
+		foreach ( $events as $ev ) {
+			if ( ! is_array( $ev ) || empty( $ev['id'] ) ) {
+				continue;
+			}
+			$did       = (int) $ev['id'];
+			$title     = isset( $ev['title'] ) ? (string) $ev['title'] : ( '#' . $did );
+			$start_iso = isset( $ev['start_time'] ) ? (string) $ev['start_time'] : '';
+			$start_str = '';
+			if ( $start_iso ) {
+				$dt        = date_create( $start_iso );
+				$start_str = $dt ? date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $dt->getTimestamp() ) : $start_iso;
+			}
+			$local_id = WPD_CPT_Event::find_post_id_by_dansal_id( $did );
+			$url      = $local_id ? get_edit_post_link( $local_id, '' ) : ( $web_base . '/events/' . $did );
+			printf(
+				'<li><a href="%s">%s</a>%s</li>',
+				esc_url( $url ),
+				esc_html( $title ),
+				$start_str ? ' — <span class="wpd-series-event-when">' . esc_html( $start_str ) . '</span>' : ''
+			);
+		}
+		echo '</ul>';
 	}
 
 	public function render_meta_box( $post ) {
