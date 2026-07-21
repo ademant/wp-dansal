@@ -12,9 +12,13 @@ class WPD_Settings {
 
 	const OPTION = 'wpd_settings';
 
+	/** @var string Hook suffix returned by add_options_page(), set in add_menu(). */
+	private $page_hook = '';
+
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'wp_ajax_wpd_test_connection', array( $this, 'ajax_test_connection' ) );
 		add_action( 'wp_ajax_wpd_connect_link', array( $this, 'ajax_connect_link' ) );
 	}
@@ -272,13 +276,26 @@ class WPD_Settings {
 	}
 
 	public function add_menu() {
-		add_options_page(
+		$this->page_hook = add_options_page(
 			__( 'Dansal Connection', 'wp-dansal' ),
 			__( 'Dansal', 'wp-dansal' ),
 			'manage_options',
 			'wpd-settings',
 			array( $this, 'render_page' )
 		);
+	}
+
+	/**
+	 * The "Event defaults" section reuses WPD_Event_Fields::render_field_group(),
+	 * whose pricing rows (see #80) need the same vanilla-JS widget the event
+	 * edit screen loads — shared here rather than duplicated per screen.
+	 */
+	public function enqueue_admin_assets( $hook ) {
+		if ( ! $this->page_hook || $hook !== $this->page_hook ) {
+			return;
+		}
+		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
+		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
 	}
 
 	public function register_settings() {

@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,7 @@ WP Dansal turns WordPress into an editing frontend for the [dansal](https://gith
 * Creating a location searches OpenStreetMap (Nominatim) for the address, then checks dansal for an existing location (by OSM id, then by proximity) before creating a duplicate. The same search widget, plus a small draggable-marker map and a reverse-geocode action, is also available when editing an already-synced location.
 * Event and location edit screens group their fields into collapsible sections so editors aren't scrolling past fields they rarely touch.
 * Saving an event or location syncs it to dansal (create on first save, update thereafter), using a publisher API key scoped to one organization.
+* Event pricing supports dansal's full model — free, donation, a single price, or a growable table of named tiers (e.g. "Normal"/"Reduced"/"Presale"), all sharing one currency.
 * `[dansal_events]` shortcode for upcoming events as a list or a monthly calendar, with `location`, `tag`, `limit`, `view`, `show_past` attributes.
 * `[dansal_events]` can also surface events from *other* organizations/cities on the same dansal instance — `org`, `country`, `bbox`, `lat`/`lon`/`radius_km`, `exclude_own_org` — fetched live from dansal's public REST API and rendered in the same list/calendar templates as local events.
 * `[dansal_locations]` shortcode for a directory of locations with a self-hosted Leaflet map.
@@ -54,6 +55,10 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.5.0 =
+* Event pricing type vocabulary now matches dansal's own (`free`/`donation`/`single`/`multiple` instead of the old `free`/`fixed`/`donation`), and `type="multiple"` gets a growable Label/Amount tiers table — same shape as dansal-web's own pricing table (`prices: [{label, amount}]`), sharing one currency.
+* Fixes a data-loss bug: because the plugin always pushed a flat `{type, amount, currency}` pricing object and dansal replaces the whole `pricing` field on save rather than deep-merging it, saving *any* event from WordPress previously wiped out `multiple`-tier pricing set via dansal-web or the API directly. Pricing tiers now round-trip through WordPress correctly.
 
 = 0.4.0 =
 * Location edit screen: the Nominatim search widget is now available even after a location is synced (previously it disappeared once matched), defaulting to collapsed behind a "Re-match location" toggle once an OSM match already exists. Added a small draggable-marker map (drag or click to fine-tune coordinates) and "search from fields below" / "reverse geocode from lat/long" actions, both proxied server-side like the existing search.

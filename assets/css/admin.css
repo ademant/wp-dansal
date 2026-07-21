@@ -100,3 +100,28 @@
 	font-style: normal;
 	color: #b32d2e;
 }
+
+.wpd-pricing-single-fields {
+	margin-left: 6px;
+}
+
+.wpd-pricing-tiers {
+	margin-top: 8px;
+}
+
+.wpd-pricing-tiers-table {
+	border-collapse: collapse;
+	margin-bottom: 6px;
+}
+
+.wpd-pricing-tiers-table th,
+.wpd-pricing-tiers-table td {
+	padding: 2px 8px 2px 0;
+	text-align: left;
+}
+
+.wpd-pricing-tier-remove {
+	color: #a00;
+	font-weight: bold;
+	text-decoration: none;
+}

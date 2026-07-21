@@ -36,6 +36,11 @@ class WPD_Event_Fields {
 			'_wpd_pricing_type',
 			'_wpd_pricing_amount',
 			'_wpd_pricing_currency',
+			// Array of {label, amount} maps, used only when pricing_type is
+			// "multiple" — dansal's own multi-tier pricing table. WP's
+			// get_post_meta()/update_post_meta() (de)serialize the array
+			// value transparently, same as the existing _wpd_rooms_cache.
+			'_wpd_pricing_tiers',
 			'_wpd_food',
 			'_wpd_drink',
 			'_wpd_floor_condition',
@@ -233,6 +238,10 @@ class WPD_Event_Fields {
 	 */
 	public function render_pricing_fields( array $values, $name_prefix ) {
 		list( $v, $name ) = $this->field_accessors( $values, $name_prefix );
+
+		$current_type = $v( '_wpd_pricing_type', 'free' );
+		$tiers        = $v( '_wpd_pricing_tiers' );
+		$tiers        = is_array( $tiers ) && $tiers ? $tiers : array( array( 'label' => '', 'amount' => '' ) );
 		?>
 		<tr>
 			<th><label><?php esc_html_e( 'Booking URL', 'wp-dansal' ); ?></label></th>
@@ -241,19 +250,60 @@ class WPD_Event_Fields {
 		<tr>
 			<th><?php esc_html_e( 'Pricing', 'wp-dansal' ); ?></th>
 			<td>
-				<select name="<?php echo esc_attr( $name( '_wpd_pricing_type' ) ); ?>">
+				<?php
+				// Vocabulary matches dansal's Pricing.Type exactly (API.md:
+				// pricing_types = free, donation, single, multiple) — "single"
+				// is one flat amount, "multiple" is the tiers table below,
+				// both sharing the one currency field.
+				?>
+				<select name="<?php echo esc_attr( $name( '_wpd_pricing_type' ) ); ?>" class="wpd-pricing-type">
 					<?php
 					foreach ( array(
 						'free'     => __( 'Free', 'wp-dansal' ),
-						'fixed'    => __( 'Fixed price', 'wp-dansal' ),
 						'donation' => __( 'Donation', 'wp-dansal' ),
+						'single'   => __( 'Single price', 'wp-dansal' ),
+						'multiple' => __( 'Multiple tiers', 'wp-dansal' ),
 					) as $key => $label ) :
 						?>
-						<option value="<?php echo esc_attr( $key ); ?>" <?php selected( $v( '_wpd_pricing_type', 'free' ), $key ); ?>><?php echo esc_html( $label ); ?></option>
+						<option value="<?php echo esc_attr( $key ); ?>" <?php selected( $current_type, $key ); ?>><?php echo esc_html( $label ); ?></option>
 					<?php endforeach; ?>
 				</select>
-				<input type="number" step="0.01" min="0" name="<?php echo esc_attr( $name( '_wpd_pricing_amount' ) ); ?>" placeholder="<?php esc_attr_e( 'Amount', 'wp-dansal' ); ?>" value="<?php echo esc_attr( $v( '_wpd_pricing_amount' ) ); ?>" class="small-text" />
 				<input type="text" name="<?php echo esc_attr( $name( '_wpd_pricing_currency' ) ); ?>" placeholder="EUR" maxlength="3" value="<?php echo esc_attr( $v( '_wpd_pricing_currency', 'EUR' ) ); ?>" class="small-text" />
+
+				<span class="wpd-pricing-single-fields" style="<?php echo 'single' === $current_type ? '' : 'display:none;'; ?>">
+					<input type="number" step="0.01" min="0" name="<?php echo esc_attr( $name( '_wpd_pricing_amount' ) ); ?>" placeholder="<?php esc_attr_e( 'Amount', 'wp-dansal' ); ?>" value="<?php echo esc_attr( $v( '_wpd_pricing_amount' ) ); ?>" class="small-text" />
+				</span>
+
+				<div class="wpd-pricing-tiers" style="<?php echo 'multiple' === $current_type ? '' : 'display:none;'; ?>">
+					<table class="wpd-pricing-tiers-table">
+						<thead>
+							<tr>
+								<th><?php esc_html_e( 'Label', 'wp-dansal' ); ?></th>
+								<th><?php esc_html_e( 'Amount', 'wp-dansal' ); ?></th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $tiers as $tier ) : ?>
+								<tr class="wpd-pricing-tier-row">
+									<td><input type="text" name="<?php echo esc_attr( $name( '_wpd_pricing_tier_label', true ) ); ?>" value="<?php echo esc_attr( isset( $tier['label'] ) ? $tier['label'] : '' ); ?>" list="wpd-pricing-tier-suggestions" /></td>
+									<td><input type="number" step="0.01" min="0" name="<?php echo esc_attr( $name( '_wpd_pricing_tier_amount', true ) ); ?>" value="<?php echo esc_attr( isset( $tier['amount'] ) ? $tier['amount'] : '' ); ?>" class="small-text" /></td>
+									<td><button type="button" class="button-link wpd-pricing-tier-remove" aria-label="<?php esc_attr_e( 'Remove', 'wp-dansal' ); ?>">&times;</button></td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+					<datalist id="wpd-pricing-tier-suggestions">
+						<?php
+						// Suggested (not enforced by dansal) tier labels — API.md
+						// price_labels: normal, reduced, presale, member, supporter.
+						foreach ( array( 'normal', 'reduced', 'presale', 'member', 'supporter' ) as $suggestion ) :
+							?>
+							<option value="<?php echo esc_attr( $suggestion ); ?>"></option>
+						<?php endforeach; ?>
+					</datalist>
+					<button type="button" class="button wpd-pricing-tier-add"><?php esc_html_e( 'Add tier', 'wp-dansal' ); ?></button>
+				</div>
 			</td>
 		</tr>
 		<?php
@@ -351,7 +401,6 @@ class WPD_Event_Fields {
 		$text_keys = array(
 			'_wpd_location_post_id',
 			'_wpd_booking_url',
-			'_wpd_pricing_type',
 			'_wpd_pricing_amount',
 			'_wpd_pricing_currency',
 			'_wpd_contact_name',
@@ -361,6 +410,28 @@ class WPD_Event_Fields {
 			$raw           = isset( $input[ $key ] ) ? wp_unslash( $input[ $key ] ) : '';
 			$out[ $key ]   = sanitize_text_field( is_array( $raw ) ? '' : $raw );
 		}
+
+		// Matches dansal's Pricing.Type exactly (API.md pricing_types) — an
+		// off-vocab value (e.g. a stale "fixed" from before this was aligned
+		// to dansal's actual enum) falls back to "free" rather than being
+		// sent to dansal as-is.
+		$pricing_type = isset( $input['_wpd_pricing_type'] ) ? sanitize_key( wp_unslash( $input['_wpd_pricing_type'] ) ) : '';
+		$out['_wpd_pricing_type'] = in_array( $pricing_type, array( 'free', 'donation', 'single', 'multiple' ), true ) ? $pricing_type : 'free';
+
+		$tier_labels  = isset( $input['_wpd_pricing_tier_label'] ) ? (array) $input['_wpd_pricing_tier_label'] : array();
+		$tier_amounts = isset( $input['_wpd_pricing_tier_amount'] ) ? (array) $input['_wpd_pricing_tier_amount'] : array();
+		$tiers        = array();
+		foreach ( $tier_labels as $i => $label ) {
+			$label = sanitize_text_field( wp_unslash( is_string( $label ) ? $label : '' ) );
+			if ( '' === $label ) {
+				continue;
+			}
+			$tiers[] = array(
+				'label'  => $label,
+				'amount' => isset( $tier_amounts[ $i ] ) ? (float) $tier_amounts[ $i ] : 0.0,
+			);
+		}
+		$out['_wpd_pricing_tiers'] = $tiers;
 
 		$vocab_map = array(
 			'_wpd_food'            => 'food',

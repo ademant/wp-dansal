@@ -33,6 +33,7 @@ class WPD_CPT_Series {
 		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
 		add_action( 'post_submitbox_misc_actions', array( $this, 'render_add_date_button' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 
 		WPD_Admin_Action::register( 'wpd_series_add_date', 'edit_posts', array( $this, 'handle_add_date' ) );
 
@@ -212,6 +213,20 @@ class WPD_CPT_Series {
 			<?php $this->fields->render_field_group( $stored, 'wpd_series' ); ?>
 		</table>
 		<?php
+	}
+
+	/**
+	 * The series metabox reuses WPD_Event_Fields::render_field_group(), whose
+	 * pricing rows (see #80) need the same vanilla-JS widget the event edit
+	 * screen loads — shared here rather than duplicated per screen.
+	 */
+	public function enqueue_admin_assets( $hook ) {
+		$screen = get_current_screen();
+		if ( ! $screen || self::POST_TYPE !== $screen->post_type || ! in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
+			return;
+		}
+		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
+		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
 	}
 
 	public function render_add_date_button( $post ) {

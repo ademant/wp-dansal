@@ -511,6 +511,7 @@ class WPD_CPT_Event {
 		}
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
 		wp_enqueue_script( 'wpd-admin-event', WPD_PLUGIN_URL . 'assets/js/admin-event.js', array( 'jquery' ), wpd_asset_ver( 'assets/js/admin-event.js' ), true );
+		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
 		WPD_Datetime_Hint::enqueue();
 		wp_localize_script(
             'wpd-admin-event',
@@ -733,6 +734,19 @@ class WPD_CPT_Event {
 				'amount'   => (float) $get( '_wpd_pricing_amount' ),
 				'currency' => $get( '_wpd_pricing_currency' ) ? $get( '_wpd_pricing_currency' ) : 'EUR',
 			);
+			if ( 'multiple' === $pricing['type'] ) {
+				$tiers = $get( '_wpd_pricing_tiers' );
+				$tiers = is_array( $tiers ) ? $tiers : array();
+				$pricing['prices'] = array_map(
+					function ( $tier ) {
+						return array(
+							'label'  => isset( $tier['label'] ) ? (string) $tier['label'] : '',
+							'amount' => isset( $tier['amount'] ) ? (float) $tier['amount'] : 0.0,
+						);
+					},
+					$tiers
+				);
+			}
 		}
 
 		$post = get_post( $post_id );
@@ -817,10 +831,14 @@ class WPD_CPT_Event {
 			}
 
 			// PATCH (RFC 7396 merge-patch) so fields the plugin doesn't manage
-			// (timetable, images, pricing tiers added via dansal admin) survive
-			// a WP-side save. Strip null values so an unset optional field
-			// leaves the dansal-side value untouched instead of clearing it;
-			// empty strings on text fields stay, they mean the user cleared it.
+			// (timetable, images) survive a WP-side save. Strip null values so
+			// an unset optional field leaves the dansal-side value untouched
+			// instead of clearing it; empty strings on text fields stay, they
+			// mean the user cleared it. Note this does NOT apply within
+			// `pricing` itself — dansal replaces that whole sub-object
+			// wholesale rather than deep-merging it, which is why build_payload()
+			// always sends WP's full view of it (type/amount/currency/prices)
+			// rather than relying on omission to preserve dansal-side tiers.
 			$patch = array_filter(
 				$payload,
 				static function ( $v ) {
@@ -1251,6 +1269,19 @@ class WPD_CPT_Event {
 		update_post_meta( $post_id, '_wpd_pricing_type', isset( $pricing['type'] ) ? $pricing['type'] : '' );
 		update_post_meta( $post_id, '_wpd_pricing_amount', isset( $pricing['amount'] ) ? $pricing['amount'] : '' );
 		update_post_meta( $post_id, '_wpd_pricing_currency', isset( $pricing['currency'] ) ? $pricing['currency'] : '' );
+
+		$tiers = array();
+		if ( isset( $pricing['prices'] ) && is_array( $pricing['prices'] ) ) {
+			foreach ( $pricing['prices'] as $tier ) {
+				if ( is_array( $tier ) && isset( $tier['label'] ) ) {
+					$tiers[] = array(
+						'label'  => (string) $tier['label'],
+						'amount' => isset( $tier['amount'] ) ? (float) $tier['amount'] : 0.0,
+					);
+				}
+			}
+		}
+		update_post_meta( $post_id, '_wpd_pricing_tiers', $tiers );
 
 		$attrs = isset( $event['attributes'] ) && is_array( $event['attributes'] ) ? $event['attributes'] : array();
 		foreach ( array( 'wheelchair', 'bar', 'kitchen' ) as $attr ) {
