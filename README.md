@@ -40,7 +40,24 @@ Instead of the automatic archive URLs, you can put the locations map or the even
 
 ## Translations
 
-Translatable strings live under the `wp-dansal` text domain. Translators can start from `languages/wp-dansal.pot` and drop `.po`/`.mo` files next to it (`languages/wp-dansal-{locale}.po`), or place them under `wp-content/languages/plugins/`. Regenerate the POT with `make pot` (requires [wp-cli](https://wp-cli.org/)).
+Translatable strings live under the `wp-dansal` text domain. The plugin automatically adapts to the WordPress site language.
+
+**Available translation files:**
+- `languages/wp-dansal.pot` — Template file with all translatable strings (284 entries)
+- `languages/wp-dansal-de_DE.po` / `.mo` — German
+- `languages/wp-dansal-fr_FR.po` / `.mo` — French
+- `languages/wp-dansal-es_ES.po` / `.mo` — Spanish
+- `languages/wp-dansal-cs_CZ.po` / `.mo` — Czech
+- `languages/wp-dansal-pl_PL.po` / `.mo` — Polish
+
+To add or update translations:
+1. Edit the `.po` file for your locale with a PO editor (e.g., Poedit)
+2. Compile the `.po` to `.mo` using `msgfmt` or your editor's built-in compiler
+3. Drop the files in `languages/` (bundled with the plugin) or in `wp-content/languages/plugins/` (persists across plugin updates)
+
+To regenerate the POT with the latest strings: `make pot` (requires [wp-cli](https://wp-cli.org/)).
+
+**For translators:** The PO files currently contain empty translations (msgstr ""). WordPress will automatically fall back to the English source strings (msgid) until translations are added. The `.pot` file contains all source strings with file references to provide context.
 
 ## Local development
 
