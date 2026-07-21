@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.3.1
+Stable tag: 0.3.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -53,6 +53,9 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.3.2 =
+* Single event page now lays out its details as a table, with a small linked-location map to its right (falls below the table on narrow screens) instead of a full-width map under the "Where" line.
 
 = 0.3.1 =
 * Fix: frontend map tiles failed to load ("blocked due to missing referer") because tile requests used `Referrer-Policy: no-referrer`. OSM's tile servers require a referer and reject requests with none; switched the default to `origin`, which still only exposes the page's scheme+host, not its full path/query.

@@ -109,23 +109,100 @@ while ( have_posts() ) :
 				<?php edit_post_link( __( 'Edit event', 'wp-dansal' ), '<p class="wpd-edit-link">', '</p>' ); ?>
 			</header>
 
-			<div class="wpd-meta-row"><strong><?php esc_html_e( 'When:', 'wp-dansal' ); ?></strong> <?php echo esc_html( $format_dt( $start ) ); ?> &ndash; <?php echo esc_html( $format_dt( $end ) ); ?></div>
+			<?php
+			$wpd_room_name = $loc_post_id ? get_post_meta( $wpd_post_id, '_wpd_room_name', true ) : '';
+			$wpd_ev_lat    = $loc_post_id ? get_post_meta( $loc_post_id, '_wpd_latitude', true ) : '';
+			$wpd_ev_lng    = $loc_post_id ? get_post_meta( $loc_post_id, '_wpd_longitude', true ) : '';
+			$wpd_has_map   = '' !== $wpd_ev_lat && '' !== $wpd_ev_lng;
+			?>
+			<div class="wpd-event-info">
+				<table class="wpd-event-table">
+					<tbody>
+						<tr>
+							<th><?php esc_html_e( 'When:', 'wp-dansal' ); ?></th>
+							<td><?php echo esc_html( $format_dt( $start ) ); ?> &ndash; <?php echo esc_html( $format_dt( $end ) ); ?></td>
+						</tr>
+						<?php if ( $loc_post_id ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Where:', 'wp-dansal' ); ?></th>
+								<td>
+									<a href="<?php echo esc_url( get_permalink( $loc_post_id ) ); ?>"><?php echo esc_html( get_the_title( $loc_post_id ) ); ?></a>
+									<?php if ( $wpd_room_name ) : ?>
+										<span class="wpd-room-name"> — <?php echo esc_html( $wpd_room_name ); ?></span>
+									<?php endif; ?>
+								</td>
+							</tr>
+						<?php endif; ?>
+						<?php if ( $difficulty ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Difficulty:', 'wp-dansal' ); ?></th>
+								<td><?php echo esc_html( $difficulty ); ?></td>
+							</tr>
+						<?php endif; ?>
+						<?php if ( $tags ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Tags:', 'wp-dansal' ); ?></th>
+								<td><?php echo esc_html( implode( ', ', $tags ) ); ?></td>
+							</tr>
+						<?php endif; ?>
+						<?php if ( $musicians ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Musicians:', 'wp-dansal' ); ?></th>
+								<?php // Each item in $musicians is already an <a>…</a> with esc_html() on the display text and esc_url() on the href — see $wpd_link_people above; the separator is a static ", ". ?>
+								<td><?php echo implode( ', ', $musicians ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+							</tr>
+						<?php endif; ?>
+						<?php if ( $instructors ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Instructors:', 'wp-dansal' ); ?></th>
+								<td><?php echo implode( ', ', $instructors ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+							</tr>
+						<?php endif; ?>
+						<?php if ( $pricing_type ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Price:', 'wp-dansal' ); ?></th>
+								<td>
+									<?php
+									if ( 'free' === $pricing_type ) {
+										esc_html_e( 'Free', 'wp-dansal' );
+									} elseif ( 'donation' === $pricing_type ) {
+										esc_html_e( 'Donation', 'wp-dansal' );
+									} else {
+										echo esc_html( get_post_meta( $wpd_post_id, '_wpd_pricing_amount', true ) . ' ' . get_post_meta( $wpd_post_id, '_wpd_pricing_currency', true ) );
+									}
+									?>
+								</td>
+							</tr>
+						<?php endif; ?>
+						<?php if ( $food || $drink ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Food & drink:', 'wp-dansal' ); ?></th>
+								<td><?php echo esc_html( trim( $food . ' / ' . $drink, ' /' ) ); ?></td>
+							</tr>
+						<?php endif; ?>
+						<?php if ( $loc_parking ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Parking:', 'wp-dansal' ); ?></th>
+								<td><?php echo esc_html( $loc_parking ); ?></td>
+							</tr>
+						<?php endif; ?>
+						<?php if ( $effective_floor ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Floor:', 'wp-dansal' ); ?></th>
+								<td><?php echo esc_html( $effective_floor ); ?></td>
+							</tr>
+						<?php endif; ?>
+						<?php if ( $amenities ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Amenities:', 'wp-dansal' ); ?></th>
+								<td><?php echo esc_html( implode( ', ', $amenities ) ); ?></td>
+							</tr>
+						<?php endif; ?>
+					</tbody>
+				</table>
 
-			<?php if ( $loc_post_id ) : ?>
-				<?php
-				$wpd_room_name = get_post_meta( $wpd_post_id, '_wpd_room_name', true );
-				?>
-				<div class="wpd-meta-row">
-					<strong><?php esc_html_e( 'Where:', 'wp-dansal' ); ?></strong>
-					<a href="<?php echo esc_url( get_permalink( $loc_post_id ) ); ?>"><?php echo esc_html( get_the_title( $loc_post_id ) ); ?></a>
-					<?php if ( $wpd_room_name ) : ?>
-						<span class="wpd-room-name"> — <?php echo esc_html( $wpd_room_name ); ?></span>
-					<?php endif; ?>
-				</div>
-				<?php
-				$wpd_ev_lat = get_post_meta( $loc_post_id, '_wpd_latitude', true );
-				$wpd_ev_lng = get_post_meta( $loc_post_id, '_wpd_longitude', true );
-				if ( '' !== $wpd_ev_lat && '' !== $wpd_ev_lng ) :
+				<?php if ( $wpd_has_map ) : ?>
+					<?php
 					$wpd_ev_points_json = wp_json_encode(
 						array(
 							array(
@@ -138,59 +215,9 @@ while ( have_posts() ) :
 					);
 					$wpd_ev_tiles_json = wp_json_encode( wpd_plugin()->frontend->tile_config() );
 					?>
-					<div id="wpd-locations-map" class="wpd-single-map" data-wpd-points="<?php echo esc_attr( $wpd_ev_points_json ); ?>" data-wpd-tiles="<?php echo esc_attr( $wpd_ev_tiles_json ); ?>"></div>
-					<?php
-				endif;
-				?>
-			<?php endif; ?>
-
-			<?php if ( $difficulty ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Difficulty:', 'wp-dansal' ); ?></strong> <?php echo esc_html( $difficulty ); ?></div>
-			<?php endif; ?>
-
-			<?php if ( $tags ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Tags:', 'wp-dansal' ); ?></strong> <?php echo esc_html( implode( ', ', $tags ) ); ?></div>
-			<?php endif; ?>
-
-			<?php if ( $musicians ) : ?>
-				<?php // Each item in $musicians is already an <a>…</a> with esc_html() on the display text and esc_url() on the href — see $wpd_link_people above; the separator is a static ", ". ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Musicians:', 'wp-dansal' ); ?></strong> <?php echo implode( ', ', $musicians ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
-			<?php endif; ?>
-
-			<?php if ( $instructors ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Instructors:', 'wp-dansal' ); ?></strong> <?php echo implode( ', ', $instructors ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
-			<?php endif; ?>
-
-			<?php if ( $pricing_type ) : ?>
-				<div class="wpd-meta-row">
-					<strong><?php esc_html_e( 'Price:', 'wp-dansal' ); ?></strong>
-					<?php
-					if ( 'free' === $pricing_type ) {
-						esc_html_e( 'Free', 'wp-dansal' );
-					} elseif ( 'donation' === $pricing_type ) {
-						esc_html_e( 'Donation', 'wp-dansal' );
-					} else {
-						echo esc_html( get_post_meta( $wpd_post_id, '_wpd_pricing_amount', true ) . ' ' . get_post_meta( $wpd_post_id, '_wpd_pricing_currency', true ) );
-					}
-					?>
-				</div>
-			<?php endif; ?>
-
-			<?php if ( $food || $drink ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Food & drink:', 'wp-dansal' ); ?></strong> <?php echo esc_html( trim( $food . ' / ' . $drink, ' /' ) ); ?></div>
-			<?php endif; ?>
-
-			<?php if ( $loc_parking ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Parking:', 'wp-dansal' ); ?></strong> <?php echo esc_html( $loc_parking ); ?></div>
-			<?php endif; ?>
-
-			<?php if ( $effective_floor ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Floor:', 'wp-dansal' ); ?></strong> <?php echo esc_html( $effective_floor ); ?></div>
-			<?php endif; ?>
-
-			<?php if ( $amenities ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Amenities:', 'wp-dansal' ); ?></strong> <?php echo esc_html( implode( ', ', $amenities ) ); ?></div>
-			<?php endif; ?>
+					<div id="wpd-locations-map" class="wpd-event-map" data-wpd-points="<?php echo esc_attr( $wpd_ev_points_json ); ?>" data-wpd-tiles="<?php echo esc_attr( $wpd_ev_tiles_json ); ?>"></div>
+				<?php endif; ?>
+			</div>
 
 			<div class="entry-content">
 				<?php the_content(); ?>
