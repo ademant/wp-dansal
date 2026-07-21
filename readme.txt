@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.6.1
+Stable tag: 0.6.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -55,6 +55,9 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.6.2 =
+* Fix: the 0.6.1 attempt at fixing the bulk "Assign to series…" redirect wasn't enough — `wp-admin/edit.php` re-processes whatever URL the bulk-action handler returns with its own `add_query_arg()` call (appending its own `ids` param), which re-parses and re-serializes the whole query string, silently dropping the array-valued `post` param again regardless of how it was originally encoded. The redirect now carries a single-use transient token instead of the post IDs directly, so nothing array-valued ever travels through a redirect URL.
 
 = 0.6.1 =
 * Fix: the new bulk "Assign to series…" action (0.6.0) landed on an "Not a dansal event" error instead of the picker — the redirect it builds carried the selected event IDs as an array-valued query arg via `add_query_arg()`, which wasn't reliably round-tripping through the redirect. Rebuilt as an explicit query string for the redirect and hidden form fields for the actual submission, sidestepping the ambiguity entirely.

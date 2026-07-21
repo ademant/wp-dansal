@@ -78,15 +78,24 @@ class WPD_CPT_Event {
 		if ( ! $post_ids ) {
 			return $redirect_to;
 		}
-		// Built explicitly rather than via add_query_arg( array( 'post' =>
-		// $post_ids ), ... ) — that helper's handling of an array-valued arg
-		// wasn't reliably round-tripping through the redirect in practice
-		// (the destination URL came back with no post param at all).
-		$query = 'page=wpd-assign-event-series';
-		foreach ( $post_ids as $id ) {
-			$query .= '&post%5B%5D=' . $id;
-		}
-		return admin_url( 'admin.php?' . $query );
+		// wp-admin/edit.php re-processes whatever URL this filter returns
+		// with its own add_query_arg() call afterwards (it appends its own
+		// 'ids' param) — that re-parses the whole query string and
+		// re-serializes it, which is what was actually mangling a
+		// post[]=1&post[]=2-style array value here (tried both add_query_arg()
+		// and a manually-built query string; both got silently dropped by
+		// that later re-processing). A transient keyed by a random token
+		// sidesteps it entirely: the redirect only ever carries one scalar
+		// value, never an array, at any point in the chain.
+		$token = wp_generate_password( 12, false );
+		set_transient( 'wpd_bulk_series_' . $token, $post_ids, 5 * MINUTE_IN_SECONDS );
+		return add_query_arg(
+			array(
+				'page'  => 'wpd-assign-event-series',
+				'batch' => $token,
+			),
+			admin_url( 'admin.php' )
+		);
 	}
 
 	public function register_post_type() {
@@ -189,8 +198,17 @@ class WPD_CPT_Event {
 		if ( ! current_user_can( 'edit_posts' ) ) {
 			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), '', array( 'response' => 403 ) );
 		}
-		$post_ids = isset( $_GET['post'] ) ? array_map( 'absint', (array) $_GET['post'] ) : array();
-		$posts    = array();
+		// 'batch' (bulk action, see handle_bulk_assign_series()) resolves a
+		// transient to the selected post ids; 'post' (single-row action
+		// link, see row_actions()) carries the one id directly.
+		if ( isset( $_GET['batch'] ) ) {
+			$token    = sanitize_text_field( wp_unslash( $_GET['batch'] ) );
+			$stored   = get_transient( 'wpd_bulk_series_' . $token );
+			$post_ids = is_array( $stored ) ? array_map( 'absint', $stored ) : array();
+		} else {
+			$post_ids = isset( $_GET['post'] ) ? array_map( 'absint', (array) $_GET['post'] ) : array();
+		}
+		$posts = array();
 		foreach ( array_unique( array_filter( $post_ids ) ) as $id ) {
 			$candidate = get_post( $id );
 			if ( $candidate && self::POST_TYPE === $candidate->post_type ) {
