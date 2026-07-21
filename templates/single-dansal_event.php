@@ -66,7 +66,6 @@ while ( have_posts() ) :
 	$drink        = get_post_meta( $wpd_post_id, '_wpd_drink', true );
 	$floor        = get_post_meta( $wpd_post_id, '_wpd_floor_condition', true );
 	$cancelled    = '1' === get_post_meta( $wpd_post_id, '_wpd_is_cancelled', true );
-	$difficulty   = get_post_meta( $wpd_post_id, '_wpd_workshop_difficulty', true );
 
 	// Parking/floor/amenities usually live on the location, not the event —
 	// the event-level fields are only an override for this specific
@@ -131,12 +130,6 @@ while ( have_posts() ) :
 										<span class="wpd-room-name"> — <?php echo esc_html( $wpd_room_name ); ?></span>
 									<?php endif; ?>
 								</td>
-							</tr>
-						<?php endif; ?>
-						<?php if ( $difficulty ) : ?>
-							<tr>
-								<th><?php esc_html_e( 'Difficulty:', 'wp-dansal' ); ?></th>
-								<td><?php echo esc_html( $difficulty ); ?></td>
 							</tr>
 						<?php endif; ?>
 						<?php if ( $tags ) : ?>

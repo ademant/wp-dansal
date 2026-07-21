@@ -717,7 +717,6 @@ class WPD_CPT_Event {
 			'has_ball'           => '1' === $get( '_wpd_has_ball' ),
 			'has_workshop'       => '1' === $get( '_wpd_has_workshop' ),
 			'has_festival'       => '1' === $get( '_wpd_has_festival' ),
-			'workshop_difficulty'=> $get( '_wpd_workshop_difficulty' ),
 			'is_cancelled'       => '1' === $get( '_wpd_is_cancelled' ),
 			// Mirrors WordPress's own editorial workflow instead of a separate
 			// checkbox: WP core already refuses to let a post reach 'publish'
@@ -1207,7 +1206,6 @@ class WPD_CPT_Event {
 			update_post_meta( $post_id, '_wpd_' . $flag, ! empty( $event[ $flag ] ) ? '1' : '' );
 		}
 
-		update_post_meta( $post_id, '_wpd_workshop_difficulty', isset( $event['workshop_difficulty'] ) ? $event['workshop_difficulty'] : '' );
 		update_post_meta( $post_id, '_wpd_booking_url', isset( $event['booking_url'] ) ? $event['booking_url'] : '' );
 		update_post_meta( $post_id, '_wpd_food', isset( $event['food'] ) ? $event['food'] : '' );
 		update_post_meta( $post_id, '_wpd_drink', isset( $event['drink'] ) ? $event['drink'] : '' );

@@ -32,7 +32,6 @@ class WPD_Event_Fields {
 			'_wpd_has_ball',
 			'_wpd_has_workshop',
 			'_wpd_has_festival',
-			'_wpd_workshop_difficulty',
 			'_wpd_booking_url',
 			'_wpd_pricing_type',
 			'_wpd_pricing_amount',
@@ -143,8 +142,18 @@ class WPD_Event_Fields {
 		<tr>
 			<th><?php esc_html_e( 'Tags', 'wp-dansal' ); ?></th>
 			<td>
-				<?php foreach ( $tags_by_cat as $category => $tags ) : ?>
-					<p><strong><?php echo esc_html( ucfirst( $category ) ); ?>:</strong>
+				<?php
+				// The dansal tags vocabulary's "level" category (Beginners/
+				// Intermediate/Advanced) *is* the workshop difficulty picker —
+				// labelled accordingly here rather than as a separate field,
+				// since dansal only accepts a fixed enum for difficulty and a
+				// free-text input could send it a value it would reject.
+				$category_labels = array(
+					'level' => __( 'Workshop difficulty', 'wp-dansal' ),
+				);
+				foreach ( $tags_by_cat as $category => $tags ) :
+					?>
+					<p><strong><?php echo esc_html( isset( $category_labels[ $category ] ) ? $category_labels[ $category ] : ucfirst( $category ) ); ?>:</strong>
 					<?php foreach ( $tags as $tag ) : ?>
 						<label style="margin-right:1em;display:inline-block;">
 							<input type="checkbox" name="<?php echo esc_attr( $name( '_wpd_tags', true ) ); ?>" value="<?php echo esc_attr( $tag['slug'] ); ?>" <?php checked( in_array( $tag['slug'], $selected_tags, true ) ); ?> />
@@ -180,18 +189,6 @@ class WPD_Event_Fields {
 						<?php echo esc_html( $label ); ?>
 					</label>
 				<?php endforeach; ?>
-			</td>
-		</tr>
-		<tr>
-			<th><label><?php esc_html_e( 'Workshop difficulty', 'wp-dansal' ); ?></label></th>
-			<td>
-				<input type="text" name="<?php echo esc_attr( $name( '_wpd_workshop_difficulty' ) ); ?>" list="wpd-difficulties" value="<?php echo esc_attr( $v( '_wpd_workshop_difficulty' ) ); ?>" />
-				<datalist id="wpd-difficulties">
-					<option value="beginner"></option>
-					<option value="intermediate"></option>
-					<option value="advanced"></option>
-					<option value="open"></option>
-				</datalist>
 			</td>
 		</tr>
 		<tr>
@@ -292,7 +289,6 @@ class WPD_Event_Fields {
 
 		$text_keys = array(
 			'_wpd_location_post_id',
-			'_wpd_workshop_difficulty',
 			'_wpd_booking_url',
 			'_wpd_pricing_type',
 			'_wpd_pricing_amount',
