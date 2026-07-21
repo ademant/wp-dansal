@@ -54,6 +54,37 @@ class WPD_CPT_Event {
 
 		add_action( 'admin_menu', array( $this, 'add_assign_series_page' ) );
 		WPD_Admin_Action::register( 'wpd_assign_event_series', 'edit_posts', array( $this, 'handle_assign_series' ) );
+
+		add_filter( 'bulk_actions-edit-' . self::POST_TYPE, array( $this, 'register_bulk_actions' ) );
+		add_filter( 'handle_bulk_actions-edit-' . self::POST_TYPE, array( $this, 'handle_bulk_assign_series' ), 10, 3 );
+	}
+
+	/**
+	 * Bulk-action counterpart of the per-row "Assign to series…" action:
+	 * redirects to the same wpd-assign-event-series page (render_assign_series_page()
+	 * already handles either one post ID or several) rather than duplicating
+	 * that UI. WP calls this filter then redirects to whatever URL it returns.
+	 */
+	public function register_bulk_actions( $bulk_actions ) {
+		$bulk_actions['wpd_bulk_assign_series'] = __( 'Assign to series…', 'wp-dansal' );
+		return $bulk_actions;
+	}
+
+	public function handle_bulk_assign_series( $redirect_to, $doaction, $post_ids ) {
+		if ( 'wpd_bulk_assign_series' !== $doaction ) {
+			return $redirect_to;
+		}
+		$post_ids = array_values( array_filter( array_map( 'absint', (array) $post_ids ) ) );
+		if ( ! $post_ids ) {
+			return $redirect_to;
+		}
+		return add_query_arg(
+			array(
+				'page' => 'wpd-assign-event-series',
+				'post' => $post_ids,
+			),
+			admin_url( 'admin.php' )
+		);
 	}
 
 	public function register_post_type() {
@@ -156,12 +187,25 @@ class WPD_CPT_Event {
 		if ( ! current_user_can( 'edit_posts' ) ) {
 			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), '', array( 'response' => 403 ) );
 		}
-		$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
-		$post    = $post_id ? get_post( $post_id ) : null;
-		if ( ! $post || self::POST_TYPE !== $post->post_type ) {
+		$post_ids = isset( $_GET['post'] ) ? array_map( 'absint', (array) $_GET['post'] ) : array();
+		$posts    = array();
+		foreach ( array_unique( array_filter( $post_ids ) ) as $id ) {
+			$candidate = get_post( $id );
+			if ( $candidate && self::POST_TYPE === $candidate->post_type ) {
+				$posts[] = $candidate;
+			}
+		}
+		if ( ! $posts ) {
 			wp_die( esc_html__( 'Not a dansal event.', 'wp-dansal' ), '', array( 'response' => 400 ) );
 		}
-		$current    = (int) get_post_meta( $post_id, '_wpd_series_post_id', true );
+
+		// With several events picked via the bulk action there's no single
+		// "current" series to preselect, so the dropdown instead defaults to
+		// a distinct "no change" option — -1 never matches a real option's
+		// value (0 = detach, or a series post ID), so nothing else is
+		// pre-selected and the browser default (the first option) applies.
+		$is_bulk    = count( $posts ) > 1;
+		$current    = $is_bulk ? -1 : (int) get_post_meta( $posts[0]->ID, '_wpd_series_post_id', true );
 		$all_series = get_posts(
 			array(
 				'post_type'      => WPD_CPT_Series::POST_TYPE,
@@ -171,23 +215,35 @@ class WPD_CPT_Event {
 				'order'          => 'ASC',
 			)
 		);
-		$action_url = WPD_Admin_Action::url( 'wpd_assign_event_series', array( 'post' => $post_id ) );
+		$action_url = WPD_Admin_Action::url( 'wpd_assign_event_series', array( 'post' => wp_list_pluck( $posts, 'ID' ) ) );
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Assign to series', 'wp-dansal' ); ?></h1>
-			<p>
-			<?php
-			/* translators: %s: event title (wrapped in <strong>) */
-			printf( esc_html__( 'Event: %s', 'wp-dansal' ), '<strong>' . esc_html( $post->post_title ) . '</strong>' );
-			?>
-			</p>
+			<?php if ( $is_bulk ) : ?>
+				<p><?php esc_html_e( 'Events:', 'wp-dansal' ); ?></p>
+				<ul>
+					<?php foreach ( $posts as $p ) : ?>
+						<li><?php echo esc_html( $p->post_title ); ?></li>
+					<?php endforeach; ?>
+				</ul>
+			<?php else : ?>
+				<p>
+				<?php
+				/* translators: %s: event title (wrapped in <strong>) */
+				printf( esc_html__( 'Event: %s', 'wp-dansal' ), '<strong>' . esc_html( $posts[0]->post_title ) . '</strong>' );
+				?>
+				</p>
+			<?php endif; ?>
 			<form method="post" action="<?php echo esc_url( $action_url ); ?>">
 				<table class="form-table" role="presentation">
 					<tr>
 						<th><label for="wpd_series_select"><?php esc_html_e( 'Series', 'wp-dansal' ); ?></label></th>
 						<td>
 							<select id="wpd_series_select" name="series_post_id">
-								<option value="0"><?php esc_html_e( '— detach from series —', 'wp-dansal' ); ?></option>
+								<?php if ( $is_bulk ) : ?>
+									<option value=""><?php esc_html_e( '— no change —', 'wp-dansal' ); ?></option>
+								<?php endif; ?>
+								<option value="0" <?php selected( $current, 0 ); ?>><?php esc_html_e( '— detach from series —', 'wp-dansal' ); ?></option>
 								<?php foreach ( $all_series as $s ) : ?>
 									<option value="<?php echo esc_attr( $s->ID ); ?>" <?php selected( $current, $s->ID ); ?>><?php echo esc_html( $s->post_title ); ?></option>
 								<?php endforeach; ?>
@@ -209,15 +265,31 @@ class WPD_CPT_Event {
 	 * don't drift.
 	 */
 	public function handle_assign_series() {
-		$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
-		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+		$post_ids = isset( $_GET['post'] ) ? array_map( 'absint', (array) $_GET['post'] ) : array();
+		$post_ids = array_values(
+			array_filter(
+				array_unique( array_filter( $post_ids ) ),
+				function ( $id ) {
+					return current_user_can( 'edit_post', $id );
+				}
+			)
+		);
+		if ( ! $post_ids ) {
 			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), '', array( 'response' => 403 ) );
 		}
 		// Nonce is verified by the WPD_Admin_Action framework before this
 		// handler is dispatched (see class-wpd-admin-action.php).
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$new_series_post_id = isset( $_POST['series_post_id'] ) ? absint( $_POST['series_post_id'] ) : 0;
-		$this->set_event_series( $post_id, $new_series_post_id );
+		$raw = isset( $_POST['series_post_id'] ) ? sanitize_text_field( wp_unslash( $_POST['series_post_id'] ) ) : '0';
+		// '' only ever comes from the bulk page's "— no change —" option
+		// (the single-event page always posts '0' or a real series ID) —
+		// leave every selected event's series linkage untouched.
+		if ( '' !== $raw ) {
+			$new_series_post_id = absint( $raw );
+			foreach ( $post_ids as $post_id ) {
+				$this->set_event_series( $post_id, $new_series_post_id );
+			}
+		}
 
 		wp_safe_redirect( admin_url( 'edit.php?post_type=' . self::POST_TYPE ) );
 		exit;

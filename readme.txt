@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.5.1
+Stable tag: 0.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -55,6 +55,9 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.6.0 =
+* Dance Events list screen: "Assign to series…" is now also available as a bulk action, not just a per-row link — select several events, choose it from the bulk actions dropdown, and pick one series to apply to all of them (or "— no change —" to leave some of them alone).
 
 = 0.5.1 =
 * Fix: picking a location on a new/existing Dance Series never populated its Room dropdown, even when the location had rooms — the location→room refresh logic only ever ran on the event edit screen (`admin-event.js`), never on the series edit screen even though it renders the same Location/Room fields. Extracted into a shared `admin-rooms.js`, now loaded on both.
