@@ -16,7 +16,7 @@ ZIP_FILE  := $(DIST_DIR)/$(SLUG)-$(VERSION).zip
 # it was added to the repo root later.
 DIST_FILES := wp-dansal.php uninstall.php includes templates assets languages LICENSE README.md readme.txt
 
-.PHONY: all zip build deploy setup-env clean version help pot mo
+.PHONY: all zip build deploy setup-env clean version help pot mo wp-cli
 
 all: zip
 
@@ -29,14 +29,26 @@ help:
 	@echo "make version  print the detected plugin version ($(VERSION))"
 	@echo "make clean    remove $(BUILD_DIR)/ and $(DIST_DIR)/"
 	@echo "make mo       compile all .po files to .mo files"
+	@echo "make wp-cli   ensure wp-cli is installed"
 
-pot:
-	@command -v wp >/dev/null || { echo "wp-cli not installed (see https://wp-cli.org/)" >&2; exit 1; }
+WP_CLI_PATH ?= $(shell command -v wp 2>/dev/null)
+
+wp-cli:
+	@if ! command -v wp >/dev/null 2>&1; then\
+		echo "wp-cli not found. Installing to /usr/local/bin/wp...";\
+		curl -sS -o /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar &&\
+		chmod +x /tmp/wp-cli.phar &&\
+		sudo mv /tmp/wp-cli.phar /usr/local/bin/wp &&\
+		echo "wp-cli installed successfully";\
+	else\
+		echo "wp-cli already installed at $(WP_CLI_PATH)";\
+	fi
+
+pot: wp-cli
 	@wp i18n make-pot . languages/$(SLUG).pot --slug=$(SLUG) --domain=$(SLUG)
 	@echo "Regenerated languages/$(SLUG).pot"
 
-mo:
-	@command -v wp >/dev/null || { echo "wp-cli not installed (see https://wp-cli.org/)" >&2; exit 1; }
+mo: wp-cli
 	@for po_file in languages/$(SLUG)-*.po; do\
 		if [ -f "$$po_file" ]; then\
 			mo_file="$${po_file%.po}.mo";\
