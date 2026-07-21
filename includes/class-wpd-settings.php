@@ -395,7 +395,13 @@ class WPD_Settings {
 		$o = $this->get_all();
 		?>
 		<div class="wrap">
-			<h1><?php esc_html_e( 'Dansal Connection', 'wp-dansal' ); ?></h1>
+			<h1>
+				<?php esc_html_e( 'Dansal Connection', 'wp-dansal' ); ?>
+				<?php
+				/* translators: %s: plugin version, e.g. 0.6.0. */
+				printf( ' <span style="font-size:0.5em;font-weight:normal;color:#646970;">%s</span>', esc_html( sprintf( __( 'WP Dansal v%s', 'wp-dansal' ), WPD_VERSION ) ) );
+				?>
+			</h1>
 			<p>
 				<?php esc_html_e( 'Connect this site to a dansal server (https://github.com/ademant/dansal). Events and locations created from this site are attributed to one organization there.', 'wp-dansal' ); ?>
 			</p>
