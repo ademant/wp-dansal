@@ -39,6 +39,10 @@ Statt der automatischen Archiv-URLs können Sie die Ortskarte oder den Event-Kal
 
 Übersetzbare Strings befinden sich unter dem Textdomain `wp-dansal`. Übersetzer können von `languages/wp-dansal.pot` ausgehen und `.po`/`.mo`-Dateien daneben ablegen (`languages/wp-dansal-{locale}.po`) oder unter `wp-content/languages/plugins/` platzieren. Die POT-Datei kann mit `make pot` neu generiert werden (benötigt [wp-cli](https://wp-cli.org/)).
 
+## Lokale Entwicklung
+
+`make zip` baut ein Release-Zip in `dist/`. Um stattdessen gegen eine lokale WordPress-Installation zu iterieren, kopieren Sie `.env.example` nach `.env`, setzen `WP_PLUGIN_DIR` (das `wp-content/plugins`-Verzeichnis dieser Installation) und `WP_OWNER` (der `user:group`, unter dem der Webserver läuft, z. B. `www-data:www-data`), und führen dann `make deploy` aus — dies synchronisiert das gebaute Plugin per rsync nach `$WP_PLUGIN_DIR/wp-dansal/` und setzt den Besitzer auf `WP_OWNER`. `.env` ist in `.gitignore` eingetragen. `make help` listet alle Targets auf.
+
 ## Hinweise
 
 - Kartentiles werden live vom OpenStreetMap-Tile-Server geladen (die Leaflet-Bibliothek selbst ist gebündelt, aber Tiles können praktisch nicht selbst gehostet werden). Jede Tile-Anfrage wird mit `Referrer-Policy: no-referrer` gesendet, sodass die Seiten-URL nicht mit dem Tile-Host geteilt wird. Um Tiles stattdessen über einen selbst gehosteten oder kostenpflichtigen Proxy zu leiten, filtern Sie `wpd_tile_url_template` (und bei Bedarf `wpd_tile_attribution` / `wpd_tile_max_zoom` / `wpd_tile_referrer_policy`):

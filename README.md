@@ -42,6 +42,10 @@ Instead of the automatic archive URLs, you can put the locations map or the even
 
 Translatable strings live under the `wp-dansal` text domain. Translators can start from `languages/wp-dansal.pot` and drop `.po`/`.mo` files next to it (`languages/wp-dansal-{locale}.po`), or place them under `wp-content/languages/plugins/`. Regenerate the POT with `make pot` (requires [wp-cli](https://wp-cli.org/)).
 
+## Local development
+
+`make zip` builds a release zip in `dist/`. To iterate against a local WordPress install instead, copy `.env.example` to `.env`, set `WP_PLUGIN_DIR` (that install's `wp-content/plugins`) and `WP_OWNER` (the `user:group` the webserver runs as, e.g. `www-data:www-data`), then run `make deploy` — it rsyncs the built plugin into `$WP_PLUGIN_DIR/wp-dansal/` and chowns it to `WP_OWNER`. `.env` is git-ignored. `make help` lists all targets.
+
 ## Notes
 
 - Map tiles are loaded live from OpenStreetMap's tile server (the Leaflet library itself is bundled, but tiles can't practically be self-hosted). Every tile request goes with `Referrer-Policy: no-referrer` so the page URL isn't shared with the tile host. To route tiles through a self-hosted or paid proxy instead, filter `wpd_tile_url_template` (and, if needed, `wpd_tile_attribution` / `wpd_tile_max_zoom` / `wpd_tile_referrer_policy`):

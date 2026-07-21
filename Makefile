@@ -1,6 +1,10 @@
 SLUG      := wp-dansal
 VERSION   := $(shell awk -F': ' '/^[ \t]*\*[ \t]*Version:/{gsub(/[ \t]+$$/, "", $$2); print $$2; exit}' wp-dansal.php)
 
+# Optional local config for `make deploy` (WP_PLUGIN_DIR, WP_OWNER) — see
+# .env.example. Silently absent for everyone who only ever runs zip/build.
+-include .env
+
 BUILD_DIR := build
 DIST_DIR  := dist
 STAGE     := $(BUILD_DIR)/$(SLUG)
@@ -12,13 +16,14 @@ ZIP_FILE  := $(DIST_DIR)/$(SLUG)-$(VERSION).zip
 # it was added to the repo root later.
 DIST_FILES := wp-dansal.php uninstall.php includes templates assets languages LICENSE README.md readme.txt
 
-.PHONY: all zip build clean version help pot
+.PHONY: all zip build deploy clean version help pot
 
 all: zip
 
 help:
 	@echo "make zip      build $(DIST_DIR)/$(SLUG)-<version>.zip (default)"
 	@echo "make build    assemble the plugin into $(STAGE)/ without zipping"
+	@echo "make deploy   rsync the built plugin into \$$WP_PLUGIN_DIR (see .env.example)"
 	@echo "make pot      regenerate languages/$(SLUG).pot via wp-cli"
 	@echo "make version  print the detected plugin version ($(VERSION))"
 	@echo "make clean    remove $(BUILD_DIR)/ and $(DIST_DIR)/"
@@ -44,6 +49,13 @@ zip: build
 	@rm -f "$(ZIP_FILE)"
 	@cd "$(BUILD_DIR)" && zip -rq "../$(ZIP_FILE)" "$(SLUG)"
 	@echo "Built $(ZIP_FILE)"
+
+deploy: build
+	@test -n "$(WP_PLUGIN_DIR)" || { echo "WP_PLUGIN_DIR is not set (copy .env.example to .env and fill it in)" >&2; exit 1; }
+	@test -n "$(WP_OWNER)" || { echo "WP_OWNER is not set (copy .env.example to .env and fill it in)" >&2; exit 1; }
+	@rsync -a --delete "$(STAGE)/" "$(WP_PLUGIN_DIR)/$(SLUG)/"
+	@sudo chown -R "$(WP_OWNER)" "$(WP_PLUGIN_DIR)/$(SLUG)"
+	@echo "Deployed to $(WP_PLUGIN_DIR)/$(SLUG) (owner $(WP_OWNER))"
 
 clean:
 	@rm -rf "$(BUILD_DIR)" "$(DIST_DIR)"
