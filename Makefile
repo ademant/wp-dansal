@@ -32,35 +32,55 @@ help:
 	@echo "make wp-cli   ensure wp-cli is installed"
 
 WP_CLI_PATH ?= $(shell command -v wp 2>/dev/null)
+WP_CLI_INSTALLED ?= $(shell test -x "$(WP_CLI_PATH)" && echo yes || echo no)
+
+# Check if MO files need compiling (returns empty if all MO files exist and are newer than PO)
+MO_UP_TO_DATE ?= $(shell \
+	for po_file in languages/$(SLUG)-*.po; do \
+		[ -f "$$po_file" ] || continue; \
+		mo_file="$${po_file%.po}.mo"; \
+		[ -f "$$mo_file" ] && [ "$$po_file" -ot "$$mo_file" ] || exit 1; \
+	done && echo yes || echo no)
 
 wp-cli:
-	@if ! command -v wp >/dev/null 2>&1; then\
+	@if [ "$(WP_CLI_INSTALLED)" = "no" ]; then\
 		echo "wp-cli not found. Installing to /usr/local/bin/wp...";\
 		curl -sS -o /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar &&\
-		chmod +x /tmp/wp-cli.phar &&\
-		sudo mv /tmp/wp-cli.phar /usr/local/bin/wp &&\
+		chmod +x /tmp/wp-cli.phar; \
+		if [ "$(shell id -u)" = "0" ]; then\
+			mv /tmp/wp-cli.phar /usr/local/bin/wp;\
+		else\
+			sudo mv /tmp/wp-cli.phar /usr/local/bin/wp;\
+		fi &&\
 		echo "wp-cli installed successfully";\
 	else\
 		echo "wp-cli already installed at $(WP_CLI_PATH)";\
+	fi
+
+# Only compile MO files if they don't exist or are older than PO files
+mo: wp-cli
+	@if [ "$(MO_UP_TO_DATE)" = "yes" ]; then\
+		echo "MO files are up to date";\
+	else\
+		for po_file in languages/$(SLUG)-*.po; do\
+			[ -f "$$po_file" ] || continue;\
+			mo_file="$${po_file%.po}.mo";\
+			wp i18n make-mo "$$po_file" "$$mo_file" &&\
+			echo "Compiled $$mo_file";\
+		done;\
 	fi
 
 pot: wp-cli
 	@wp i18n make-pot . languages/$(SLUG).pot --slug=$(SLUG) --domain=$(SLUG)
 	@echo "Regenerated languages/$(SLUG).pot"
 
-mo: wp-cli
-	@for po_file in languages/$(SLUG)-*.po; do\
-		if [ -f "$$po_file" ]; then\
-			mo_file="$${po_file%.po}.mo";\
-			wp i18n make-mo "$$po_file" "$$mo_file" &&\
-			echo "Compiled $$mo_file";\
-		fi;\
-		done
-
 version:
 	@echo "$(VERSION)"
 
-build: mo
+build:
+	@if [ "$(MO_UP_TO_DATE)" != "yes" ]; then\
+		$(MAKE) mo;\
+	fi
 	@test -n "$(VERSION)" || { echo "Could not read Version from wp-dansal.php header" >&2; exit 1; }
 	@rm -rf "$(STAGE)"
 	@mkdir -p "$(STAGE)"
