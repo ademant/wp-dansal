@@ -314,6 +314,12 @@ class WPD_Event_Fields {
 	 */
 	public function render_amenities_fields( array $values, $name_prefix ) {
 		list( $v, $name ) = $this->field_accessors( $values, $name_prefix );
+
+		// Unlike floor_condition, dansal has no per-event "no street shoes"
+		// field at all (Event struct has none — only Location does), so this
+		// can only ever be shown, never overridden here.
+		$location_post_id = (int) $v( '_wpd_location_post_id' );
+		$venue_no_shoes    = $location_post_id ? '1' === get_post_meta( $location_post_id, '_wpd_no_street_shoes', true ) : null;
 		?>
 		<tr>
 			<th><?php esc_html_e( 'Food & drink', 'wp-dansal' ); ?></th>
@@ -347,6 +353,17 @@ class WPD_Event_Fields {
 						<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $v( '_wpd_floor_condition' ), $slug ); ?>><?php echo esc_html( $label ); ?></option>
 					<?php endforeach; ?>
 				</select>
+				<?php if ( null !== $venue_no_shoes ) : ?>
+					<span class="description" style="margin-left:1em;">
+						<?php
+						echo esc_html(
+							$venue_no_shoes
+								? __( 'No street shoes: yes (set on the venue; not overridable per event)', 'wp-dansal' )
+								: __( 'No street shoes: no (set on the venue; not overridable per event)', 'wp-dansal' )
+						);
+						?>
+					</span>
+				<?php endif; ?>
 			</td>
 		</tr>
 		<tr>
