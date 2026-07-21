@@ -330,6 +330,15 @@ class WPD_CPT_Event {
 	 * remove-from-series. There is no dansal request field for series_id
 	 * on the plain event PATCH/PUT (see build_payload()) — this is the
 	 * only way to change it (#82).
+	 *
+	 * Always re-attempts the dansal call when a series is set (or
+	 * cleared), even if the local meta already had that value: attaching
+	 * to an unsynced series leaves the local meta set but the dansal side
+	 * untouched (see the "not synced yet" notice below), and comparing
+	 * against the stale local value would make that drift permanent —
+	 * a plain re-save couldn't ever retry it. The PUT/remove-from-series
+	 * calls are idempotent, so redoing them when nothing actually changed
+	 * is harmless (#84).
 	 */
 	private function set_event_series( $post_id, $new_series_post_id ) {
 		$old_series_post_id = (int) get_post_meta( $post_id, '_wpd_series_post_id', true );
@@ -339,7 +348,7 @@ class WPD_CPT_Event {
 			delete_post_meta( $post_id, '_wpd_series_post_id' );
 		}
 
-		if ( $old_series_post_id === $new_series_post_id ) {
+		if ( ! $old_series_post_id && ! $new_series_post_id ) {
 			return;
 		}
 		$dansal_event_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
