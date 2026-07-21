@@ -12,7 +12,7 @@ WordPress-Plugin zur Verwaltung von Tanzevents und -orten, das [dansal](https://
 
 Das Plugin fügt die benutzerdefinierten Beitragstypen **Tanzorte (Dance Locations)** und **Tanzevents (Dance Events)** hinzu, die im normalen WordPress-Admin bearbeitet werden können.
 
-Beim Anlegen eines Orts sucht das Plugin die Adresse über OpenStreetMap (Nominatim) und prüft dann in dansal auf bestehende Orte (nach OSM-ID, dann nach Nähe), um Duplikate zu vermeiden. Statt ein Duplikat zu erstellen, wird angeboten, Ihre Organisation dem bestehenden Ort zuzuweisen.
+Beim Anlegen eines Orts sucht das Plugin die Adresse über OpenStreetMap (Nominatim) und prüft dann in dansal auf bestehende Orte (nach OSM-ID, dann nach Nähe), um Duplikate zu vermeiden. Statt ein Duplikat zu erstellen, wird angeboten, Ihre Organisation dem bestehenden Ort zuzuweisen. Dieselbe Suche bleibt auch nach der Synchronisierung verfügbar (standardmäßig eingeklappt hinter einem "Ort neu zuordnen"-Umschalter), zusammen mit einer kleinen Karte mit verschiebbarem Marker sowie den Aktionen "aus den Feldern suchen"/"Rückwärts-Geocoding".
 
 Das Speichern eines Events oder Orts synchronisiert es automatisch mit dansal (Erstellung beim ersten Speichern, Update bei jedem weiteren Speichern) unter Verwendung eines Publisher-API-Schlüssels, der auf eine Organisation beschränkt ist.
 

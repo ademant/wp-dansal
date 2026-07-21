@@ -12,7 +12,7 @@ WordPress plugin for managing dance events and locations, backed by [dansal](htt
 
 The plugin adds **Dance Locations** and **Dance Events** as custom post types, editable in the normal WordPress admin.
 
-When creating a location, the plugin searches OpenStreetMap (Nominatim) for the address, then checks dansal for an existing location (by OSM id, then by proximity) before creating a duplicate — offering to assign your organization to the existing one instead.
+When creating a location, the plugin searches OpenStreetMap (Nominatim) for the address, then checks dansal for an existing location (by OSM id, then by proximity) before creating a duplicate — offering to assign your organization to the existing one instead. The same search widget stays available after the location is synced too (collapsed by default behind a "Re-match location" toggle), alongside a small draggable-marker map and "search from fields"/"reverse geocode" actions.
 
 Saving an event or location automatically syncs it to dansal (create on first save, update on every save after), using a publisher API key scoped to one organization.
 

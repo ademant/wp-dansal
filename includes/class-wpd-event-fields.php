@@ -86,28 +86,46 @@ class WPD_Event_Fields {
 	}
 
 	/**
-	 * Renders the overlay-field controls as <tr> rows inside a form-table.
-	 * Caller is responsible for the surrounding <table class="form-table">.
-	 *
-	 * @param array  $values      meta_key => stored value (get_post_meta shape).
-	 * @param string $name_prefix HTML input name prefix, e.g. "wpd_event" →
-	 *                            inputs are named wpd_event[<meta_key>].
+	 * Builds the $v()/$name() value+input-name closures shared by every
+	 * render_*_fields() method below, so each stays independently callable
+	 * (e.g. from the event metabox's own <details> segments — see
+	 * WPD_CPT_Event::render_meta_box()) without re-deriving this boilerplate.
 	 */
-	public function render_field_group( array $values, $name_prefix ) {
+	private function field_accessors( array $values, $name_prefix ) {
 		$v = function ( $key, $fallback = '' ) use ( $values ) {
 			return isset( $values[ $key ] ) && '' !== $values[ $key ] ? $values[ $key ] : $fallback;
 		};
 		$name = function ( $key, $multi = false ) use ( $name_prefix ) {
 			return $name_prefix . '[' . $key . ']' . ( $multi ? '[]' : '' );
 		};
+		return array( $v, $name );
+	}
 
-		$location_posts = $this->get_location_posts();
-		$tags_by_cat    = array();
-		foreach ( $this->get_tags_vocabulary() as $tag ) {
-			$tags_by_cat[ $tag['category'] ][] = $tag;
-		}
-		$selected_tags   = array_filter( explode( ',', (string) $v( '_wpd_tags' ) ) );
-		$selected_dances = array_filter( explode( ',', (string) $v( '_wpd_dance_ids' ) ) );
+	/**
+	 * Renders all overlay-field controls as <tr> rows inside a single
+	 * form-table, in the historical flat order. Used by callers that don't
+	 * need the event metabox's <details> segmentation (settings page's
+	 * "Event defaults", series edit screen). Caller is responsible for the
+	 * surrounding <table class="form-table">.
+	 *
+	 * @param array  $values      meta_key => stored value (get_post_meta shape).
+	 * @param string $name_prefix HTML input name prefix, e.g. "wpd_event" →
+	 *                            inputs are named wpd_event[<meta_key>].
+	 */
+	public function render_field_group( array $values, $name_prefix ) {
+		$this->render_location_room_fields( $values, $name_prefix );
+		$this->render_classification_fields( $values, $name_prefix );
+		$this->render_pricing_fields( $values, $name_prefix );
+		$this->render_amenities_fields( $values, $name_prefix );
+		$this->render_contact_fields( $values, $name_prefix );
+	}
+
+	/**
+	 * Location + Room rows.
+	 */
+	public function render_location_room_fields( array $values, $name_prefix ) {
+		list( $v, $name ) = $this->field_accessors( $values, $name_prefix );
+		$location_posts    = $this->get_location_posts();
 		?>
 		<tr>
 			<th><label><?php esc_html_e( 'Location', 'wp-dansal' ); ?></label></th>
@@ -139,6 +157,22 @@ class WPD_Event_Fields {
 				<p class="description"><?php esc_html_e( 'Optional — pick a specific named room within the venue. Rooms are managed on the location edit screen.', 'wp-dansal' ); ?></p>
 			</td>
 		</tr>
+		<?php
+	}
+
+	/**
+	 * Tags + Dances + Event type rows.
+	 */
+	public function render_classification_fields( array $values, $name_prefix ) {
+		list( $v, $name ) = $this->field_accessors( $values, $name_prefix );
+
+		$tags_by_cat = array();
+		foreach ( $this->get_tags_vocabulary() as $tag ) {
+			$tags_by_cat[ $tag['category'] ][] = $tag;
+		}
+		$selected_tags   = array_filter( explode( ',', (string) $v( '_wpd_tags' ) ) );
+		$selected_dances = array_filter( explode( ',', (string) $v( '_wpd_dance_ids' ) ) );
+		?>
 		<tr>
 			<th><?php esc_html_e( 'Tags', 'wp-dansal' ); ?></th>
 			<td>
@@ -191,6 +225,15 @@ class WPD_Event_Fields {
 				<?php endforeach; ?>
 			</td>
 		</tr>
+		<?php
+	}
+
+	/**
+	 * Booking URL + Pricing rows.
+	 */
+	public function render_pricing_fields( array $values, $name_prefix ) {
+		list( $v, $name ) = $this->field_accessors( $values, $name_prefix );
+		?>
 		<tr>
 			<th><label><?php esc_html_e( 'Booking URL', 'wp-dansal' ); ?></label></th>
 			<td><input type="url" name="<?php echo esc_attr( $name( '_wpd_booking_url' ) ); ?>" class="regular-text" value="<?php echo esc_attr( $v( '_wpd_booking_url' ) ); ?>" /></td>
@@ -213,6 +256,15 @@ class WPD_Event_Fields {
 				<input type="text" name="<?php echo esc_attr( $name( '_wpd_pricing_currency' ) ); ?>" placeholder="EUR" maxlength="3" value="<?php echo esc_attr( $v( '_wpd_pricing_currency', 'EUR' ) ); ?>" class="small-text" />
 			</td>
 		</tr>
+		<?php
+	}
+
+	/**
+	 * Food & drink + Floor condition override + Amenities override rows.
+	 */
+	public function render_amenities_fields( array $values, $name_prefix ) {
+		list( $v, $name ) = $this->field_accessors( $values, $name_prefix );
+		?>
 		<tr>
 			<th><?php esc_html_e( 'Food & drink', 'wp-dansal' ); ?></th>
 			<td>
@@ -264,6 +316,15 @@ class WPD_Event_Fields {
 				<?php endforeach; ?>
 			</td>
 		</tr>
+		<?php
+	}
+
+	/**
+	 * Contact row.
+	 */
+	public function render_contact_fields( array $values, $name_prefix ) {
+		list( $v, $name ) = $this->field_accessors( $values, $name_prefix );
+		?>
 		<tr>
 			<th><?php esc_html_e( 'Contact', 'wp-dansal' ); ?></th>
 			<td>

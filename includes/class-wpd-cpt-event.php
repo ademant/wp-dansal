@@ -375,59 +375,93 @@ class WPD_CPT_Event {
 
 		$hint = $this->resolve_datetime_hint( $post->ID );
 		?>
+		<details class="wpd-fieldset" open>
+			<summary><?php esc_html_e( 'When & where', 'wp-dansal' ); ?></summary>
+			<table class="form-table">
+				<tr>
+					<th><label for="wpd_start_time"><?php esc_html_e( 'Start', 'wp-dansal' ); ?></label></th>
+					<td>
+						<?php $start_val = $this->field( $post->ID, '_wpd_start_time' ); ?>
+						<input type="datetime-local" id="wpd_start_time" name="wpd_start_time" value="<?php echo esc_attr( $start_val ); ?>" required />
+						<?php if ( $hint && $hint['start_time'] && '' === $start_val ) : ?>
+							<?php WPD_Datetime_Hint::render( 'wpd_start_time', $hint['start_time'], $hint['label'] ); ?>
+						<?php endif; ?>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="wpd_end_time"><?php esc_html_e( 'End', 'wp-dansal' ); ?></label></th>
+					<td>
+						<?php $end_val = $this->field( $post->ID, '_wpd_end_time' ); ?>
+						<input type="datetime-local" id="wpd_end_time" name="wpd_end_time" value="<?php echo esc_attr( $end_val ); ?>" required />
+						<?php if ( $hint && $hint['end_time'] && '' === $end_val ) : ?>
+							<?php WPD_Datetime_Hint::render( 'wpd_end_time', $hint['end_time'], $hint['label'] ); ?>
+						<?php endif; ?>
+					</td>
+				</tr>
+				<?php $this->fields->render_location_room_fields( $overlay_values, 'wpd_event' ); ?>
+				<tr>
+					<th><label for="wpd_series_post_id"><?php esc_html_e( 'Series', 'wp-dansal' ); ?></label></th>
+					<td>
+						<?php
+						$current_series = (int) get_post_meta( $post->ID, '_wpd_series_post_id', true );
+						$all_series     = get_posts(
+							array(
+								'post_type'      => WPD_CPT_Series::POST_TYPE,
+								'post_status'    => 'publish',
+								'posts_per_page' => -1,
+								'orderby'        => 'title',
+								'order'          => 'ASC',
+							)
+						);
+						?>
+						<select id="wpd_series_post_id" name="wpd_series_post_id">
+							<option value="0"><?php esc_html_e( '— not part of a series —', 'wp-dansal' ); ?></option>
+							<?php foreach ( $all_series as $s ) : ?>
+								<option value="<?php echo esc_attr( $s->ID ); ?>" <?php selected( $current_series, $s->ID ); ?>><?php echo esc_html( $s->post_title ); ?></option>
+							<?php endforeach; ?>
+						</select>
+					</td>
+				</tr>
+			</table>
+		</details>
+
+		<details class="wpd-fieldset">
+			<summary><?php esc_html_e( 'Classification', 'wp-dansal' ); ?></summary>
+			<table class="form-table">
+				<?php $this->fields->render_classification_fields( $overlay_values, 'wpd_event' ); ?>
+			</table>
+		</details>
+
+		<details class="wpd-fieldset">
+			<summary><?php esc_html_e( 'Pricing & booking', 'wp-dansal' ); ?></summary>
+			<table class="form-table">
+				<?php $this->fields->render_pricing_fields( $overlay_values, 'wpd_event' ); ?>
+			</table>
+		</details>
+
+		<details class="wpd-fieldset">
+			<summary><?php esc_html_e( 'Amenities & floor', 'wp-dansal' ); ?></summary>
+			<table class="form-table">
+				<?php $this->fields->render_amenities_fields( $overlay_values, 'wpd_event' ); ?>
+			</table>
+		</details>
+
+		<details class="wpd-fieldset">
+			<summary><?php esc_html_e( 'People', 'wp-dansal' ); ?></summary>
+			<table class="form-table">
+				<tr>
+					<th><?php esc_html_e( 'Musicians', 'wp-dansal' ); ?></th>
+					<td><?php $this->render_entity_picker( $post->ID, 'musician', __( 'Search musicians…', 'wp-dansal' ) ); ?></td>
+				</tr>
+				<tr>
+					<th><?php esc_html_e( 'Instructors', 'wp-dansal' ); ?></th>
+					<td><?php $this->render_entity_picker( $post->ID, 'instructor', __( 'Search instructors…', 'wp-dansal' ) ); ?></td>
+				</tr>
+				<?php $this->fields->render_contact_fields( $overlay_values, 'wpd_event' ); ?>
+			</table>
+		</details>
+
 		<table class="form-table">
-			<tr>
-				<th><label for="wpd_start_time"><?php esc_html_e( 'Start', 'wp-dansal' ); ?></label></th>
-				<td>
-					<?php $start_val = $this->field( $post->ID, '_wpd_start_time' ); ?>
-					<input type="datetime-local" id="wpd_start_time" name="wpd_start_time" value="<?php echo esc_attr( $start_val ); ?>" required />
-					<?php if ( $hint && $hint['start_time'] && '' === $start_val ) : ?>
-						<?php WPD_Datetime_Hint::render( 'wpd_start_time', $hint['start_time'], $hint['label'] ); ?>
-					<?php endif; ?>
-				</td>
-			</tr>
-			<tr>
-				<th><label for="wpd_end_time"><?php esc_html_e( 'End', 'wp-dansal' ); ?></label></th>
-				<td>
-					<?php $end_val = $this->field( $post->ID, '_wpd_end_time' ); ?>
-					<input type="datetime-local" id="wpd_end_time" name="wpd_end_time" value="<?php echo esc_attr( $end_val ); ?>" required />
-					<?php if ( $hint && $hint['end_time'] && '' === $end_val ) : ?>
-						<?php WPD_Datetime_Hint::render( 'wpd_end_time', $hint['end_time'], $hint['label'] ); ?>
-					<?php endif; ?>
-				</td>
-			</tr>
-			<?php $this->fields->render_field_group( $overlay_values, 'wpd_event' ); ?>
-			<tr>
-				<th><label for="wpd_series_post_id"><?php esc_html_e( 'Series', 'wp-dansal' ); ?></label></th>
-				<td>
-					<?php
-					$current_series = (int) get_post_meta( $post->ID, '_wpd_series_post_id', true );
-					$all_series     = get_posts(
-						array(
-							'post_type'      => WPD_CPT_Series::POST_TYPE,
-							'post_status'    => 'publish',
-							'posts_per_page' => -1,
-							'orderby'        => 'title',
-							'order'          => 'ASC',
-						)
-					);
-					?>
-					<select id="wpd_series_post_id" name="wpd_series_post_id">
-						<option value="0"><?php esc_html_e( '— not part of a series —', 'wp-dansal' ); ?></option>
-						<?php foreach ( $all_series as $s ) : ?>
-							<option value="<?php echo esc_attr( $s->ID ); ?>" <?php selected( $current_series, $s->ID ); ?>><?php echo esc_html( $s->post_title ); ?></option>
-						<?php endforeach; ?>
-					</select>
-				</td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Musicians', 'wp-dansal' ); ?></th>
-				<td><?php $this->render_entity_picker( $post->ID, 'musician', __( 'Search musicians…', 'wp-dansal' ) ); ?></td>
-			</tr>
-			<tr>
-				<th><?php esc_html_e( 'Instructors', 'wp-dansal' ); ?></th>
-				<td><?php $this->render_entity_picker( $post->ID, 'instructor', __( 'Search instructors…', 'wp-dansal' ) ); ?></td>
-			</tr>
 			<tr>
 				<th><?php esc_html_e( 'Status', 'wp-dansal' ); ?></th>
 				<td>

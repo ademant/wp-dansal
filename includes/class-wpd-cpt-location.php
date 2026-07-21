@@ -98,124 +98,151 @@ class WPD_CPT_Location {
 	public function render_meta_box( $post ) {
 		wp_nonce_field( 'wpd_location_save', 'wpd_location_nonce' );
 		$dansal_id = get_post_meta( $post->ID, self::META_DANSAL_ID, true );
+		$osm_id    = get_post_meta( $post->ID, '_wpd_osm_id', true );
+		if ( $dansal_id ) {
+			printf( '<p><strong>%s%s</strong></p>', esc_html__( 'Synced with dansal location #', 'wp-dansal' ), esc_html( $dansal_id ) );
+		}
 		?>
 		<div id="wpd-location-editor" data-post-id="<?php echo esc_attr( $post->ID ); ?>">
-			<?php if ( $dansal_id ) : ?>
-				<p><strong><?php esc_html_e( 'Synced with dansal location #', 'wp-dansal' ); ?><?php echo esc_html( $dansal_id ); ?></strong></p>
-			<?php else : ?>
-				<div class="wpd-field-row">
-					<label for="wpd-nominatim-q"><?php esc_html_e( 'Find address (OpenStreetMap / Nominatim)', 'wp-dansal' ); ?></label><br />
-					<input type="text" id="wpd-nominatim-q" class="regular-text" placeholder="<?php esc_attr_e( 'e.g. Bürgerhaus Stollwerck, Köln', 'wp-dansal' ); ?>" />
-					<button type="button" class="button" id="wpd-nominatim-search"><?php esc_html_e( 'Search', 'wp-dansal' ); ?></button>
-				</div>
-				<div id="wpd-nominatim-results"></div>
-				<div id="wpd-duplicate-results"></div>
-				<input type="hidden" id="wpd_use_existing_dansal_id" name="wpd_use_existing_dansal_id" value="" />
-				<hr />
-			<?php endif; ?>
+			<details class="wpd-fieldset" open>
+				<summary><?php esc_html_e( 'Address & geocoding', 'wp-dansal' ); ?></summary>
 
-			<table class="form-table">
-				<tr>
-					<th><label for="wpd_short_name"><?php esc_html_e( 'Short name', 'wp-dansal' ); ?></label></th>
-					<td><input type="text" id="wpd_short_name" name="wpd_short_name" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_short_name' ) ); ?>" /></td>
-				</tr>
-				<tr>
-					<th><label for="wpd_address"><?php esc_html_e( 'Address', 'wp-dansal' ); ?></label></th>
-					<td><input type="text" id="wpd_address" name="wpd_address" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_address' ) ); ?>" /></td>
-				</tr>
-				<tr>
-					<th><label for="wpd_zipcode"><?php esc_html_e( 'Zipcode', 'wp-dansal' ); ?></label></th>
-					<td><input type="text" id="wpd_zipcode" name="wpd_zipcode" class="small-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_zipcode' ) ); ?>" /></td>
-				</tr>
-				<tr>
-					<th><label for="wpd_town"><?php esc_html_e( 'Town', 'wp-dansal' ); ?></label></th>
-					<td><input type="text" id="wpd_town" name="wpd_town" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_town', 'Köln' ) ); ?>" /></td>
-				</tr>
-				<tr>
-					<th><label for="wpd_country_code"><?php esc_html_e( 'Country code', 'wp-dansal' ); ?></label></th>
-					<td><input type="text" id="wpd_country_code" name="wpd_country_code" maxlength="2" class="small-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_country_code', 'DE' ) ); ?>" /></td>
-				</tr>
-				<tr>
-					<th><label for="wpd_country"><?php esc_html_e( 'Country', 'wp-dansal' ); ?></label></th>
-					<td><input type="text" id="wpd_country" name="wpd_country" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_country', 'Germany' ) ); ?>" /></td>
-				</tr>
-				<tr>
-					<th><label for="wpd_region"><?php esc_html_e( 'Region', 'wp-dansal' ); ?></label></th>
-					<td><input type="text" id="wpd_region" name="wpd_region" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_region' ) ); ?>" /></td>
-				</tr>
-				<tr>
-					<th><label for="wpd_latitude"><?php esc_html_e( 'Latitude', 'wp-dansal' ); ?></label></th>
-					<td><input type="text" id="wpd_latitude" name="wpd_latitude" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_latitude' ) ); ?>" /></td>
-				</tr>
-				<tr>
-					<th><label for="wpd_longitude"><?php esc_html_e( 'Longitude', 'wp-dansal' ); ?></label></th>
-					<td><input type="text" id="wpd_longitude" name="wpd_longitude" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_longitude' ) ); ?>" /></td>
-				</tr>
-				<tr>
-					<th><label for="wpd_internetsite"><?php esc_html_e( 'Website', 'wp-dansal' ); ?></label></th>
-					<td><input type="url" id="wpd_internetsite" name="wpd_internetsite" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_internetsite' ) ); ?>" /></td>
-				</tr>
-				<tr>
-					<th><label for="wpd_parking"><?php esc_html_e( 'Parking', 'wp-dansal' ); ?></label></th>
-					<td>
-						<select id="wpd_parking" name="wpd_parking">
-							<option value=""><?php esc_html_e( '— not set —', 'wp-dansal' ); ?></option>
-							<?php $current_parking = $this->field( $post->ID, '_wpd_parking' ); ?>
-							<?php foreach ( WPD_Vocab::options( 'parking' ) as $slug => $label ) : ?>
-								<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current_parking, $slug ); ?>><?php echo esc_html( $label ); ?></option>
-							<?php endforeach; ?>
-						</select>
-					</td>
-				</tr>
-				<tr>
-					<th><label for="wpd_floor_condition"><?php esc_html_e( 'Floor condition', 'wp-dansal' ); ?></label></th>
-					<td>
-						<select id="wpd_floor_condition" name="wpd_floor_condition">
-							<option value=""><?php esc_html_e( '— not set —', 'wp-dansal' ); ?></option>
-							<?php $current_floor = $this->field( $post->ID, '_wpd_floor_condition' ); ?>
-							<?php foreach ( WPD_Vocab::options( 'floor_condition' ) as $slug => $label ) : ?>
-								<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current_floor, $slug ); ?>><?php echo esc_html( $label ); ?></option>
-							<?php endforeach; ?>
-						</select>
-						<label style="margin-left:1em;display:inline-block;">
-							<input type="checkbox" name="wpd_no_street_shoes" value="1" <?php checked( $this->field( $post->ID, '_wpd_no_street_shoes' ), '1' ); ?> />
-							<?php esc_html_e( 'No street shoes', 'wp-dansal' ); ?>
-						</label>
-					</td>
-				</tr>
-				<tr>
-					<th><?php esc_html_e( 'Amenities', 'wp-dansal' ); ?></th>
-					<td>
+				<details class="wpd-fieldset wpd-geo-widget" <?php echo $osm_id ? '' : 'open'; ?>>
+					<summary>
 						<?php
-                        foreach ( array(
-							'wheelchair' => __( 'Wheelchair accessible', 'wp-dansal' ),
-							'bar' => __( 'Bar', 'wp-dansal' ),
-							'kitchen' => __( 'Kitchen', 'wp-dansal' ),
-						) as $key => $label ) :
-							?>
-							<label style="display:inline-block;margin-right:1em;">
-								<input type="checkbox" name="wpd_attr_<?php echo esc_attr( $key ); ?>" value="1" <?php checked( $this->field( $post->ID, '_wpd_attr_' . $key ), '1' ); ?> />
-								<?php echo esc_html( $label ); ?>
+						echo $osm_id
+							? esc_html__( 'Re-match location (OpenStreetMap / Nominatim)', 'wp-dansal' )
+							: esc_html__( 'Find address (OpenStreetMap / Nominatim)', 'wp-dansal' );
+						?>
+					</summary>
+					<?php if ( $dansal_id ) : ?>
+						<p class="description"><?php esc_html_e( 'Already synced with dansal — re-matching only updates the fields below on next save, it will not create a second location.', 'wp-dansal' ); ?></p>
+					<?php endif; ?>
+					<div class="wpd-field-row">
+						<label for="wpd-nominatim-q"><?php esc_html_e( 'Search', 'wp-dansal' ); ?></label><br />
+						<input type="text" id="wpd-nominatim-q" class="regular-text" placeholder="<?php esc_attr_e( 'e.g. Bürgerhaus Stollwerck, Köln', 'wp-dansal' ); ?>" />
+						<button type="button" class="button" id="wpd-nominatim-search"><?php esc_html_e( 'Search', 'wp-dansal' ); ?></button>
+						<button type="button" class="button" id="wpd-nominatim-fill"><?php esc_html_e( 'Search from fields below', 'wp-dansal' ); ?></button>
+						<button type="button" class="button" id="wpd-nominatim-reverse"><?php esc_html_e( 'Reverse geocode from lat/long', 'wp-dansal' ); ?></button>
+					</div>
+					<div id="wpd-nominatim-results"></div>
+					<div id="wpd-duplicate-results"></div>
+					<input type="hidden" id="wpd_use_existing_dansal_id" name="wpd_use_existing_dansal_id" value="" />
+					<div id="wpd-location-map" class="wpd-location-map"></div>
+					<p class="description"><?php esc_html_e( 'Drag the marker or click the map to fine-tune the coordinates.', 'wp-dansal' ); ?></p>
+				</details>
+
+				<table class="form-table">
+					<tr>
+						<th><label for="wpd_short_name"><?php esc_html_e( 'Short name', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" id="wpd_short_name" name="wpd_short_name" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_short_name' ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th><label for="wpd_address"><?php esc_html_e( 'Address', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" id="wpd_address" name="wpd_address" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_address' ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th><label for="wpd_zipcode"><?php esc_html_e( 'Zipcode', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" id="wpd_zipcode" name="wpd_zipcode" class="small-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_zipcode' ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th><label for="wpd_town"><?php esc_html_e( 'Town', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" id="wpd_town" name="wpd_town" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_town', 'Köln' ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th><label for="wpd_country_code"><?php esc_html_e( 'Country code', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" id="wpd_country_code" name="wpd_country_code" maxlength="2" class="small-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_country_code', 'DE' ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th><label for="wpd_country"><?php esc_html_e( 'Country', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" id="wpd_country" name="wpd_country" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_country', 'Germany' ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th><label for="wpd_region"><?php esc_html_e( 'Region', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" id="wpd_region" name="wpd_region" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_region' ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th><label for="wpd_latitude"><?php esc_html_e( 'Latitude', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" id="wpd_latitude" name="wpd_latitude" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_latitude' ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th><label for="wpd_longitude"><?php esc_html_e( 'Longitude', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" id="wpd_longitude" name="wpd_longitude" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_longitude' ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th><label for="wpd_internetsite"><?php esc_html_e( 'Website', 'wp-dansal' ); ?></label></th>
+						<td><input type="url" id="wpd_internetsite" name="wpd_internetsite" class="regular-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_internetsite' ) ); ?>" /></td>
+					</tr>
+				</table>
+			</details>
+
+			<details class="wpd-fieldset">
+				<summary><?php esc_html_e( 'Details', 'wp-dansal' ); ?></summary>
+				<table class="form-table">
+					<tr>
+						<th><label for="wpd_parking"><?php esc_html_e( 'Parking', 'wp-dansal' ); ?></label></th>
+						<td>
+							<select id="wpd_parking" name="wpd_parking">
+								<option value=""><?php esc_html_e( '— not set —', 'wp-dansal' ); ?></option>
+								<?php $current_parking = $this->field( $post->ID, '_wpd_parking' ); ?>
+								<?php foreach ( WPD_Vocab::options( 'parking' ) as $slug => $label ) : ?>
+									<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current_parking, $slug ); ?>><?php echo esc_html( $label ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="wpd_floor_condition"><?php esc_html_e( 'Floor condition', 'wp-dansal' ); ?></label></th>
+						<td>
+							<select id="wpd_floor_condition" name="wpd_floor_condition">
+								<option value=""><?php esc_html_e( '— not set —', 'wp-dansal' ); ?></option>
+								<?php $current_floor = $this->field( $post->ID, '_wpd_floor_condition' ); ?>
+								<?php foreach ( WPD_Vocab::options( 'floor_condition' ) as $slug => $label ) : ?>
+									<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current_floor, $slug ); ?>><?php echo esc_html( $label ); ?></option>
+								<?php endforeach; ?>
+							</select>
+							<label style="margin-left:1em;display:inline-block;">
+								<input type="checkbox" name="wpd_no_street_shoes" value="1" <?php checked( $this->field( $post->ID, '_wpd_no_street_shoes' ), '1' ); ?> />
+								<?php esc_html_e( 'No street shoes', 'wp-dansal' ); ?>
 							</label>
-						<?php endforeach; ?>
-					</td>
-				</tr>
-				<tr>
-					<th><label for="wpd_notes_md"><?php esc_html_e( 'Notes (Markdown)', 'wp-dansal' ); ?></label></th>
-					<td><textarea id="wpd_notes_md" name="wpd_notes_md" rows="4" class="large-text"><?php echo esc_textarea( $this->field( $post->ID, '_wpd_notes_md' ) ); ?></textarea></td>
-				</tr>
-			</table>
+						</td>
+					</tr>
+					<tr>
+						<th><?php esc_html_e( 'Amenities', 'wp-dansal' ); ?></th>
+						<td>
+							<?php
+                            foreach ( array(
+								'wheelchair' => __( 'Wheelchair accessible', 'wp-dansal' ),
+								'bar' => __( 'Bar', 'wp-dansal' ),
+								'kitchen' => __( 'Kitchen', 'wp-dansal' ),
+							) as $key => $label ) :
+								?>
+								<label style="display:inline-block;margin-right:1em;">
+									<input type="checkbox" name="wpd_attr_<?php echo esc_attr( $key ); ?>" value="1" <?php checked( $this->field( $post->ID, '_wpd_attr_' . $key ), '1' ); ?> />
+									<?php echo esc_html( $label ); ?>
+								</label>
+							<?php endforeach; ?>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="wpd_notes_md"><?php esc_html_e( 'Notes (Markdown)', 'wp-dansal' ); ?></label></th>
+						<td><textarea id="wpd_notes_md" name="wpd_notes_md" rows="4" class="large-text"><?php echo esc_textarea( $this->field( $post->ID, '_wpd_notes_md' ) ); ?></textarea></td>
+					</tr>
+				</table>
+			</details>
+
 			<input type="hidden" id="wpd_osm_id" name="wpd_osm_id" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_osm_id' ) ); ?>" />
 			<input type="hidden" id="wpd_osm_type" name="wpd_osm_type" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_osm_type' ) ); ?>" />
 			<?php if ( $dansal_id ) : ?>
-				<hr />
-				<h4><?php esc_html_e( 'Rooms', 'wp-dansal' ); ?></h4>
-				<p class="description"><?php esc_html_e( 'Named sub-areas of this venue (e.g. "Grand Hall", "Studio 2"). Events can be assigned to a specific room.', 'wp-dansal' ); ?></p>
-				<div id="wpd-rooms" data-post-id="<?php echo esc_attr( $post->ID ); ?>"></div>
-				<p>
-					<input type="text" id="wpd-room-new-name" class="regular-text" placeholder="<?php esc_attr_e( 'e.g. Grand Hall', 'wp-dansal' ); ?>" />
-					<button type="button" class="button" id="wpd-room-add"><?php esc_html_e( 'Add room', 'wp-dansal' ); ?></button>
-				</p>
+				<details class="wpd-fieldset">
+					<summary><?php esc_html_e( 'Rooms', 'wp-dansal' ); ?></summary>
+					<p class="description"><?php esc_html_e( 'Named sub-areas of this venue (e.g. "Grand Hall", "Studio 2"). Events can be assigned to a specific room.', 'wp-dansal' ); ?></p>
+					<div id="wpd-rooms" data-post-id="<?php echo esc_attr( $post->ID ); ?>"></div>
+					<p>
+						<input type="text" id="wpd-room-new-name" class="regular-text" placeholder="<?php esc_attr_e( 'e.g. Grand Hall', 'wp-dansal' ); ?>" />
+						<button type="button" class="button" id="wpd-room-add"><?php esc_html_e( 'Add room', 'wp-dansal' ); ?></button>
+					</p>
+				</details>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -314,7 +341,9 @@ class WPD_CPT_Location {
 			return;
 		}
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
-		wp_enqueue_script( 'wpd-admin-location', WPD_PLUGIN_URL . 'assets/js/admin-location.js', array( 'jquery' ), wpd_asset_ver( 'assets/js/admin-location.js' ), true );
+		wp_enqueue_style( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.css', array(), '1.9.4' );
+		wp_enqueue_script( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.js', array(), '1.9.4', true );
+		wp_enqueue_script( 'wpd-admin-location', WPD_PLUGIN_URL . 'assets/js/admin-location.js', array( 'jquery', 'wpd-leaflet' ), wpd_asset_ver( 'assets/js/admin-location.js' ), true );
 		wp_localize_script(
             'wpd-admin-location',
             'wpdLocation',
@@ -323,6 +352,10 @@ class WPD_CPT_Location {
 				'nonceSearch'      => wp_create_nonce( 'wpd_nominatim_search' ),
 				'nonceDuplicate'   => wp_create_nonce( 'wpd_check_location_duplicate' ),
 				'nonceRooms'       => wp_create_nonce( 'wpd_rooms' ),
+				// Reuses the frontend map's own tile config (wpd_tile_url_template
+				// et al filters) so an admin pointing tiles at a self-hosted proxy
+				// doesn't have to configure it twice.
+				'tiles'            => wpd_plugin()->frontend->tile_config(),
 				'i18n'             => array(
 					'noResults'      => __( 'No matches found.', 'wp-dansal' ),
 					'checking'       => __( 'Checking dansal for existing locations…', 'wp-dansal' ),
@@ -335,6 +368,8 @@ class WPD_CPT_Location {
 					'removeRoom'     => __( 'Remove', 'wp-dansal' ),
 					'confirmRemove'  => __( 'Remove this room? Any event using it will lose its room assignment.', 'wp-dansal' ),
 					'roomsError'     => __( 'Failed to update rooms.', 'wp-dansal' ),
+					'reverseNeedsCoords' => __( 'Enter a latitude and longitude first.', 'wp-dansal' ),
+					'reversing'          => __( 'Reverse geocoding…', 'wp-dansal' ),
 				),
             )
         );

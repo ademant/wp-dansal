@@ -38,6 +38,34 @@
 	width: 180px;
 }
 
+.wpd-fieldset {
+	margin: 0 0 1em;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 0 12px 12px;
+}
+
+.wpd-fieldset > summary {
+	font-weight: 600;
+	cursor: pointer;
+	padding: 10px 0;
+}
+
+.wpd-fieldset .form-table {
+	margin-top: 0;
+}
+
+.wpd-fieldset .wpd-fieldset {
+	background: rgba(0, 0, 0, 0.015);
+}
+
+.wpd-location-map {
+	height: 260px;
+	max-width: 480px;
+	margin: 10px 0;
+	border-radius: 6px;
+}
+
 .wpd-entity-picker .wpd-entity-chips {
 	margin-bottom: 4px;
 }

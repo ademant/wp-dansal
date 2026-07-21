@@ -1,6 +1,49 @@
-/* global wpdLocation, jQuery */
+/* global wpdLocation, jQuery, L */
 ( function ( $ ) {
 	'use strict';
+
+	var map, marker;
+
+	// Default view (roughly the center of Germany) for a location with no
+	// coordinates yet — matches the country/country_code field defaults.
+	var DEFAULT_CENTER = [ 51.1657, 10.4515 ];
+
+	function ensureMap() {
+		var mapEl = document.getElementById( 'wpd-location-map' );
+		if ( ! mapEl || typeof L === 'undefined' || map ) {
+			return;
+		}
+		var lat = parseFloat( $( '#wpd_latitude' ).val() );
+		var lng = parseFloat( $( '#wpd_longitude' ).val() );
+		var hasCoords = ! isNaN( lat ) && ! isNaN( lng );
+
+		map = L.map( mapEl ).setView( hasCoords ? [ lat, lng ] : DEFAULT_CENTER, hasCoords ? 15 : 6 );
+		L.tileLayer( wpdLocation.tiles.urlTemplate, {
+			maxZoom: wpdLocation.tiles.maxZoom,
+			attribution: wpdLocation.tiles.attribution,
+			referrerPolicy: wpdLocation.tiles.referrerPolicy,
+		} ).addTo( map );
+		marker = L.marker( hasCoords ? [ lat, lng ] : DEFAULT_CENTER, { draggable: true } ).addTo( map );
+
+		marker.on( 'dragend', function () {
+			var pos = marker.getLatLng();
+			$( '#wpd_latitude' ).val( pos.lat.toFixed( 6 ) );
+			$( '#wpd_longitude' ).val( pos.lng.toFixed( 6 ) );
+		} );
+		map.on( 'click', function ( e ) {
+			marker.setLatLng( e.latlng );
+			$( '#wpd_latitude' ).val( e.latlng.lat.toFixed( 6 ) );
+			$( '#wpd_longitude' ).val( e.latlng.lng.toFixed( 6 ) );
+		} );
+	}
+
+	function setMapPosition( lat, lng ) {
+		if ( ! map || lat === null || lng === null || isNaN( lat ) || isNaN( lng ) ) {
+			return;
+		}
+		marker.setLatLng( [ lat, lng ] );
+		map.setView( [ lat, lng ], 15 );
+	}
 
 	function fillManualFields( place ) {
 		$( '#wpd_short_name' ).val( place.name || '' );
@@ -83,6 +126,7 @@
 			var $btn = $( '<button type="button" class="button-link" />' ).text( place.display_name );
 			$btn.on( 'click', function () {
 				fillManualFields( place );
+				setMapPosition( place.lat, place.lng );
 				checkDuplicates( place );
 				$( '.wpd-nominatim-list li' ).removeClass( 'wpd-selected' );
 				$li.addClass( 'wpd-selected' );
@@ -94,6 +138,49 @@
 	}
 
 	$( function () {
+		ensureMap();
+
+		$( '#wpd_latitude, #wpd_longitude' ).on( 'change', function () {
+			setMapPosition( parseFloat( $( '#wpd_latitude' ).val() ), parseFloat( $( '#wpd_longitude' ).val() ) );
+		} );
+
+		$( '#wpd-nominatim-fill' ).on( 'click', function () {
+			var parts = [ $( '#wpd_short_name' ).val(), $( '#wpd_address' ).val(), $( '#wpd_zipcode' ).val(), $( '#wpd_town' ).val(), $( '#wpd_country' ).val() ];
+			var q = parts.filter( function ( p ) {
+				return p;
+			} ).join( ', ' );
+			if ( ! q ) {
+				return;
+			}
+			$( '#wpd-nominatim-q' ).val( q );
+			$( '#wpd-nominatim-search' ).trigger( 'click' );
+		} );
+
+		$( '#wpd-nominatim-reverse' ).on( 'click', function () {
+			var lat = parseFloat( $( '#wpd_latitude' ).val() );
+			var lng = parseFloat( $( '#wpd_longitude' ).val() );
+			if ( isNaN( lat ) || isNaN( lng ) ) {
+				window.alert( wpdLocation.i18n.reverseNeedsCoords );
+				return;
+			}
+			$( '#wpd-nominatim-results' ).text( wpdLocation.i18n.reversing );
+			$.getJSON( wpdLocation.ajaxUrl, {
+				action: 'wpd_nominatim_reverse',
+				_wpnonce: wpdLocation.nonceSearch,
+				lat: lat,
+				lng: lng,
+			} ).done( function ( resp ) {
+				if ( resp.success ) {
+					fillManualFields( resp.data );
+					setMapPosition( resp.data.lat, resp.data.lng );
+					checkDuplicates( resp.data );
+					$( '#wpd-nominatim-results' ).empty();
+				} else {
+					$( '#wpd-nominatim-results' ).text( resp.data && resp.data.message ? resp.data.message : 'Error' );
+				}
+			} );
+		} );
+
 		$( '#wpd-nominatim-search' ).on( 'click', function () {
 			var q = $( '#wpd-nominatim-q' ).val();
 			if ( ! q || q.length < 3 ) {
