@@ -16,7 +16,7 @@ ZIP_FILE  := $(DIST_DIR)/$(SLUG)-$(VERSION).zip
 # it was added to the repo root later.
 DIST_FILES := wp-dansal.php uninstall.php includes templates assets languages LICENSE README.md readme.txt
 
-.PHONY: all zip build deploy setup-env clean version help pot
+.PHONY: all zip build deploy setup-env clean version help pot mo
 
 all: zip
 
@@ -28,16 +28,27 @@ help:
 	@echo "make pot      regenerate languages/$(SLUG).pot via wp-cli"
 	@echo "make version  print the detected plugin version ($(VERSION))"
 	@echo "make clean    remove $(BUILD_DIR)/ and $(DIST_DIR)/"
+	@echo "make mo       compile all .po files to .mo files"
 
 pot:
 	@command -v wp >/dev/null || { echo "wp-cli not installed (see https://wp-cli.org/)" >&2; exit 1; }
 	@wp i18n make-pot . languages/$(SLUG).pot --slug=$(SLUG) --domain=$(SLUG)
 	@echo "Regenerated languages/$(SLUG).pot"
 
+mo:
+	@command -v wp >/dev/null || { echo "wp-cli not installed (see https://wp-cli.org/)" >&2; exit 1; }
+	@for po_file in languages/$(SLUG)-*.po; do\
+		if [ -f "$$po_file" ]; then\
+			mo_file="$${po_file%.po}.mo";\
+			wp i18n make-mo "$$po_file" "$$mo_file" &&\
+			echo "Compiled $$mo_file";\
+		fi;\
+		done
+
 version:
 	@echo "$(VERSION)"
 
-build:
+build: mo
 	@test -n "$(VERSION)" || { echo "Could not read Version from wp-dansal.php header" >&2; exit 1; }
 	@rm -rf "$(STAGE)"
 	@mkdir -p "$(STAGE)"
