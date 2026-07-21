@@ -16,7 +16,7 @@ ZIP_FILE  := $(DIST_DIR)/$(SLUG)-$(VERSION).zip
 # it was added to the repo root later.
 DIST_FILES := wp-dansal.php uninstall.php includes templates assets languages LICENSE README.md readme.txt
 
-.PHONY: all zip build deploy clean version help pot
+.PHONY: all zip build deploy setup-env clean version help pot
 
 all: zip
 
@@ -24,6 +24,7 @@ help:
 	@echo "make zip      build $(DIST_DIR)/$(SLUG)-<version>.zip (default)"
 	@echo "make build    assemble the plugin into $(STAGE)/ without zipping"
 	@echo "make deploy   rsync the built plugin into \$$WP_PLUGIN_DIR (see .env.example)"
+	@echo "make setup-env  create .env by detecting WP_PLUGIN_DIR/WP_OWNER from a WordPress install"
 	@echo "make pot      regenerate languages/$(SLUG).pot via wp-cli"
 	@echo "make version  print the detected plugin version ($(VERSION))"
 	@echo "make clean    remove $(BUILD_DIR)/ and $(DIST_DIR)/"
@@ -56,6 +57,18 @@ deploy: build
 	@rsync -a --delete "$(STAGE)/" "$(WP_PLUGIN_DIR)/$(SLUG)/"
 	@sudo chown -R "$(WP_OWNER)" "$(WP_PLUGIN_DIR)/$(SLUG)"
 	@echo "Deployed to $(WP_PLUGIN_DIR)/$(SLUG) (owner $(WP_OWNER))"
+
+setup-env:
+	@test -f .env && { echo ".env already exists -- remove it first if you want to redetect" >&2; exit 1; } || true
+	@printf 'Path to WordPress install (contains wp-content/): '; \
+	read wp_root; \
+	wp_root=$${wp_root%/}; \
+	plugin_dir="$$wp_root/wp-content/plugins"; \
+	test -d "$$plugin_dir" || { echo "Error: $$plugin_dir not found" >&2; exit 1; }; \
+	owner=$$(stat -c '%U:%G' "$$plugin_dir" 2>/dev/null || stat -f '%Su:%Sg' "$$plugin_dir" 2>/dev/null); \
+	test -n "$$owner" || { echo "Error: could not determine owner of $$plugin_dir" >&2; exit 1; }; \
+	printf 'WP_PLUGIN_DIR=%s\nWP_OWNER=%s\n' "$$plugin_dir" "$$owner" > .env; \
+	echo "Wrote .env: WP_PLUGIN_DIR=$$plugin_dir WP_OWNER=$$owner"
 
 clean:
 	@rm -rf "$(BUILD_DIR)" "$(DIST_DIR)"
