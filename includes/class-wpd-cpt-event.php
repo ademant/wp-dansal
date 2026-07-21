@@ -78,13 +78,15 @@ class WPD_CPT_Event {
 		if ( ! $post_ids ) {
 			return $redirect_to;
 		}
-		return add_query_arg(
-			array(
-				'page' => 'wpd-assign-event-series',
-				'post' => $post_ids,
-			),
-			admin_url( 'admin.php' )
-		);
+		// Built explicitly rather than via add_query_arg( array( 'post' =>
+		// $post_ids ), ... ) — that helper's handling of an array-valued arg
+		// wasn't reliably round-tripping through the redirect in practice
+		// (the destination URL came back with no post param at all).
+		$query = 'page=wpd-assign-event-series';
+		foreach ( $post_ids as $id ) {
+			$query .= '&post%5B%5D=' . $id;
+		}
+		return admin_url( 'admin.php?' . $query );
 	}
 
 	public function register_post_type() {
@@ -215,7 +217,10 @@ class WPD_CPT_Event {
 				'order'          => 'ASC',
 			)
 		);
-		$action_url = WPD_Admin_Action::url( 'wpd_assign_event_series', array( 'post' => wp_list_pluck( $posts, 'ID' ) ) );
+		// The nonced action URL carries no post ids of its own — they're
+		// submitted as hidden fields in the form body instead (below),
+		// sidestepping any ambiguity around array-valued query args.
+		$action_url = WPD_Admin_Action::url( 'wpd_assign_event_series' );
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Assign to series', 'wp-dansal' ); ?></h1>
@@ -235,6 +240,9 @@ class WPD_CPT_Event {
 				</p>
 			<?php endif; ?>
 			<form method="post" action="<?php echo esc_url( $action_url ); ?>">
+				<?php foreach ( $posts as $p ) : ?>
+					<input type="hidden" name="post[]" value="<?php echo esc_attr( $p->ID ); ?>" />
+				<?php endforeach; ?>
 				<table class="form-table" role="presentation">
 					<tr>
 						<th><label for="wpd_series_select"><?php esc_html_e( 'Series', 'wp-dansal' ); ?></label></th>
@@ -265,7 +273,10 @@ class WPD_CPT_Event {
 	 * don't drift.
 	 */
 	public function handle_assign_series() {
-		$post_ids = isset( $_GET['post'] ) ? array_map( 'absint', (array) $_GET['post'] ) : array();
+		// Nonce is verified by the WPD_Admin_Action framework before this
+		// handler is dispatched (see class-wpd-admin-action.php).
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$post_ids = isset( $_POST['post'] ) ? array_map( 'absint', (array) $_POST['post'] ) : array();
 		$post_ids = array_values(
 			array_filter(
 				array_unique( array_filter( $post_ids ) ),
@@ -277,8 +288,6 @@ class WPD_CPT_Event {
 		if ( ! $post_ids ) {
 			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), '', array( 'response' => 403 ) );
 		}
-		// Nonce is verified by the WPD_Admin_Action framework before this
-		// handler is dispatched (see class-wpd-admin-action.php).
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing
 		$raw = isset( $_POST['series_post_id'] ) ? sanitize_text_field( wp_unslash( $_POST['series_post_id'] ) ) : '0';
 		// '' only ever comes from the bulk page's "— no change —" option
