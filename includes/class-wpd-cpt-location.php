@@ -99,6 +99,11 @@ class WPD_CPT_Location {
 		wp_nonce_field( 'wpd_location_save', 'wpd_location_nonce' );
 		$dansal_id = get_post_meta( $post->ID, self::META_DANSAL_ID, true );
 		$osm_id    = get_post_meta( $post->ID, '_wpd_osm_id', true );
+		$has_coords = '' !== $this->field( $post->ID, '_wpd_latitude' ) && '' !== $this->field( $post->ID, '_wpd_longitude' );
+		// Already resolved (a specific OSM match, or coordinates set some other
+		// way — manual entry, import, etc.) — collapse by default so a
+		// resolved location doesn't lead with search UI it rarely needs again.
+		$geo_resolved = $osm_id || $has_coords;
 		if ( $dansal_id ) {
 			printf( '<p><strong>%s%s</strong></p>', esc_html__( 'Synced with dansal location #', 'wp-dansal' ), esc_html( $dansal_id ) );
 		}
@@ -107,10 +112,10 @@ class WPD_CPT_Location {
 			<details class="wpd-fieldset" open>
 				<summary><?php esc_html_e( 'Address & geocoding', 'wp-dansal' ); ?></summary>
 
-				<details class="wpd-fieldset wpd-geo-widget" <?php echo $osm_id ? '' : 'open'; ?>>
+				<details class="wpd-fieldset wpd-geo-widget" <?php echo $geo_resolved ? '' : 'open'; ?>>
 					<summary>
 						<?php
-						echo $osm_id
+						echo $geo_resolved
 							? esc_html__( 'Re-match location (OpenStreetMap / Nominatim)', 'wp-dansal' )
 							: esc_html__( 'Find address (OpenStreetMap / Nominatim)', 'wp-dansal' );
 						?>
