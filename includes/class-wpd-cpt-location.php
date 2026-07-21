@@ -177,6 +177,10 @@ class WPD_CPT_Location {
 								<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current_floor, $slug ); ?>><?php echo esc_html( $label ); ?></option>
 							<?php endforeach; ?>
 						</select>
+						<label style="margin-left:1em;display:inline-block;">
+							<input type="checkbox" name="wpd_no_street_shoes" value="1" <?php checked( $this->field( $post->ID, '_wpd_no_street_shoes' ), '1' ); ?> />
+							<?php esc_html_e( 'No street shoes', 'wp-dansal' ); ?>
+						</label>
 					</td>
 				</tr>
 				<tr>
@@ -194,11 +198,6 @@ class WPD_CPT_Location {
 								<?php echo esc_html( $label ); ?>
 							</label>
 						<?php endforeach; ?>
-						<br />
-						<label>
-							<input type="checkbox" name="wpd_no_street_shoes" value="1" <?php checked( $this->field( $post->ID, '_wpd_no_street_shoes' ), '1' ); ?> />
-							<?php esc_html_e( 'No street shoes', 'wp-dansal' ); ?>
-						</label>
 					</td>
 				</tr>
 				<tr>
