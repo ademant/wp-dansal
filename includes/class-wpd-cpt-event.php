@@ -224,10 +224,13 @@ class WPD_CPT_Event {
 	}
 
 	/**
-	 * Sets (or clears) _wpd_series_post_id, and if this event is already
-	 * synced to dansal and we just detached it from a series, tell dansal
-	 * so the server-side linkage matches. The next event save then PUTs
-	 * without series_id.
+	 * Sets (or clears) _wpd_series_post_id and tells dansal so the
+	 * server-side linkage matches: attaching PUTs the event onto the new
+	 * series (dansal's event.series_id is a single scalar, so this also
+	 * covers moving an event from one series to another); detaching calls
+	 * remove-from-series. There is no dansal request field for series_id
+	 * on the plain event PATCH/PUT (see build_payload()) — this is the
+	 * only way to change it (#82).
 	 */
 	private function set_event_series( $post_id, $new_series_post_id ) {
 		$old_series_post_id = (int) get_post_meta( $post_id, '_wpd_series_post_id', true );
@@ -237,14 +240,30 @@ class WPD_CPT_Event {
 			delete_post_meta( $post_id, '_wpd_series_post_id' );
 		}
 
-		if ( ! $old_series_post_id || $new_series_post_id ) {
+		if ( $old_series_post_id === $new_series_post_id ) {
 			return;
 		}
 		$dansal_event_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
 		if ( ! $dansal_event_id || ! $this->settings->is_configured() ) {
 			return;
 		}
-		$this->api->post( "/api/v1/events/{$dansal_event_id}/remove-from-series", array() );
+
+		if ( ! $new_series_post_id ) {
+			$this->api->post( "/api/v1/events/{$dansal_event_id}/remove-from-series", array() );
+			return;
+		}
+
+		$dansal_series_id = (int) get_post_meta( $new_series_post_id, WPD_CPT_Series::META_DANSAL_ID, true );
+		if ( ! $dansal_series_id ) {
+			/* translators: %s: event title. */
+			$this->store_notice( sprintf( __( 'Event "%s" was saved locally but its series was not synced to dansal: the selected series has not been synced yet.', 'wp-dansal' ), get_the_title( $post_id ) ), 'error' );
+			return;
+		}
+		$result = $this->api->put( "/api/v1/series/{$dansal_series_id}/events/{$dansal_event_id}", array() );
+		if ( is_wp_error( $result ) ) {
+			/* translators: 1: dansal event ID, 2: underlying error message. */
+			$this->store_notice( sprintf( __( 'Failed to attach dansal event #%1$d to its series: %2$s', 'wp-dansal' ), $dansal_event_id, $result->get_error_message() ), 'error' );
+		}
 	}
 
 	public function render_clone_button( $post ) {
@@ -761,13 +780,11 @@ class WPD_CPT_Event {
 
 		$post = get_post( $post_id );
 
-		// If the event is linked to a series that has a dansal id, carry
-		// the linkage through in the payload so dansal keeps them attached.
-		$series_post_id   = (int) get_post_meta( $post_id, '_wpd_series_post_id', true );
-		$series_dansal_id = $series_post_id ? (int) get_post_meta( $series_post_id, WPD_CPT_Series::META_DANSAL_ID, true ) : 0;
+		// Series linkage is not a field on the event PATCH/PUT request at
+		// all — it's set via set_event_series() calling the dedicated
+		// series-membership endpoints instead (see there, #82).
 
 		return array(
-			'series_id'          => $series_dansal_id ? $series_dansal_id : null,
 			'title'              => get_the_title( $post_id ),
 			'description'        => $post ? $post->post_content : '',
 			'start_time'         => $this->to_rfc3339( $get( '_wpd_start_time' ) ),
@@ -987,10 +1004,14 @@ class WPD_CPT_Event {
 			return;
 		}
 
+		// A missing/empty changed_at means dansal has no recorded change for
+		// this event (a known dansal-side gap, not "always stale") -- treat
+		// it the same as "not newer" rather than unconditionally re-flagging
+		// a pending pull on every single check (#83).
 		$changed_at  = ! empty( $event['changed_at'] ) ? strtotime( $event['changed_at'] ) : 0;
 		$last_synced = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_AT, true );
-		if ( $changed_at && $changed_at <= $last_synced ) {
-			return; // Already current.
+		if ( ! $changed_at || $changed_at <= $last_synced ) {
+			return; // Already current, or dansal reports no change.
 		}
 
 		// Don't silently overwrite: stash for admin confirmation on the edit
@@ -1062,8 +1083,10 @@ class WPD_CPT_Event {
 
 		if ( $post_id ) {
 			$last_synced = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_AT, true );
-			if ( $changed_at && $changed_at <= $last_synced ) {
-				return null; // Local copy is already current.
+			// See the single-event refresh path for why a missing changed_at
+			// is treated as "no change" rather than "always stale" (#83).
+			if ( ! $changed_at || $changed_at <= $last_synced ) {
+				return null; // Local copy is already current, or dansal reports no change.
 			}
 			// Same rule as the single-item refresh: the admin must confirm
 			// a dansal-side change before it lands on the WP event (#47).
