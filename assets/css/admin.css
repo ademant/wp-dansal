@@ -109,18 +109,21 @@
 	margin-top: 8px;
 }
 
-.wpd-pricing-tiers-table {
+.wpd-pricing-tiers-table,
+.wpd-timetable-table {
 	border-collapse: collapse;
 	margin-bottom: 6px;
 }
 
 .wpd-pricing-tiers-table th,
-.wpd-pricing-tiers-table td {
+.wpd-pricing-tiers-table td,
+.wpd-timetable-table th,
+.wpd-timetable-table td {
 	padding: 2px 8px 2px 0;
 	text-align: left;
 }
 
-.wpd-pricing-tier-remove {
+.wpd-grow-table-remove {
 	color: #a00;
 	font-weight: bold;
 	text-decoration: none;

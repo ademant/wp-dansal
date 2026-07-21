@@ -567,6 +567,13 @@ class WPD_CPT_Event {
 		</details>
 
 		<details class="wpd-fieldset">
+			<summary><?php esc_html_e( 'Timetable', 'wp-dansal' ); ?></summary>
+			<table class="form-table">
+				<?php $this->fields->render_timetable_fields( $overlay_values, 'wpd_event' ); ?>
+			</table>
+		</details>
+
+		<details class="wpd-fieldset">
 			<summary><?php esc_html_e( 'Amenities & floor', 'wp-dansal' ); ?></summary>
 			<table class="form-table">
 				<?php $this->fields->render_amenities_fields( $overlay_values, 'wpd_event' ); ?>
@@ -966,14 +973,14 @@ class WPD_CPT_Event {
 			}
 
 			// PATCH (RFC 7396 merge-patch) so fields the plugin doesn't manage
-			// (timetable, images) survive a WP-side save. Strip null values so
-			// an unset optional field leaves the dansal-side value untouched
-			// instead of clearing it; empty strings on text fields stay, they
-			// mean the user cleared it. Note this does NOT apply within
-			// `pricing` itself — dansal replaces that whole sub-object
-			// wholesale rather than deep-merging it, which is why build_payload()
-			// always sends WP's full view of it (type/amount/currency/prices)
-			// rather than relying on omission to preserve dansal-side tiers.
+			// (images) survive a WP-side save. Strip null values so an unset
+			// optional field leaves the dansal-side value untouched instead
+			// of clearing it; empty strings on text fields stay, they mean
+			// the user cleared it. Note this does NOT apply within `pricing`
+			// (see build_payload()) or the timetable (its own sub-resource,
+			// see push_timetable()) — both are replaced wholesale rather than
+			// deep-merged, so each sends WP's full view rather than relying
+			// on omission to preserve the dansal-side value.
 			$patch = array_filter(
 				$payload,
 				static function ( $v ) {
@@ -998,6 +1005,7 @@ class WPD_CPT_Event {
 				// back on top of itself.
 				update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
 				update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, $current_location );
+				$this->push_timetable( $post_id, $dansal_id );
 			}
 			return;
 		}
@@ -1019,6 +1027,50 @@ class WPD_CPT_Event {
 			update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, ! empty( $payload['location_id'] ) ? (int) $payload['location_id'] : 0 );
 			/* translators: %d: newly created dansal event ID. */
 			$this->store_notice( sprintf( __( 'Created dansal event #%d.', 'wp-dansal' ), $new_id ), 'success' );
+			$this->push_timetable( $post_id, $new_id );
+		}
+	}
+
+	/**
+	 * Timetable is its own dansal sub-resource (API.md, POST|PUT
+	 * /api/v1/events/{id}/timetable) — not part of the event PATCH/PUT body
+	 * at all, so it needs its own request. Uses PUT (atomic replace-all,
+	 * `[]` clears it) rather than POST (append-only) since a WP save
+	 * represents "this is the complete timetable now", matching how the
+	 * edit screen only shows one growable table rather than an add-only log.
+	 *
+	 * Sends the full stored shape (including description/room/location_id/
+	 * musician_id, which the WP edit screen doesn't expose editing yet —
+	 * see render_timetable_fields()) so a WP-side save doesn't drop fields
+	 * set via dansal-web; write_event_post() is what keeps that shape
+	 * current on every pull.
+	 */
+	private function push_timetable( $post_id, $dansal_id ) {
+		$entries = get_post_meta( $post_id, '_wpd_timetable', true );
+		$entries = is_array( $entries ) ? $entries : array();
+
+		$payload = array_map(
+			function ( $entry ) {
+				$location_id = isset( $entry['location_id'] ) ? absint( $entry['location_id'] ) : 0;
+				$musician_id = isset( $entry['musician_id'] ) ? absint( $entry['musician_id'] ) : 0;
+				return array(
+					'start_time'  => isset( $entry['start_time'] ) ? (string) $entry['start_time'] : '',
+					'end_time'    => isset( $entry['end_time'] ) ? (string) $entry['end_time'] : '',
+					'title'       => isset( $entry['title'] ) ? (string) $entry['title'] : '',
+					'description' => isset( $entry['description'] ) ? (string) $entry['description'] : '',
+					'room'        => isset( $entry['room'] ) ? (string) $entry['room'] : '',
+					'entry_type'  => isset( $entry['entry_type'] ) && 'workshop' === $entry['entry_type'] ? 'workshop' : 'bal',
+					'location_id' => $location_id ? $location_id : null,
+					'musician_id' => $musician_id ? $musician_id : null,
+				);
+			},
+			$entries
+		);
+
+		$result = $this->api->put( "/api/v1/events/{$dansal_id}/timetable", $payload );
+		if ( is_wp_error( $result ) ) {
+			/* translators: 1: dansal event ID, 2: underlying error message. */
+			$this->store_notice( sprintf( __( 'Failed to update dansal event #%1$d timetable: %2$s', 'wp-dansal' ), $dansal_id, $result->get_error_message() ), 'error' );
 		}
 	}
 
@@ -1423,6 +1475,29 @@ class WPD_CPT_Event {
 			}
 		}
 		update_post_meta( $post_id, '_wpd_pricing_tiers', $tiers );
+
+		// Stores the full entry shape (description/room/location_id/
+		// musician_id included) even though the WP edit screen only shows
+		// start/end/title/type — see push_timetable() for why.
+		$timetable = array();
+		if ( isset( $event['timetable'] ) && is_array( $event['timetable'] ) ) {
+			foreach ( $event['timetable'] as $entry ) {
+				if ( ! is_array( $entry ) || ! isset( $entry['title'] ) ) {
+					continue;
+				}
+				$timetable[] = array(
+					'start_time'  => isset( $entry['start_time'] ) ? (string) $entry['start_time'] : '',
+					'end_time'    => isset( $entry['end_time'] ) ? (string) $entry['end_time'] : '',
+					'title'       => (string) $entry['title'],
+					'entry_type'  => isset( $entry['entry_type'] ) && 'workshop' === $entry['entry_type'] ? 'workshop' : 'bal',
+					'description' => isset( $entry['description'] ) ? (string) $entry['description'] : '',
+					'room'        => isset( $entry['room'] ) ? (string) $entry['room'] : '',
+					'location_id' => isset( $entry['location_id'] ) ? (int) $entry['location_id'] : 0,
+					'musician_id' => isset( $entry['musician_id'] ) ? (int) $entry['musician_id'] : 0,
+				);
+			}
+		}
+		update_post_meta( $post_id, '_wpd_timetable', $timetable );
 
 		$attrs = isset( $event['attributes'] ) && is_array( $event['attributes'] ) ? $event['attributes'] : array();
 		foreach ( array( 'wheelchair', 'bar', 'kitchen' ) as $attr ) {

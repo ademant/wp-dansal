@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.6.2
+Stable tag: 0.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,6 +21,7 @@ WP Dansal turns WordPress into an editing frontend for the [dansal](https://gith
 * Event and location edit screens group their fields into collapsible sections so editors aren't scrolling past fields they rarely touch.
 * Saving an event or location syncs it to dansal (create on first save, update thereafter), using a publisher API key scoped to one organization.
 * Event pricing supports dansal's full model — free, donation, a single price, or a growable table of named tiers (e.g. "Normal"/"Reduced"/"Presale"), all sharing one currency.
+* Events can carry a multi-slot timetable (e.g. a workshop followed by a ball), edited as a growable Start/End/Title/Type table and synced via dansal's dedicated timetable endpoint.
 * `[dansal_events]` shortcode for upcoming events as a list or a monthly calendar, with `location`, `tag`, `limit`, `view`, `show_past` attributes.
 * `[dansal_events]` can also surface events from *other* organizations/cities on the same dansal instance — `org`, `country`, `bbox`, `lat`/`lon`/`radius_km`, `exclude_own_org` — fetched live from dansal's public REST API and rendered in the same list/calendar templates as local events.
 * `[dansal_locations]` shortcode for a directory of locations with a self-hosted Leaflet map.
@@ -55,6 +56,9 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.7.0 =
+* Events can now have a timetable — a multi-slot schedule (e.g. a workshop followed by a ball), edited as a growable Start/End/Title/Type table on the event edit screen (and shared with the series edit screen and the settings page's "Event defaults" section, same as pricing tiers). Synced via dansal's dedicated `PUT /api/v1/events/{id}/timetable` endpoint rather than the plain event save, since dansal doesn't expose it there. Description/room/location/musician per entry aren't editable from WordPress yet, but are preserved rather than wiped if set via dansal-web.
 
 = 0.6.2 =
 * Fix: the 0.6.1 attempt at fixing the bulk "Assign to series…" redirect wasn't enough — `wp-admin/edit.php` re-processes whatever URL the bulk-action handler returns with its own `add_query_arg()` call (appending its own `ids` param), which re-parses and re-serializes the whole query string, silently dropping the array-valued `post` param again regardless of how it was originally encoded. The redirect now carries a single-use transient token instead of the post IDs directly, so nothing array-valued ever travels through a redirect URL.

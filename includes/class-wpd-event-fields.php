@@ -41,6 +41,11 @@ class WPD_Event_Fields {
 			// get_post_meta()/update_post_meta() (de)serialize the array
 			// value transparently, same as the existing _wpd_rooms_cache.
 			'_wpd_pricing_tiers',
+			// Array of timetable entry maps (start_time/end_time/title/
+			// entry_type plus description/room/location_id/musician_id
+			// round-tripped but not editable here yet, see #85) — dansal's
+			// own /api/v1/events/{id}/timetable sub-resource.
+			'_wpd_timetable',
 			'_wpd_food',
 			'_wpd_drink',
 			'_wpd_floor_condition',
@@ -121,6 +126,7 @@ class WPD_Event_Fields {
 		$this->render_location_room_fields( $values, $name_prefix );
 		$this->render_classification_fields( $values, $name_prefix );
 		$this->render_pricing_fields( $values, $name_prefix );
+		$this->render_timetable_fields( $values, $name_prefix );
 		$this->render_amenities_fields( $values, $name_prefix );
 		$this->render_contact_fields( $values, $name_prefix );
 	}
@@ -274,7 +280,7 @@ class WPD_Event_Fields {
 					<input type="number" step="0.01" min="0" name="<?php echo esc_attr( $name( '_wpd_pricing_amount' ) ); ?>" placeholder="<?php esc_attr_e( 'Amount', 'wp-dansal' ); ?>" value="<?php echo esc_attr( $v( '_wpd_pricing_amount' ) ); ?>" class="small-text" />
 				</span>
 
-				<div class="wpd-pricing-tiers" style="<?php echo 'multiple' === $current_type ? '' : 'display:none;'; ?>">
+				<div class="wpd-pricing-tiers wpd-grow-table" style="<?php echo 'multiple' === $current_type ? '' : 'display:none;'; ?>">
 					<table class="wpd-pricing-tiers-table">
 						<thead>
 							<tr>
@@ -288,7 +294,7 @@ class WPD_Event_Fields {
 								<tr class="wpd-pricing-tier-row">
 									<td><input type="text" name="<?php echo esc_attr( $name( '_wpd_pricing_tier_label', true ) ); ?>" value="<?php echo esc_attr( isset( $tier['label'] ) ? $tier['label'] : '' ); ?>" list="wpd-pricing-tier-suggestions" /></td>
 									<td><input type="number" step="0.01" min="0" name="<?php echo esc_attr( $name( '_wpd_pricing_tier_amount', true ) ); ?>" value="<?php echo esc_attr( isset( $tier['amount'] ) ? $tier['amount'] : '' ); ?>" class="small-text" /></td>
-									<td><button type="button" class="button-link wpd-pricing-tier-remove" aria-label="<?php esc_attr_e( 'Remove', 'wp-dansal' ); ?>">&times;</button></td>
+									<td><button type="button" class="button-link wpd-grow-table-remove" aria-label="<?php esc_attr_e( 'Remove', 'wp-dansal' ); ?>">&times;</button></td>
 								</tr>
 							<?php endforeach; ?>
 						</tbody>
@@ -302,7 +308,70 @@ class WPD_Event_Fields {
 							<option value="<?php echo esc_attr( $suggestion ); ?>"></option>
 						<?php endforeach; ?>
 					</datalist>
-					<button type="button" class="button wpd-pricing-tier-add"><?php esc_html_e( 'Add tier', 'wp-dansal' ); ?></button>
+					<button type="button" class="button wpd-grow-table-add"><?php esc_html_e( 'Add tier', 'wp-dansal' ); ?></button>
+				</div>
+			</td>
+		</tr>
+		<?php
+	}
+
+	/**
+	 * Timetable row: a growable table of {start, end, title, type} slots for
+	 * a multi-part event (e.g. a workshop followed by a ball). dansal's own
+	 * TimetableEntry also carries description/room/location_id/musician_id
+	 * (see API.md, POST|PUT /api/v1/events/{id}/timetable) which this screen
+	 * doesn't expose editing yet (#85) — those are round-tripped via hidden
+	 * fields per row so a WP-side save doesn't clobber richer entries set
+	 * via dansal-web.
+	 */
+	public function render_timetable_fields( array $values, $name_prefix ) {
+		list( $v, $name ) = $this->field_accessors( $values, $name_prefix );
+
+		$entries = $v( '_wpd_timetable' );
+		$entries = is_array( $entries ) && $entries ? $entries : array( array() );
+		$field   = function ( $entry, $key, $fallback = '' ) {
+			return isset( $entry[ $key ] ) && '' !== $entry[ $key ] ? $entry[ $key ] : $fallback;
+		};
+		?>
+		<tr>
+			<th><?php esc_html_e( 'Timetable', 'wp-dansal' ); ?></th>
+			<td>
+				<p class="description"><?php esc_html_e( 'Optional multi-slot schedule (e.g. a workshop followed by a ball). Leave empty for a single continuous event.', 'wp-dansal' ); ?></p>
+				<div class="wpd-grow-table">
+					<table class="wpd-timetable-table">
+						<thead>
+							<tr>
+								<th><?php esc_html_e( 'Start', 'wp-dansal' ); ?></th>
+								<th><?php esc_html_e( 'End', 'wp-dansal' ); ?></th>
+								<th><?php esc_html_e( 'Title', 'wp-dansal' ); ?></th>
+								<th><?php esc_html_e( 'Type', 'wp-dansal' ); ?></th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $entries as $entry ) : ?>
+								<tr class="wpd-timetable-row">
+									<td><input type="time" name="<?php echo esc_attr( $name( '_wpd_tt_start', true ) ); ?>" value="<?php echo esc_attr( $field( $entry, 'start_time' ) ); ?>" /></td>
+									<td><input type="time" name="<?php echo esc_attr( $name( '_wpd_tt_end', true ) ); ?>" value="<?php echo esc_attr( $field( $entry, 'end_time' ) ); ?>" /></td>
+									<td><input type="text" name="<?php echo esc_attr( $name( '_wpd_tt_title', true ) ); ?>" value="<?php echo esc_attr( $field( $entry, 'title' ) ); ?>" class="regular-text" /></td>
+									<td>
+										<select name="<?php echo esc_attr( $name( '_wpd_tt_type', true ) ); ?>">
+											<option value="bal" <?php selected( $field( $entry, 'entry_type', 'bal' ), 'bal' ); ?>><?php esc_html_e( 'Ball', 'wp-dansal' ); ?></option>
+											<option value="workshop" <?php selected( $field( $entry, 'entry_type', 'bal' ), 'workshop' ); ?>><?php esc_html_e( 'Workshop', 'wp-dansal' ); ?></option>
+										</select>
+									</td>
+									<td>
+										<button type="button" class="button-link wpd-grow-table-remove" aria-label="<?php esc_attr_e( 'Remove', 'wp-dansal' ); ?>">&times;</button>
+										<input type="hidden" name="<?php echo esc_attr( $name( '_wpd_tt_description', true ) ); ?>" value="<?php echo esc_attr( $field( $entry, 'description' ) ); ?>" />
+										<input type="hidden" name="<?php echo esc_attr( $name( '_wpd_tt_room', true ) ); ?>" value="<?php echo esc_attr( $field( $entry, 'room' ) ); ?>" />
+										<input type="hidden" name="<?php echo esc_attr( $name( '_wpd_tt_location_id', true ) ); ?>" value="<?php echo esc_attr( $field( $entry, 'location_id' ) ); ?>" />
+										<input type="hidden" name="<?php echo esc_attr( $name( '_wpd_tt_musician_id', true ) ); ?>" value="<?php echo esc_attr( $field( $entry, 'musician_id' ) ); ?>" />
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+					<button type="button" class="button wpd-grow-table-add"><?php esc_html_e( 'Add entry', 'wp-dansal' ); ?></button>
 				</div>
 			</td>
 		</tr>
@@ -449,6 +518,43 @@ class WPD_Event_Fields {
 			);
 		}
 		$out['_wpd_pricing_tiers'] = $tiers;
+
+		// Rows with a blank title, or a start/end that isn't a valid HH:MM
+		// (dansal's own validTimeSlot format), are dropped rather than sent
+		// — dansal's PUT /timetable rejects the *whole* array if any single
+		// entry fails validation, so one empty template row shouldn't take
+		// every other properly-filled row down with it on save.
+		$time_re    = '/^([01]\d|2[0-3]):[0-5]\d$/';
+		$tt_start   = isset( $input['_wpd_tt_start'] ) ? (array) $input['_wpd_tt_start'] : array();
+		$tt_end     = isset( $input['_wpd_tt_end'] ) ? (array) $input['_wpd_tt_end'] : array();
+		$tt_title   = isset( $input['_wpd_tt_title'] ) ? (array) $input['_wpd_tt_title'] : array();
+		$tt_type    = isset( $input['_wpd_tt_type'] ) ? (array) $input['_wpd_tt_type'] : array();
+		$tt_desc    = isset( $input['_wpd_tt_description'] ) ? (array) $input['_wpd_tt_description'] : array();
+		$tt_room    = isset( $input['_wpd_tt_room'] ) ? (array) $input['_wpd_tt_room'] : array();
+		$tt_loc     = isset( $input['_wpd_tt_location_id'] ) ? (array) $input['_wpd_tt_location_id'] : array();
+		$tt_mus     = isset( $input['_wpd_tt_musician_id'] ) ? (array) $input['_wpd_tt_musician_id'] : array();
+		$timetable  = array();
+		foreach ( $tt_title as $i => $title ) {
+			$title = sanitize_text_field( wp_unslash( is_string( $title ) ? $title : '' ) );
+			$start = isset( $tt_start[ $i ] ) ? sanitize_text_field( wp_unslash( $tt_start[ $i ] ) ) : '';
+			$end   = isset( $tt_end[ $i ] ) ? sanitize_text_field( wp_unslash( $tt_end[ $i ] ) ) : '';
+			if ( '' === $title || ! preg_match( $time_re, $start ) || ! preg_match( $time_re, $end ) ) {
+				continue;
+			}
+			$timetable[] = array(
+				'start_time'  => $start,
+				'end_time'    => $end,
+				'title'       => $title,
+				'entry_type'  => isset( $tt_type[ $i ] ) && 'workshop' === $tt_type[ $i ] ? 'workshop' : 'bal',
+				// Not editable on this screen yet (#85) — carried through
+				// as-is from whatever was last pulled from dansal.
+				'description' => isset( $tt_desc[ $i ] ) ? sanitize_text_field( wp_unslash( $tt_desc[ $i ] ) ) : '',
+				'room'        => isset( $tt_room[ $i ] ) ? sanitize_text_field( wp_unslash( $tt_room[ $i ] ) ) : '',
+				'location_id' => isset( $tt_loc[ $i ] ) ? absint( $tt_loc[ $i ] ) : 0,
+				'musician_id' => isset( $tt_mus[ $i ] ) ? absint( $tt_mus[ $i ] ) : 0,
+			);
+		}
+		$out['_wpd_timetable'] = $timetable;
 
 		$vocab_map = array(
 			'_wpd_food'            => 'food',
