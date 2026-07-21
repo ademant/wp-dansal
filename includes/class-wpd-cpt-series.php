@@ -217,8 +217,11 @@ class WPD_CPT_Series {
 
 	/**
 	 * The series metabox reuses WPD_Event_Fields::render_field_group(), whose
-	 * pricing rows (see #80) need the same vanilla-JS widget the event edit
-	 * screen loads — shared here rather than duplicated per screen.
+	 * pricing rows (see #80) and location/room rows need the same vanilla-JS
+	 * widgets the event edit screen loads — shared here rather than
+	 * duplicated per screen. Room list previously only refreshed on location
+	 * change on the event screen (admin-event.js), so picking a location on
+	 * a new series never populated its rooms at all.
 	 */
 	public function enqueue_admin_assets( $hook ) {
 		$screen = get_current_screen();
@@ -227,6 +230,18 @@ class WPD_CPT_Series {
 		}
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
 		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
+		wp_enqueue_script( 'wpd-admin-rooms', WPD_PLUGIN_URL . 'assets/js/admin-rooms.js', array(), wpd_asset_ver( 'assets/js/admin-rooms.js' ), true );
+		wp_localize_script(
+            'wpd-admin-rooms',
+            'wpdRooms',
+            array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'wpd_rooms' ),
+				'i18n'    => array(
+					'noRoom' => __( '— no specific room —', 'wp-dansal' ),
+				),
+            )
+        );
 	}
 
 	public function render_add_date_button( $post ) {

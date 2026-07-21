@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.5.0
+Stable tag: 0.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -55,6 +55,9 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.5.1 =
+* Fix: picking a location on a new/existing Dance Series never populated its Room dropdown, even when the location had rooms — the location→room refresh logic only ever ran on the event edit screen (`admin-event.js`), never on the series edit screen even though it renders the same Location/Room fields. Extracted into a shared `admin-rooms.js`, now loaded on both.
 
 = 0.5.0 =
 * Event pricing type vocabulary now matches dansal's own (`free`/`donation`/`single`/`multiple` instead of the old `free`/`fixed`/`donation`), and `type="multiple"` gets a growable Label/Amount tiers table — same shape as dansal-web's own pricing table (`prices: [{label, amount}]`), sharing one currency.

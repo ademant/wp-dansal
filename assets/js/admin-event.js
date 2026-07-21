@@ -168,38 +168,10 @@
 		startEl.addEventListener( 'change', fill );
 		startEl.addEventListener( 'blur', fill );
 
-		// Room picker follows the location: on change, ask the server for the
-		// new location's rooms and rebuild the room <select>. The server-side
-		// render seeded whatever room was selected at page load; anything
-		// after that is JS-driven.
-		var $locSel  = $( '.wpd-location-select' );
-		var $roomSel = $( '.wpd-room-select' );
-		if ( $locSel.length && $roomSel.length && wpdEvent.nonceRooms ) {
-			$locSel.on( 'change', function () {
-				var postId = parseInt( $locSel.val(), 10 );
-				// Rebuild starts with the "none" option so a location change
-				// doesn't carry a stale room-id from the previous venue.
-				$roomSel.empty().append(
-					$( '<option value="0" />' ).text( wpdEvent.i18n.noRoom || '— no specific room —' )
-				);
-				if ( ! postId ) {
-					return;
-				}
-				$.getJSON( wpdEvent.ajaxUrl, {
-					action: 'wpd_list_rooms',
-					_wpnonce: wpdEvent.nonceRooms,
-					post_id: postId,
-				} ).done( function ( resp ) {
-					if ( ! resp.success || ! resp.data.rooms ) {
-						return;
-					}
-					resp.data.rooms.forEach( function ( room ) {
-						$roomSel.append(
-							$( '<option />' ).val( room.id ).text( room.name )
-						);
-					} );
-				} );
-			} );
-		}
+		// Room picker follows the location — see assets/js/admin-rooms.js.
+		// That's a shared vanilla-JS file (not this jQuery-dependent one)
+		// because the Location+Room fields are also rendered on the series
+		// edit screen via the same WPD_Event_Fields::render_location_room_fields(),
+		// which doesn't load admin-event.js at all.
 	} );
 } )( jQuery );

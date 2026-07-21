@@ -512,6 +512,7 @@ class WPD_CPT_Event {
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
 		wp_enqueue_script( 'wpd-admin-event', WPD_PLUGIN_URL . 'assets/js/admin-event.js', array( 'jquery' ), wpd_asset_ver( 'assets/js/admin-event.js' ), true );
 		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
+		wp_enqueue_script( 'wpd-admin-rooms', WPD_PLUGIN_URL . 'assets/js/admin-rooms.js', array(), wpd_asset_ver( 'assets/js/admin-rooms.js' ), true );
 		WPD_Datetime_Hint::enqueue();
 		wp_localize_script(
             'wpd-admin-event',
@@ -519,7 +520,6 @@ class WPD_CPT_Event {
             array(
 				'ajaxUrl'                 => admin_url( 'admin-ajax.php' ),
 				'nonce'                   => wp_create_nonce( 'wpd_search_entity' ),
-				'nonceRooms'              => wp_create_nonce( 'wpd_rooms' ),
 				// Auto-fill end datetime with start + this many seconds when
 				// end is still empty (see #58). Filterable per-site.
 				'defaultDurationSeconds'  => (int) apply_filters( 'wpd_default_event_duration', 2 * HOUR_IN_SECONDS ),
@@ -533,7 +533,17 @@ class WPD_CPT_Event {
 					'promoteTitle'     => __( 'Create / edit local copy', 'wp-dansal' ),
 					'editLocal'        => __( 'Open local copy', 'wp-dansal' ),
 					'promoteFailed'    => __( 'Could not create local copy.', 'wp-dansal' ),
-					'noRoom'           => __( '— no specific room —', 'wp-dansal' ),
+				),
+            )
+        );
+		wp_localize_script(
+            'wpd-admin-rooms',
+            'wpdRooms',
+            array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'wpd_rooms' ),
+				'i18n'    => array(
+					'noRoom' => __( '— no specific room —', 'wp-dansal' ),
 				),
             )
         );
