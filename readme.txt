@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.3.0
+Stable tag: 0.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,7 +42,7 @@ Yes. This plugin is an editing frontend for [dansal](https://github.com/ademant/
 
 = Can I use my own map tiles instead of OpenStreetMap? =
 
-Yes — filter `wpd_tile_url_template` to point at a self-hosted or paid tile proxy. The default `Referrer-Policy` for tile requests is `no-referrer` so the page URL doesn't leak to the tile host.
+Yes — filter `wpd_tile_url_template` to point at a self-hosted or paid tile proxy. The default `Referrer-Policy` for tile requests is `origin`, sending only the page's scheme+host to the tile host, not its full path/query.
 
 = Can I override the plugin templates from my theme? =
 
@@ -53,6 +53,9 @@ Yes. Place any of `single-dansal_event.php`, `single-dansal_location.php`, `arch
 No. Uninstalling removes plugin settings and caches only. To also wipe event/location/series posts on uninstall, add `add_filter( 'wpd_uninstall_delete_content', '__return_true' );` in a mu-plugin before deleting the plugin.
 
 == Changelog ==
+
+= 0.3.1 =
+* Fix: frontend map tiles failed to load ("blocked due to missing referer") because tile requests used `Referrer-Policy: no-referrer`. OSM's tile servers require a referer and reject requests with none; switched the default to `origin`, which still only exposes the page's scheme+host, not its full path/query.
 
 = 0.3.0 =
 * `[dansal_events]` shortcode can now show events from other organizations/cities on the same dansal instance, fetched live via `GET /api/v1/events` instead of the locally synced `dansal_event` posts: `org="slug1,slug2"` (resolved against `GET /api/v1/organizations`, cached), `country="de,fr"`, `bbox="minLng,minLat,maxLng,maxLat"`, `lat`/`lon`/`radius_km` proximity search, and `exclude_own_org="1"`. Remote results reuse the existing list/calendar templates and link out to dansal-web for events/orgs/locations that have no page on this WordPress site.

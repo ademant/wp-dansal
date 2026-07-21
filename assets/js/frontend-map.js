@@ -22,9 +22,10 @@ document.addEventListener( 'DOMContentLoaded', function () {
 	// Tile provider config comes from data-wpd-tiles (see the
 	// wpd_tile_url_template PHP filter) so site owners can point at a
 	// self-hosted or paid tile proxy without touching this file. Default
-	// referrer policy is "no-referrer" so the page URL doesn't leak to
-	// the tile host on every tile request.
-	var tiles = { urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxZoom: 19, attribution: '', referrerPolicy: 'no-referrer' };
+	// referrer policy is "origin" — OSM's tile servers require a valid
+	// referer and block requests that send none; "origin" still keeps
+	// the page's path/query from leaking to the tile host.
+	var tiles = { urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxZoom: 19, attribution: '', referrerPolicy: 'origin' };
 	try {
 		var tileAttr = mapEl.getAttribute( 'data-wpd-tiles' );
 		if ( tileAttr ) {

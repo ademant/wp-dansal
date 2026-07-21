@@ -48,7 +48,7 @@ Translatable strings live under the `wp-dansal` text domain. Translators can sta
 
 ## Notes
 
-- Map tiles are loaded live from OpenStreetMap's tile server (the Leaflet library itself is bundled, but tiles can't practically be self-hosted). Every tile request goes with `Referrer-Policy: no-referrer` so the page URL isn't shared with the tile host. To route tiles through a self-hosted or paid proxy instead, filter `wpd_tile_url_template` (and, if needed, `wpd_tile_attribution` / `wpd_tile_max_zoom` / `wpd_tile_referrer_policy`):
+- Map tiles are loaded live from OpenStreetMap's tile server (the Leaflet library itself is bundled, but tiles can't practically be self-hosted). Every tile request goes with `Referrer-Policy: origin` (only the scheme+host of the page, not its full path/query) — OSM's tile servers require *some* referer and block requests that send none. To route tiles through a self-hosted or paid proxy instead, filter `wpd_tile_url_template` (and, if needed, `wpd_tile_attribution` / `wpd_tile_max_zoom` / `wpd_tile_referrer_policy`):
 
   ```php
   add_filter( 'wpd_tile_url_template', function () {

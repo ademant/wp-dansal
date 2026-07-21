@@ -112,8 +112,11 @@ class WPD_Frontend {
 	 * Tile provider config for the frontend map, filterable so site owners
 	 * can point at a self-hosted or paid tile proxy instead of OSM's
 	 * public tile server (which sees every visitor's IP + Referer). The
-	 * default keeps OSM but sets a strict referrer policy so the page URL
-	 * doesn't leak with each tile request. Emitted as a data- attribute
+	 * default keeps OSM with referrerPolicy "origin" — OSM's tile usage
+	 * policy requires a valid referer to identify the requesting site and
+	 * blocks requests that send none, so "no-referrer" made every tile
+	 * request fail; "origin" still keeps the page's full path/query from
+	 * leaking, only the scheme+host is sent. Emitted as a data- attribute
 	 * on the map container (see enqueue_leaflet callers) — no inline
 	 * <script>, so a strict site CSP still works.
 	 */
@@ -122,7 +125,7 @@ class WPD_Frontend {
 			'urlTemplate'    => (string) apply_filters( 'wpd_tile_url_template', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' ),
 			'attribution'    => (string) apply_filters( 'wpd_tile_attribution', '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' ),
 			'maxZoom'        => (int) apply_filters( 'wpd_tile_max_zoom', 19 ),
-			'referrerPolicy' => (string) apply_filters( 'wpd_tile_referrer_policy', 'no-referrer' ),
+			'referrerPolicy' => (string) apply_filters( 'wpd_tile_referrer_policy', 'origin' ),
 		);
 	}
 

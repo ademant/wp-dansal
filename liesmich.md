@@ -45,7 +45,7 @@ Statt der automatischen Archiv-URLs können Sie die Ortskarte oder den Event-Kal
 
 ## Hinweise
 
-- Kartentiles werden live vom OpenStreetMap-Tile-Server geladen (die Leaflet-Bibliothek selbst ist gebündelt, aber Tiles können praktisch nicht selbst gehostet werden). Jede Tile-Anfrage wird mit `Referrer-Policy: no-referrer` gesendet, sodass die Seiten-URL nicht mit dem Tile-Host geteilt wird. Um Tiles stattdessen über einen selbst gehosteten oder kostenpflichtigen Proxy zu leiten, filtern Sie `wpd_tile_url_template` (und bei Bedarf `wpd_tile_attribution` / `wpd_tile_max_zoom` / `wpd_tile_referrer_policy`):
+- Kartentiles werden live vom OpenStreetMap-Tile-Server geladen (die Leaflet-Bibliothek selbst ist gebündelt, aber Tiles können praktisch nicht selbst gehostet werden). Jede Tile-Anfrage wird mit `Referrer-Policy: origin` gesendet (nur Schema+Host der Seite, nicht der vollständige Pfad/Query) — OSMs Tile-Server verlangen einen Referer und blockieren Anfragen ganz ohne. Um Tiles stattdessen über einen selbst gehosteten oder kostenpflichtigen Proxy zu leiten, filtern Sie `wpd_tile_url_template` (und bei Bedarf `wpd_tile_attribution` / `wpd_tile_max_zoom` / `wpd_tile_referrer_policy`):
 
   ```php
   add_filter( 'wpd_tile_url_template', function () {
