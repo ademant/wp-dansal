@@ -815,23 +815,83 @@ class WPD_Frontend {
 	 * [dansal_locations]
 	 */
 	public function shortcode_locations( $atts = array() ) {
-		// [dansal_locations] has no attributes today, but call shortcode_atts
-		// with an empty schema so unknown attrs are dropped rather than
-		// silently passed on to future callers.
-		shortcode_atts( array(), (array) $atts, 'dansal_locations' );
+		$atts = shortcode_atts(
+			array(
+				'tag'      => '',
+				'country'  => '',
+				'location' => '',
+			),
+			(array) $atts,
+			'dansal_locations'
+		);
+		$atts['tag']      = sanitize_key( $atts['tag'] );
+		$atts['country']  = $this->sanitize_country_list( $atts['country'] );
+		$atts['location'] = absint( $atts['location'] );
 
 		$this->enqueue_frontend_style();
 		$this->enqueue_leaflet();
 
-		$query = new WP_Query(
-            array(
-				'post_type'      => WPD_CPT_Location::POST_TYPE,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'orderby'        => 'title',
-				'order'          => 'ASC',
-            )
-        );
+		$query_args = array(
+			'post_type'      => WPD_CPT_Location::POST_TYPE,
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'orderby'        => 'title',
+			'order'          => 'ASC',
+		);
+
+		if ( $atts['location'] ) {
+			$query_args['post__in'] = array( $atts['location'] );
+		}
+
+		$meta_query = array( 'relation' => 'AND' );
+		if ( '' !== $atts['country'] ) {
+			$meta_query[] = array(
+				'key'     => '_wpd_country',
+				'value'   => explode( ',', $atts['country'] ),
+				'compare' => 'IN',
+			);
+		}
+
+		if ( '' !== $atts['tag'] ) {
+			$event_ids = get_posts(
+				array(
+					'post_type'      => WPD_CPT_Event::POST_TYPE,
+					'post_status'    => 'publish',
+					'posts_per_page' => -1,
+					'fields'         => 'ids',
+					'meta_query'     => array(
+						array(
+							'key'     => '_wpd_tags',
+							'value'   => ',' . $atts['tag'] . ',',
+							'compare' => 'LIKE',
+						),
+					),
+				)
+			);
+			$location_ids = array();
+			foreach ( $event_ids as $eid ) {
+				$lid = (int) get_post_meta( $eid, '_wpd_location_post_id', true );
+				if ( $lid ) {
+					$location_ids[ $lid ] = true;
+				}
+			}
+			if ( empty( $location_ids ) ) {
+				return '<div class="wpd-locations wpd-locations-empty"></div>';
+			}
+			$ids = array_keys( $location_ids );
+			$query_args['post__in'] = isset( $query_args['post__in'] )
+				? array_values( array_intersect( $query_args['post__in'], $ids ) )
+				: $ids;
+			if ( empty( $query_args['post__in'] ) ) {
+				return '<div class="wpd-locations wpd-locations-empty"></div>';
+			}
+		}
+
+		if ( count( $meta_query ) > 1 ) {
+			$query_args['meta_query'] = $meta_query;
+		}
+
+		$query = new WP_Query( $query_args );
 
 		$points = array();
 		ob_start();
