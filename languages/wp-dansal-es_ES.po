@@ -13,584 +13,584 @@ msgstr ""
 "PO-Revision-Date: 2026-07-21 00:00+0000\n"
 
 msgid "%1$s: %2$s"
-msgstr ""
+msgstr "%1$s: %2$s"
 #: includes/class-wpd-api-client.php
 
 msgid "(unchanged — leave blank to keep current key)"
-msgstr ""
+msgstr "(sin cambios — dejar en blanco para conservar la clave actual)"
 #: includes/class-wpd-settings.php
 
 msgid "API key renewal already in progress."
-msgstr ""
+msgstr "Renovación de clave API ya en curso."
 #: includes/class-wpd-api-client.php
 
 msgid "Accept dansal version"
-msgstr ""
+msgstr "Aceptar versión de dansal"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Add %s"
-msgstr ""
+msgstr "Añadir %s"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Add New Event"
-msgstr ""
+msgstr "Añadir evento"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Add New Instructor"
-msgstr ""
+msgstr "Añadir profesor/a"
 #: includes/class-wpd-cpt-instructor.php
 
 msgid "Add New Location"
-msgstr ""
+msgstr "Añadir ubicación"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Add New Musician"
-msgstr ""
+msgstr "Añadir músico/a"
 #: includes/class-wpd-cpt-musician.php
 
 msgid "Add New Series"
-msgstr ""
+msgstr "Añadir serie"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Add a date to this series"
-msgstr ""
+msgstr "Añadir una fecha a esta serie"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Add entry"
-msgstr ""
+msgstr "Añadir entrada"
 #: includes/class-wpd-event-fields.php
 
 msgid "Add room"
-msgstr ""
+msgstr "Añadir sala"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Add tier"
-msgstr ""
+msgstr "Añadir tarifa"
 #: includes/class-wpd-event-fields.php
 
 msgid "Add to calendar (.ics)"
-msgstr ""
+msgstr "Añadir al calendario (.ics)"
 #: templates/single-dansal_event.php
 
 msgid "Address"
-msgstr ""
+msgstr "Dirección"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Address & geocoding"
-msgstr ""
+msgstr "Dirección y geocodificación"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Alcohol"
-msgstr ""
+msgstr "Alcohol"
 #: includes/class-wpd-vocab.php
 
 msgid "Already synced with dansal — re-matching only updates the fields below on next save, it will not create a second location."
-msgstr ""
+msgstr "Ya sincronizado con dansal — volver a emparejar solo actualiza los campos siguientes al guardar, no creará una segunda ubicación."
 #: includes/class-wpd-cpt-location.php
 
 msgid "Amenities"
-msgstr ""
+msgstr "Servicios"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Amenities & floor"
-msgstr ""
+msgstr "Servicios y suelo"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Amenities override"
-msgstr ""
+msgstr "Anular servicios"
 #: includes/class-wpd-event-fields.php
 
 msgid "Amenities:"
-msgstr ""
+msgstr "Servicios:"
 #: templates/single-dansal_event.php
 #: templates/single-dansal_location.php
 
 msgid "Amount"
-msgstr ""
+msgstr "Importe"
 #: includes/class-wpd-event-fields.php
 
 msgid "Assign to series"
-msgstr ""
+msgstr "Asignar a serie"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Assign to series…"
-msgstr ""
+msgstr "Asignar a serie…"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Ball"
-msgstr ""
+msgstr "Baile"
 #: includes/class-wpd-event-fields.php
 #: includes/class-wpd-frontend.php
 
 msgid "Bar"
-msgstr ""
+msgstr "Bar"
 #: includes/class-wpd-cpt-location.php
 #: includes/class-wpd-event-fields.php
 #: templates/single-dansal_event.php
 #: templates/single-dansal_location.php
 
 msgid "Base URL, org ID and API key must all be set first."
-msgstr ""
+msgstr "Primero deben establecerse la URL base, el ID de organización y la clave API."
 #: includes/class-wpd-settings.php
 
 msgid "Begins with ak_. Shown only once by dansal at creation time; stored here and exchanged for short-lived session tokens. Use this if you already have a key from dansal_admin CLI instead of a connect link."
-msgstr ""
+msgstr "Comienza con ak_. Mostrado solo una vez por dansal en el momento de creación; almacenado aquí e intercambiado por tokens de sesión de corta duración. Úsalo si ya tienes una clave del CLI dansal_admin en lugar de un enlace de conexión."
 #: includes/class-wpd-settings.php
 
 msgid "Book / Tickets"
-msgstr ""
+msgstr "Reservar / Entradas"
 #: templates/single-dansal_event.php
 
 msgid "Booking URL"
-msgstr ""
+msgstr "URL de reserva"
 #: includes/class-wpd-event-fields.php
 
 msgid "Calendar"
-msgstr ""
+msgstr "Calendario"
 #: templates/archive-dansal_event.php
 #: templates/page-dansal-calendar.php
 
 msgid "Cancelled"
-msgstr ""
+msgstr "Cancelado"
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-frontend.php
 
 msgid "Cannot clone this event."
-msgstr ""
+msgstr "No se puede clonar este evento."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Checking dansal for existing locations…"
-msgstr ""
+msgstr "Buscando ubicaciones existentes en dansal…"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Classification"
-msgstr ""
+msgstr "Clasificación"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Click again to confirm"
-msgstr ""
+msgstr "Haz clic de nuevo para confirmar"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Clone"
-msgstr ""
+msgstr "Clonar"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Clone this event"
-msgstr ""
+msgstr "Clonar este evento"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Compact monthly calendar of dance events, color-coded by type."
-msgstr ""
+msgstr "Calendario mensual compacto de eventos de danza, codificado por colores según el tipo."
 #: includes/class-wpd-widget-mini-calendar.php
 
 msgid "Connect"
-msgstr ""
+msgstr "Conectar"
 #: includes/class-wpd-settings.php
 
 msgid "Connect Link"
-msgstr ""
+msgstr "Enlace de conexión"
 #: includes/class-wpd-settings.php
 
 msgid "Connect link challenge mismatch — refusing to store credentials."
-msgstr ""
+msgstr "Discrepancia en el desafío del enlace de conexión — se rechaza almacenar credenciales."
 #: includes/class-wpd-settings.php
 
 msgid "Connect link must be HTTPS and look like .../api/v1/invites/{token}/publisher."
-msgstr ""
+msgstr "El enlace de conexión debe ser HTTPS y tener el formato .../api/v1/invites/{token}/publisher."
 #: includes/class-wpd-settings.php
 
 msgid "Connect link redeemed but the returned API key did not authenticate: %s"
-msgstr ""
+msgstr "Enlace de conexión canjeado pero la clave API devuelta no se autenticó: %s"
 #: includes/class-wpd-settings.php
 
 msgid "Connect link redemption failed: %s"
-msgstr ""
+msgstr "Falló el canje del enlace de conexión: %s"
 #: includes/class-wpd-settings.php
 
 msgid "Connect this site to a dansal server (https://github.com/ademant/dansal). Events and locations created from this site are attributed to one organization there."
-msgstr ""
+msgstr "Conecta este sitio a un servidor dansal (https://github.com/ademant/dansal). Los eventos y ubicaciones creados desde este sitio se atribuyen allí a una organización."
 #: includes/class-wpd-settings.php
 
 msgid "Connect to dansal in Settings to load series events."
-msgstr ""
+msgstr "Conecta con dansal en Ajustes para cargar los eventos de la serie."
 #: includes/class-wpd-cpt-series.php
 
 msgid "Connect via Link (recommended)"
-msgstr ""
+msgstr "Conectar mediante enlace (recomendado)"
 #: includes/class-wpd-settings.php
 
 msgid "Connected to dansal %s and authenticated successfully."
-msgstr ""
+msgstr "Conectado a dansal %s y autenticado correctamente."
 #: includes/class-wpd-settings.php
 
 msgid "Connecting…"
-msgstr ""
+msgstr "Conectando…"
 #: includes/class-wpd-settings.php
 
 msgid "Contact"
-msgstr ""
+msgstr "Contacto"
 #: includes/class-wpd-event-fields.php
 
 msgid "Could not create local copy."
-msgstr ""
+msgstr "No se pudo crear la copia local."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Could not decrypt the API key returned by dansal."
-msgstr ""
+msgstr "No se pudo descifrar la clave API devuelta por dansal."
 #: includes/class-wpd-settings.php
 
 msgid "Could not fetch entity from dansal."
-msgstr ""
+msgstr "No se pudo obtener la entidad desde dansal."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Could not load series events: %s"
-msgstr ""
+msgstr "No se pudieron cargar los eventos de la serie: %s"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Could not reach dansal server: %s"
-msgstr ""
+msgstr "No se pudo contactar con el servidor de dansal: %s"
 #: includes/class-wpd-settings.php
 
 msgid "Could not reach that link: %s"
-msgstr ""
+msgstr "No se pudo acceder a ese enlace: %s"
 #: includes/class-wpd-settings.php
 
 msgid "Country"
-msgstr ""
+msgstr "País"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Country (ISO 3166-1 alpha-2)"
-msgstr ""
+msgstr "País (ISO 3166-1 alpha-2)"
 #: includes/class-wpd-cpt-musician.php
 
 msgid "Country code"
-msgstr ""
+msgstr "Código de país"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Create / edit local copy"
-msgstr ""
+msgstr "Crear / editar copia local"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Create draft"
-msgstr ""
+msgstr "Crear borrador"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Create failed — click to retry"
-msgstr ""
+msgstr "Error al crear — haz clic para reintentar"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Create new location anyway"
-msgstr ""
+msgstr "Crear nueva ubicación de todos modos"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Created dansal event #%d."
-msgstr ""
+msgstr "Evento de dansal #%d creado."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Created dansal location #%d."
-msgstr ""
+msgstr "Ubicación de dansal #%d creada."
 #: includes/class-wpd-cpt-location.php
 
 msgid "Created dansal series #%d."
-msgstr ""
+msgstr "Serie de dansal #%d creada."
 #: includes/class-wpd-cpt-series.php
 
 msgid "Dance"
-msgstr ""
+msgstr "Danza"
 #: includes/class-wpd-admin-menu.php
 
 msgid "Dance Event"
-msgstr ""
+msgstr "Evento de danza"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Dance Events"
-msgstr ""
+msgstr "Eventos de danza"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Dance Location"
-msgstr ""
+msgstr "Ubicación de danza"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Dance Locations"
-msgstr ""
+msgstr "Ubicaciones de danza"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Dance Series"
-msgstr ""
+msgstr "Serie de danza"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Dances"
-msgstr ""
+msgstr "Danzas"
 #: includes/class-wpd-event-fields.php
 
 msgid "Dansal"
-msgstr ""
+msgstr "Dansal"
 #: includes/class-wpd-settings.php
 
 msgid "Dansal Base URL"
-msgstr ""
+msgstr "URL base de dansal"
 #: includes/class-wpd-settings.php
 
 msgid "Dansal Connection"
-msgstr ""
+msgstr "Conexión con dansal"
 #: includes/class-wpd-settings.php
 
 msgid "Dansal Event Details"
-msgstr ""
+msgstr "Detalles del evento en dansal"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Dansal ID"
-msgstr ""
+msgstr "ID de dansal"
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-cpt-location.php
 #: includes/class-wpd-cpt-person.php
 
 msgid "Dansal Location Details"
-msgstr ""
+msgstr "Detalles de la ubicación en dansal"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Dansal Mini Calendar"
-msgstr ""
+msgstr "Mini calendario de dansal"
 #: includes/class-wpd-widget-mini-calendar.php
 
 msgid "Dansal Series Details"
-msgstr ""
+msgstr "Detalles de la serie en dansal"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Dansal Web URL"
-msgstr ""
+msgstr "URL web de dansal"
 #: includes/class-wpd-settings.php
 
 msgid "Dansal details"
-msgstr ""
+msgstr "Detalles de dansal"
 #: includes/class-wpd-cpt-person.php
 
 msgid "Dansal has newer changes for this event. Accepting will overwrite the WordPress fields with the dansal version."
-msgstr ""
+msgstr "Dansal tiene cambios más recientes para este evento. Al aceptar se sobrescribirán los campos de WordPress con la versión de dansal."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Dansal: Events Calendar"
-msgstr ""
+msgstr "Dansal: calendario de eventos"
 #: includes/class-wpd-frontend.php
 
 msgid "Dansal: Locations Map"
-msgstr ""
+msgstr "Dansal: mapa de ubicaciones"
 #: includes/class-wpd-frontend.php
 
 msgid "Default end time of day"
-msgstr ""
+msgstr "Hora de fin predeterminada"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Default start time of day"
-msgstr ""
+msgstr "Hora de inicio predeterminada"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Description"
-msgstr ""
+msgstr "Descripción"
 #: includes/class-wpd-cpt-instructor.php
 #: includes/class-wpd-cpt-musician.php
 
 msgid "Details"
-msgstr ""
+msgstr "Detalles"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Donation"
-msgstr ""
+msgstr "Donación"
 #: includes/class-wpd-event-fields.php
 #: templates/single-dansal_event.php
 
 msgid "Drag the marker or click the map to fine-tune the coordinates."
-msgstr ""
+msgstr "Arrastra el marcador o haz clic en el mapa para ajustar las coordenadas."
 #: includes/class-wpd-cpt-location.php
 
 msgid "Drink"
-msgstr ""
+msgstr "Bebida"
 #: includes/class-wpd-event-fields.php
 
 msgid "Edit Event"
-msgstr ""
+msgstr "Editar evento"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Edit Instructor"
-msgstr ""
+msgstr "Editar profesor/a"
 #: includes/class-wpd-cpt-instructor.php
 
 msgid "Edit Location"
-msgstr ""
+msgstr "Editar ubicación"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Edit Musician"
-msgstr ""
+msgstr "Editar músico/a"
 #: includes/class-wpd-cpt-musician.php
 
 msgid "Edit Series"
-msgstr ""
+msgstr "Editar serie"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Edit event"
-msgstr ""
+msgstr "Editar evento"
 #: templates/single-dansal_event.php
 
 msgid "Edit location"
-msgstr ""
+msgstr "Editar ubicación"
 #: templates/single-dansal_location.php
 
 msgid "Email"
-msgstr ""
+msgstr "Correo electrónico"
 #: includes/class-wpd-event-fields.php
 
 msgid "End"
-msgstr ""
+msgstr "Fin"
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-event-fields.php
 
 msgid "Enter a latitude and longitude first."
-msgstr ""
+msgstr "Introduce primero una latitud y longitud."
 #: includes/class-wpd-cpt-location.php
 
 msgid "Event defaults"
-msgstr ""
+msgstr "Valores predeterminados de evento"
 #: includes/class-wpd-settings.php
 
 msgid "Event type"
-msgstr ""
+msgstr "Tipo de evento"
 #: includes/class-wpd-event-fields.php
 
 msgid "Event: %s"
-msgstr ""
+msgstr "Evento: %s"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Events in this series"
-msgstr ""
+msgstr "Eventos de esta serie"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Events:"
-msgstr ""
+msgstr "Eventos:"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Failed to assign your organization to existing dansal location #%1$d: %2$s"
-msgstr ""
+msgstr "Falló asignar tu organización a la ubicación de dansal existente #%1$d: %2$s"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Failed to attach dansal event #%1$d to its series: %2$s"
-msgstr ""
+msgstr "Falló adjuntar el evento de dansal #%1$d a su serie: %2$s"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Failed to clear location on dansal event #%1$d: %2$s"
-msgstr ""
+msgstr "Falló borrar la ubicación en el evento de dansal #%1$d: %2$s"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Failed to create clone."
-msgstr ""
+msgstr "No se pudo crear el clon."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Failed to create dansal event: %s"
-msgstr ""
+msgstr "Falló crear el evento de dansal: %s"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Failed to create dansal location: %s"
-msgstr ""
+msgstr "Falló crear la ubicación de dansal: %s"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Failed to create dansal series: %s"
-msgstr ""
+msgstr "Falló crear la serie de dansal: %s"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Failed to create event from series."
-msgstr ""
+msgstr "No se pudo crear el evento a partir de la serie."
 #: includes/class-wpd-cpt-series.php
 
 msgid "Failed to create local copy."
-msgstr ""
+msgstr "No se pudo crear la copia local."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Failed to update dansal event #%1$d timetable: %2$s"
-msgstr ""
+msgstr "Falló actualizar el horario del evento de dansal #%1$d: %2$s"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Failed to update dansal event #%1$d: %2$s"
-msgstr ""
+msgstr "Falló actualizar el evento de dansal #%1$d: %2$s"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Failed to update dansal location #%1$d: %2$s"
-msgstr ""
+msgstr "Falló actualizar la ubicación de dansal #%1$d: %2$s"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Failed to update dansal series #%1$d: %2$s"
-msgstr ""
+msgstr "Falló actualizar la serie de dansal #%1$d: %2$s"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Failed to update rooms."
-msgstr ""
+msgstr "Falló actualizar las salas."
 #: includes/class-wpd-cpt-location.php
 
 msgid "Festival"
-msgstr ""
+msgstr "Festival"
 #: includes/class-wpd-event-fields.php
 #: includes/class-wpd-frontend.php
 
 msgid "Find address (OpenStreetMap / Nominatim)"
-msgstr ""
+msgstr "Buscar dirección (OpenStreetMap / Nominatim)"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Floor condition"
-msgstr ""
+msgstr "Estado del suelo"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Floor condition override"
-msgstr ""
+msgstr "Anular estado del suelo"
 #: includes/class-wpd-event-fields.php
 
 msgid "Floor:"
-msgstr ""
+msgstr "Suelo:"
 #: templates/single-dansal_event.php
 #: templates/single-dansal_location.php
 
 msgid "Food"
-msgstr ""
+msgstr "Comida"
 #: includes/class-wpd-event-fields.php
 
 msgid "Food & drink"
-msgstr ""
+msgstr "Comida y bebida"
 #: includes/class-wpd-event-fields.php
 
 msgid "Food & drink:"
-msgstr ""
+msgstr "Comida y bebida:"
 #: templates/single-dansal_event.php
 
 msgid "Free"
-msgstr ""
+msgstr "Gratis"
 #: includes/class-wpd-event-fields.php
 #: templates/single-dansal_event.php
 
 msgid "Free parking"
-msgstr ""
+msgstr "Aparcamiento gratuito"
 #: includes/class-wpd-vocab.php
 
 msgid "Grass"
-msgstr ""
+msgstr "Hierba"
 #: includes/class-wpd-vocab.php
 
 msgid "Ignore this update"
-msgstr ""
+msgstr "Ignorar esta actualización"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Instructor"
-msgstr ""
+msgstr "Profesor/a"
 #: includes/class-wpd-cpt-instructor.php
 #: includes/class-wpd-cpt-series.php
 
 msgid "Instructors"
-msgstr ""
+msgstr "Profesorado"
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-cpt-instructor.php
 
 msgid "Instructors:"
-msgstr ""
+msgstr "Profesorado:"
 #: templates/single-dansal_event.php
 
 msgid "Insufficient permissions."
-msgstr ""
+msgstr "Permisos insuficientes."
 #: includes/class-wpd-admin-action.php
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-cpt-location.php
@@ -599,588 +599,588 @@ msgstr ""
 #: includes/class-wpd-settings.php
 
 msgid "Invalid input."
-msgstr ""
+msgstr "Entrada no válida."
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-cpt-location.php
 
 msgid "Invalid location."
-msgstr ""
+msgstr "Ubicación no válida."
 #: includes/class-wpd-cpt-location.php
 
 msgid "Invalid search."
-msgstr ""
+msgstr "Búsqueda no válida."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Kitchen"
-msgstr ""
+msgstr "Cocina"
 #: includes/class-wpd-cpt-location.php
 #: includes/class-wpd-event-fields.php
 #: templates/single-dansal_event.php
 #: templates/single-dansal_location.php
 
 msgid "Label"
-msgstr ""
+msgstr "Etiqueta"
 #: includes/class-wpd-event-fields.php
 
 msgid "Latitude"
-msgstr ""
+msgstr "Latitud"
 #: includes/class-wpd-cpt-location.php
 
 msgid "List"
-msgstr ""
+msgstr "Lista"
 #: templates/archive-dansal_event.php
 #: templates/page-dansal-calendar.php
 
 msgid "Location"
-msgstr ""
+msgstr "Ubicación"
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-event-fields.php
 
 msgid "Location Duplicate Radius (km)"
-msgstr ""
+msgstr "Radio de ubicación duplicada (km)"
 #: includes/class-wpd-settings.php
 
 msgid "Location is not synced yet — save it first."
-msgstr ""
+msgstr "La ubicación aún no está sincronizada — guárdala primero."
 #: includes/class-wpd-cpt-location.php
 
 msgid "Location is not synced yet."
-msgstr ""
+msgstr "La ubicación aún no está sincronizada."
 #: includes/class-wpd-cpt-location.php
 
 msgid "Longitude"
-msgstr ""
+msgstr "Longitud"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Manual connection (advanced)"
-msgstr ""
+msgstr "Conexión manual (avanzado)"
 #: includes/class-wpd-settings.php
 
 msgid "Missing coordinates."
-msgstr ""
+msgstr "Faltan las coordenadas."
 #: includes/class-wpd-nominatim.php
 
 msgid "Multiple tiers"
-msgstr ""
+msgstr "Varias tarifas"
 #: includes/class-wpd-event-fields.php
 
 msgid "MusicBrainz ID"
-msgstr ""
+msgstr "ID de MusicBrainz"
 #: includes/class-wpd-cpt-musician.php
 
 msgid "Musician"
-msgstr ""
+msgstr "Músico/a"
 #: includes/class-wpd-cpt-musician.php
 #: includes/class-wpd-cpt-series.php
 
 msgid "Musician/instructor pickers only list entities you have synced locally. Add them under Dance → Musicians / Instructors first."
-msgstr ""
+msgstr "Los selectores de músicos/profesores solo muestran entidades sincronizadas localmente. Añádelas primero en Danza → Músicos / Profesorado."
 #: includes/class-wpd-cpt-series.php
 
 msgid "Musicians"
-msgstr ""
+msgstr "Músicos"
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-cpt-musician.php
 
 msgid "Musicians:"
-msgstr ""
+msgstr "Músicos:"
 #: templates/single-dansal_event.php
 
 msgid "Name"
-msgstr ""
+msgstr "Nombre"
 #: includes/class-wpd-event-fields.php
 
 msgid "Next month"
-msgstr ""
+msgstr "Mes siguiente"
 #: templates/archive-dansal_event.php
 #: templates/page-dansal-calendar.php
 
 msgid "No dansal API key configured."
-msgstr ""
+msgstr "No hay clave API de dansal configurada."
 #: includes/class-wpd-api-client.php
 
 msgid "No events belong to this series yet."
-msgstr ""
+msgstr "Aún no hay eventos en esta serie."
 #: includes/class-wpd-cpt-series.php
 
 msgid "No matches found."
-msgstr ""
+msgstr "No se encontraron coincidencias."
 #: includes/class-wpd-cpt-location.php
 
 msgid "No parking"
-msgstr ""
+msgstr "Sin aparcamiento"
 #: includes/class-wpd-vocab.php
 
 msgid "No rooms yet."
-msgstr ""
+msgstr "Aún no hay salas."
 #: includes/class-wpd-cpt-location.php
 
 msgid "No street shoes"
-msgstr ""
+msgstr "Sin zapatos de calle"
 #: includes/class-wpd-cpt-location.php
 
 msgid "No street shoes on the dance floor."
-msgstr ""
+msgstr "Sin zapatos de calle en la pista de baile."
 #: templates/single-dansal_location.php
 
 msgid "No street shoes: no (set on the venue; not overridable per event)"
-msgstr ""
+msgstr "Sin zapatos de calle: no (fijado en la ubicación; no anulable por evento)"
 #: includes/class-wpd-event-fields.php
 
 msgid "No street shoes: yes (set on the venue; not overridable per event)"
-msgstr ""
+msgstr "Sin zapatos de calle: sí (fijado en la ubicación; no anulable por evento)"
 #: includes/class-wpd-event-fields.php
 
 msgid "No upcoming events."
-msgstr ""
+msgstr "No hay próximos eventos."
 #: includes/class-wpd-frontend.php
 
 msgid "Nominatim Contact Email"
-msgstr ""
+msgstr "Correo de contacto de Nominatim"
 #: includes/class-wpd-settings.php
 
 msgid "Nominatim returned HTTP %d"
-msgstr ""
+msgstr "Nominatim devolvió HTTP %d"
 #: includes/class-wpd-nominatim.php
 
 msgid "None"
-msgstr ""
+msgstr "Ninguno"
 #: includes/class-wpd-vocab.php
 
 msgid "Not a dansal event."
-msgstr ""
+msgstr "No es un evento de dansal."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Notes (Markdown)"
-msgstr ""
+msgstr "Notas (Markdown)"
 #: includes/class-wpd-cpt-location.php
 
 msgid "On save, your organization will be assigned to dansal location #%d instead of creating a new one."
-msgstr ""
+msgstr "Al guardar, tu organización se asignará a la ubicación de dansal #%d en lugar de crear una nueva."
 #: includes/class-wpd-cpt-location.php
 
 msgid "Only locations already synced to dansal (see Dance Locations) can be attached to an event."
-msgstr ""
+msgstr "Solo se pueden asociar a un evento las ubicaciones ya sincronizadas con dansal (ver Ubicaciones de danza)."
 #: includes/class-wpd-event-fields.php
 
 msgid "Open local copy"
-msgstr ""
+msgstr "Abrir copia local"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Optional multi-slot schedule (e.g. a workshop followed by a ball). Leave empty for a single continuous event."
-msgstr ""
+msgstr "Programa opcional con múltiples franjas (por ejemplo, un taller seguido de un baile). Dejar en blanco para un evento único y continuo."
 #: includes/class-wpd-event-fields.php
 
 msgid "Optional — pick a specific named room within the venue. Rooms are managed on the location edit screen."
-msgstr ""
+msgstr "Opcional — elige una sala concreta con nombre dentro del lugar. Las salas se gestionan en la pantalla de edición de la ubicación."
 #: includes/class-wpd-event-fields.php
 
 msgid "Optional. The dansal-web public site, only used to link to events/orgs/locations from other organizations that have no page on this WordPress site. Leave blank to reuse the base URL above."
-msgstr ""
+msgstr "Opcional. El sitio público dansal-web, utilizado solo para enlazar a eventos/organizaciones/ubicaciones de otras organizaciones que no tienen página en este sitio de WordPress. Deja en blanco para reutilizar la URL base de arriba."
 #: includes/class-wpd-settings.php
 
 msgid "Organization (this publisher)"
-msgstr ""
+msgstr "Organización (este editor)"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Organization ID"
-msgstr ""
+msgstr "ID de organización"
 #: includes/class-wpd-settings.php
 
 msgid "Other"
-msgstr ""
+msgstr "Otro"
 #: includes/class-wpd-frontend.php
 
 msgid "Owner"
-msgstr ""
+msgstr "Propietario"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Paid parking"
-msgstr ""
+msgstr "Aparcamiento de pago"
 #: includes/class-wpd-vocab.php
 
 msgid "Parking"
-msgstr ""
+msgstr "Aparcamiento"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Parking:"
-msgstr ""
+msgstr "Aparcamiento:"
 #: templates/single-dansal_event.php
 #: templates/single-dansal_location.php
 
 msgid "Parquet"
-msgstr ""
+msgstr "Parqué"
 #: includes/class-wpd-vocab.php
 
 msgid "Pavement"
-msgstr ""
+msgstr "Pavimento"
 #: includes/class-wpd-vocab.php
 
 msgid "People"
-msgstr ""
+msgstr "Personas"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Possible existing location(s) in dansal:"
-msgstr ""
+msgstr "Posibles ubicaciones existentes en dansal:"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Potluck"
-msgstr ""
+msgstr "Comida compartida"
 #: includes/class-wpd-vocab.php
 
 msgid "Previous month"
-msgstr ""
+msgstr "Mes anterior"
 #: templates/archive-dansal_event.php
 #: templates/page-dansal-calendar.php
 
 msgid "Price:"
-msgstr ""
+msgstr "Precio:"
 #: templates/single-dansal_event.php
 
 msgid "Pricing"
-msgstr ""
+msgstr "Precios"
 #: includes/class-wpd-event-fields.php
 
 msgid "Pricing & booking"
-msgstr ""
+msgstr "Precios y reserva"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Publisher API Key"
-msgstr ""
+msgstr "Clave API de editor"
 #: includes/class-wpd-settings.php
 
 msgid "Publisher API key has expired. Re-run the connect-link flow to restore the connection."
-msgstr ""
+msgstr "La clave API de editor ha expirado. Vuelve a ejecutar el flujo de enlace de conexión para restablecer la conexión."
 #: includes/class-wpd-api-client.php
 
 msgid "Publisher API key has no expiry; renewal not applicable."
-msgstr ""
+msgstr "La clave API de editor no caduca; la renovación no es aplicable."
 #: includes/class-wpd-api-client.php
 
 msgid "Re-match location (OpenStreetMap / Nominatim)"
-msgstr ""
+msgstr "Reasociar ubicación (OpenStreetMap / Nominatim)"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Re-run the connect-link flow to restore the connection."
-msgstr ""
+msgstr "Vuelve a ejecutar el flujo de enlace de conexión para restablecer la conexión."
 #: wp-dansal.php
 
 msgid "Reached server, but authentication failed: %s"
-msgstr ""
+msgstr "Se contactó el servidor, pero la autenticación falló: %s"
 #: includes/class-wpd-settings.php
 
 msgid "Region"
-msgstr ""
+msgstr "Región"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Remove"
-msgstr ""
+msgstr "Eliminar"
 #: includes/class-wpd-cpt-location.php
 #: includes/class-wpd-event-fields.php
 
 msgid "Remove this room? Any event using it will lose its room assignment."
-msgstr ""
+msgstr "¿Eliminar esta sala? Cualquier evento que la use perderá su asignación de sala."
 #: includes/class-wpd-cpt-location.php
 
 msgid "Reverse geocode from lat/long"
-msgstr ""
+msgstr "Geocodificar inverso desde lat/long"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Reverse geocoding…"
-msgstr ""
+msgstr "Geocodificación inversa en curso…"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Room"
-msgstr ""
+msgstr "Sala"
 #: includes/class-wpd-event-fields.php
 
 msgid "Rooms"
-msgstr ""
+msgstr "Salas"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Sand / gravel"
-msgstr ""
+msgstr "Arena / grava"
 #: includes/class-wpd-vocab.php
 
 msgid "Save"
-msgstr ""
+msgstr "Guardar"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Save the series first to see the events assigned to it."
-msgstr ""
+msgstr "Guarda primero la serie para ver los eventos asignados a ella."
 #: includes/class-wpd-cpt-series.php
 
 msgid "Search"
-msgstr ""
+msgstr "Buscar"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Search from fields below"
-msgstr ""
+msgstr "Buscar desde los campos siguientes"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Search instructors…"
-msgstr ""
+msgstr "Buscar profesorado…"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Search musicians…"
-msgstr ""
+msgstr "Buscar músicos…"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Search term too short."
-msgstr ""
+msgstr "Término de búsqueda demasiado corto."
 #: includes/class-wpd-nominatim.php
 
 msgid "Select instructor"
-msgstr ""
+msgstr "Seleccionar profesor/a"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Select musician"
-msgstr ""
+msgstr "Seleccionar músico/a"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Sent as part of the User-Agent when looking up locations via OpenStreetMap Nominatim, per their usage policy."
-msgstr ""
+msgstr "Se envía como parte del User-Agent al buscar ubicaciones mediante OpenStreetMap Nominatim, según su política de uso."
 #: includes/class-wpd-settings.php
 
 msgid "Series"
-msgstr ""
+msgstr "Serie"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Series %1$s: %2$s"
-msgstr ""
+msgstr "Serie %1$s: %2$s"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Short name"
-msgstr ""
+msgstr "Nombre corto"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Single price"
-msgstr ""
+msgstr "Precio único"
 #: includes/class-wpd-event-fields.php
 
 msgid "Single-use — it fills in the base URL, organization, and API key below automatically and is consumed immediately."
-msgstr ""
+msgstr "De un solo uso — rellena automáticamente la URL base, la organización y la clave API abajo, y se consume de inmediato."
 #: includes/class-wpd-settings.php
 
 msgid "Soft drinks"
-msgstr ""
+msgstr "Refrescos"
 #: includes/class-wpd-vocab.php
 
 msgid "Sold"
-msgstr ""
+msgstr "Vendido"
 #: includes/class-wpd-vocab.php
 
 msgid "Start"
-msgstr ""
+msgstr "Inicio"
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-event-fields.php
 
 msgid "Status"
-msgstr ""
+msgstr "Estado"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Stone"
-msgstr ""
+msgstr "Piedra"
 #: includes/class-wpd-vocab.php
 
 msgid "Synced with dansal event #"
-msgstr ""
+msgstr "Sincronizado con evento de dansal #"
 #: includes/class-wpd-cpt-event.php
 
 msgid "Synced with dansal location #"
-msgstr ""
+msgstr "Sincronizado con ubicación de dansal #"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Synced with dansal series #"
-msgstr ""
+msgstr "Sincronizado con serie de dansal #"
 #: includes/class-wpd-cpt-series.php
 
 msgid "Synced with dansal: %1$d new event(s) imported, %2$d refreshed."
-msgstr ""
+msgstr "Sincronizado con dansal: %1$d evento(s) nuevo(s) importado(s), %2$d actualizado(s)."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Synced with dansal: %1$d new location(s) imported, %2$d refreshed."
-msgstr ""
+msgstr "Sincronizado con dansal: %1$d ubicación(es) nueva(s) importada(s), %2$d actualizada(s)."
 #: includes/class-wpd-cpt-location.php
 
 msgid "TLS certificate pin mismatch for configured dansal base URL."
-msgstr ""
+msgstr "El pin del certificado TLS no coincide para la URL base de dansal configurada."
 #: includes/class-wpd-settings.php
 
 msgid "Tags"
-msgstr ""
+msgstr "Etiquetas"
 #: includes/class-wpd-event-fields.php
 
 msgid "Tags:"
-msgstr ""
+msgstr "Etiquetas:"
 #: templates/single-dansal_event.php
 
 msgid "Test Connection"
-msgstr ""
+msgstr "Probar conexión"
 #: includes/class-wpd-settings.php
 
 msgid "Testing…"
-msgstr ""
+msgstr "Probando…"
 #: includes/class-wpd-settings.php
 
 msgid "The org_id returned when the publisher API key was created. All events and locations created from this site are attributed to this organization."
-msgstr ""
+msgstr "El org_id devuelto al crear la clave API de editor. Todos los eventos y ubicaciones creados desde este sitio se atribuyen a esta organización."
 #: includes/class-wpd-settings.php
 
 msgid "This event has been cancelled."
-msgstr ""
+msgstr "Este evento ha sido cancelado."
 #: templates/single-dansal_event.php
 
 msgid "This post is not published yet, so it is synced to dansal as a draft (not publicly visible). Publishing this WordPress post makes it public in dansal."
-msgstr ""
+msgstr "Esta entrada aún no está publicada, por lo que se sincroniza con dansal como borrador (no visible públicamente). Al publicar esta entrada de WordPress también se hace pública en dansal."
 #: includes/class-wpd-cpt-event.php
 
 msgid "This post is published, so it is synced to dansal as a public event. Switch it back to Draft/Pending to unpublish it in dansal too."
-msgstr ""
+msgstr "Esta entrada está publicada, por lo que se sincroniza con dansal como evento público. Cámbiala de nuevo a Borrador/Pendiente para retirarla también de dansal."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Tiles"
-msgstr ""
+msgstr "Baldosas"
 #: includes/class-wpd-vocab.php
 
 msgid "Timetable"
-msgstr ""
+msgstr "Horario"
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-event-fields.php
 
 msgid "Title"
-msgstr ""
+msgstr "Título"
 #: includes/class-wpd-event-fields.php
 
 msgid "Title:"
-msgstr ""
+msgstr "Título:"
 #: includes/class-wpd-widget-mini-calendar.php
 
 msgid "Town"
-msgstr ""
+msgstr "Ciudad"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Type"
-msgstr ""
+msgstr "Tipo"
 #: includes/class-wpd-event-fields.php
 
 msgid "Unexpected Nominatim response."
-msgstr ""
+msgstr "Respuesta inesperada de Nominatim."
 #: includes/class-wpd-nominatim.php
 
 msgid "Unexpected response from dansal."
-msgstr ""
+msgstr "Respuesta inesperada de dansal."
 #: includes/class-wpd-cpt-event.php
 
 msgid "Unknown series."
-msgstr ""
+msgstr "Serie desconocida."
 #: includes/class-wpd-cpt-series.php
 
 msgid "Upcoming events here"
-msgstr ""
+msgstr "Próximos eventos aquí"
 #: templates/single-dansal_location.php
 
 msgid "Use this existing location"
-msgstr ""
+msgstr "Usar esta ubicación existente"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Values you set here are pre-filled on brand-new events (before the first save). Editing an existing event never overwrites its stored values."
-msgstr ""
+msgstr "Los valores que definas aquí se rellenan previamente en eventos nuevos (antes del primer guardado). Editar un evento existente nunca sobrescribe sus valores almacenados."
 #: includes/class-wpd-settings.php
 
 msgid "WP Dansal v%s"
-msgstr ""
+msgstr "WP Dansal v%s"
 #: includes/class-wpd-settings.php
 
 msgid "WP Dansal: the publisher API key has expired."
-msgstr ""
+msgstr "WP Dansal: la clave API de editor ha expirado."
 #: wp-dansal.php
 
 msgid "Website"
-msgstr ""
+msgstr "Sitio web"
 #: includes/class-wpd-cpt-location.php
 
 msgid "Wheelchair accessible"
-msgstr ""
+msgstr "Accesible en silla de ruedas"
 #: includes/class-wpd-cpt-location.php
 #: includes/class-wpd-event-fields.php
 #: templates/single-dansal_event.php
 #: templates/single-dansal_location.php
 
 msgid "When & where"
-msgstr ""
+msgstr "Cuándo y dónde"
 #: includes/class-wpd-cpt-event.php
 
 msgid "When creating a location, dansal locations within this radius are offered as possible duplicates before a new one is created."
-msgstr ""
+msgstr "Al crear una ubicación, se ofrecen como posibles duplicados las ubicaciones de dansal dentro de este radio antes de crear una nueva."
 #: includes/class-wpd-settings.php
 
 msgid "When:"
-msgstr ""
+msgstr "Cuándo:"
 #: templates/single-dansal_event.php
 
 msgid "Where:"
-msgstr ""
+msgstr "Dónde:"
 #: templates/single-dansal_event.php
 
 msgid "Workshop"
-msgstr ""
+msgstr "Taller"
 #: includes/class-wpd-event-fields.php
 #: includes/class-wpd-frontend.php
 
 msgid "Workshop difficulty"
-msgstr ""
+msgstr "Dificultad del taller"
 #: includes/class-wpd-event-fields.php
 
 msgid "Zipcode"
-msgstr ""
+msgstr "Código postal"
 #: includes/class-wpd-cpt-location.php
 
 msgid "dansal response did not include an API key."
-msgstr ""
+msgstr "La respuesta de dansal no incluía una clave API."
 #: includes/class-wpd-settings.php
 
 msgid "e.g. Bürgerhaus Stollwerck, Köln"
-msgstr ""
+msgstr "p. ej., Bürgerhaus Stollwerck, Colonia"
 #: includes/class-wpd-cpt-location.php
 
 msgid "e.g. Grand Hall"
-msgstr ""
+msgstr "p. ej., Sala Grande"
 #: includes/class-wpd-cpt-location.php
 
 msgid "not synced"
-msgstr ""
+msgstr "no sincronizado"
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-cpt-location.php
 #: includes/class-wpd-cpt-person.php
 
 msgid "— detach from series —"
-msgstr ""
+msgstr "— desvincular de la serie —"
 #: includes/class-wpd-cpt-event.php
 
 msgid "— inherit from venue —"
-msgstr ""
+msgstr "— heredar de la ubicación —"
 #: includes/class-wpd-event-fields.php
 
 msgid "— no change —"
-msgstr ""
+msgstr "— sin cambios —"
 #: includes/class-wpd-cpt-event.php
 
 msgid "— no specific room —"
-msgstr ""
+msgstr "— sin sala específica —"
 #: includes/class-wpd-cpt-event.php
 #: includes/class-wpd-cpt-series.php
 #: includes/class-wpd-event-fields.php
 
 msgid "— not part of a series —"
-msgstr ""
+msgstr "— sin serie —"
 #: includes/class-wpd-cpt-event.php
 
 msgid "— not set —"
-msgstr ""
+msgstr "— sin definir —"
 #: includes/class-wpd-cpt-location.php
 #: includes/class-wpd-event-fields.php
 
 msgid "— select a synced location —"
-msgstr ""
+msgstr "— selecciona una ubicación sincronizada —"
 #: includes/class-wpd-event-fields.php
