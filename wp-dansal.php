@@ -7,6 +7,7 @@
  * Author: ademant
  * License: GPL-2.0-or-later
  * Text Domain: wp-dansal
+ * Domain Path: /languages
  * Requires PHP: 7.4
  * Requires at least: 6.0
  */
@@ -101,7 +102,11 @@ final class WPD_Plugin {
 		$this->remote_events  = new WPD_Remote_Events( $this->settings, $this->api );
 		$this->frontend     = new WPD_Frontend( $this->settings, $this->remote_events );
 
-		add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
+		// WP 6.7+ core warns (_doing_it_wrong) if just-in-time translation
+		// loading is triggered before 'init', so load here rather than on
+		// 'plugins_loaded' even though the real fix for #88 was the missing
+		// Domain Path header below.
+		add_action( 'init', array( $this, 'load_textdomain' ), 1 );
 		add_action( 'init', array( $this, 'ensure_cron_scheduled' ) );
 		add_action( 'wpd_apikey_renew_check', array( $this, 'cron_renew_apikey' ) );
 		add_action( 'admin_notices', array( $this, 'admin_notice_apikey_dead' ) );
