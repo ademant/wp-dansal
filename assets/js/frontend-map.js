@@ -46,24 +46,47 @@ document.addEventListener( 'DOMContentLoaded', function () {
 	} ).addTo( map );
 
 	var markers = [];
+	function safeHttpUrl( raw ) {
+		try {
+			if ( typeof raw === 'string' && /^https?:\/\//i.test( raw ) ) {
+				return raw;
+			}
+		} catch ( e ) {}
+		return '#';
+	}
+
+	function makeLink( url, text ) {
+		var a = document.createElement( 'a' );
+		a.href = safeHttpUrl( url );
+		a.target = '_blank';
+		a.rel = 'noopener noreferrer';
+		a.textContent = text || a.href;
+		return a;
+	}
+
 	points.forEach( function ( point ) {
 		var marker = L.marker( [ point.lat, point.lng ] ).addTo( map );
 		// Build the popup via DOM (textContent + href) so a stored title or
 		// URL containing HTML/JS cannot inject into the map popup.
-		var link = document.createElement( 'a' );
-		// Sanitize URL: only allow http(s) schemes to avoid javascript: or data: URIs.
-		var safeUrl = '#';
-		try {
-			if ( point && typeof point.url === 'string' && /^https?:\/\//i.test( point.url ) ) {
-				safeUrl = point.url;
-			}
-		} catch ( e ) { /* fall back to '#' */ }
-		link.href = safeUrl;
-		link.target = '_blank';
-		link.rel = 'noopener noreferrer';
-		// Use textContent to ensure meta-characters are not interpreted as HTML.
-		link.textContent = point && point.title ? point.title : safeUrl;
-		marker.bindPopup( link );
+		var container = document.createElement( 'div' );
+		container.appendChild( makeLink( point.url, point.title || '' ) );
+		if ( point.events && point.events.length ) {
+			var ul = document.createElement( 'ul' );
+			ul.className = 'wpd-map-events';
+			point.events.forEach( function ( ev ) {
+				var li = document.createElement( 'li' );
+				if ( ev.when ) {
+					var when = document.createElement( 'span' );
+					when.className = 'wpd-map-event-when';
+					when.textContent = ev.when + ' — ';
+					li.appendChild( when );
+				}
+				li.appendChild( makeLink( ev.url, ev.title || '' ) );
+				ul.appendChild( li );
+			} );
+			container.appendChild( ul );
+		}
+		marker.bindPopup( container );
 		markers.push( marker );
 	} );
 

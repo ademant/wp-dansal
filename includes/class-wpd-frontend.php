@@ -173,7 +173,7 @@ class WPD_Frontend {
 		$atts['location']  = absint( $atts['location'] );
 		$atts['tag']       = sanitize_key( $atts['tag'] );
 		$atts['limit']     = max( 1, min( 100, absint( $atts['limit'] ) ) );
-		$atts['view']      = in_array( $atts['view'], array( 'list', 'calendar', 'mini' ), true ) ? $atts['view'] : 'list';
+		$atts['view']      = in_array( $atts['view'], array( 'list', 'calendar', 'mini', 'map' ), true ) ? $atts['view'] : 'list';
 		$atts['show_past'] = ! empty( $atts['show_past'] ) && '0' !== (string) $atts['show_past'] ? 1 : 0;
 		$month             = absint( $atts['month'] );
 		$atts['month']     = ( $month >= 1 && $month <= 12 ) ? $month : '';
@@ -205,6 +205,9 @@ class WPD_Frontend {
 		}
 		if ( 'mini' === $atts['view'] ) {
 			return $this->render_mini_calendar( $atts );
+		}
+		if ( 'map' === $atts['view'] && ! $remote ) {
+			return $this->render_map( $atts );
 		}
 		return $remote ? $this->render_list_remote( $atts ) : $this->render_list( $atts );
 	}
@@ -472,6 +475,77 @@ class WPD_Frontend {
 		}
 		echo '</div>';
 		wp_reset_postdata();
+		return ob_get_clean();
+	}
+
+	private function render_map( $atts ) {
+		$meta_query = $this->base_meta_query( $atts );
+		if ( empty( $atts['show_past'] ) ) {
+			$meta_query[] = array(
+				'key'     => '_wpd_start_time',
+				'value'   => current_time( 'Y-m-d\TH:i' ),
+				'compare' => '>=',
+			);
+		}
+
+		$query = new WP_Query(
+			array(
+				'post_type'      => WPD_CPT_Event::POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => absint( $atts['limit'] ),
+				'meta_key'       => '_wpd_start_time',
+				'orderby'        => 'meta_value',
+				'order'          => 'ASC',
+				'meta_query'     => $meta_query,
+			)
+		);
+
+		$this->enqueue_frontend_style();
+		$this->enqueue_leaflet();
+
+		$by_location = array();
+		while ( $query->have_posts() ) {
+			$query->the_post();
+			$eid    = get_the_ID();
+			$loc_id = (int) get_post_meta( $eid, '_wpd_location_post_id', true );
+			if ( ! $loc_id ) {
+				continue;
+			}
+			$lat = get_post_meta( $loc_id, '_wpd_latitude', true );
+			$lng = get_post_meta( $loc_id, '_wpd_longitude', true );
+			if ( '' === $lat || '' === $lng ) {
+				continue;
+			}
+			if ( ! isset( $by_location[ $loc_id ] ) ) {
+				$by_location[ $loc_id ] = array(
+					'lat'    => (float) $lat,
+					'lng'    => (float) $lng,
+					'title'  => get_the_title( $loc_id ),
+					'url'    => get_permalink( $loc_id ),
+					'events' => array(),
+				);
+			}
+			$start = get_post_meta( $eid, '_wpd_start_time', true );
+			$by_location[ $loc_id ]['events'][] = array(
+				'title' => get_the_title( $eid ),
+				'url'   => get_permalink( $eid ),
+				'when'  => $this->format_datetime( $start ),
+			);
+		}
+		wp_reset_postdata();
+
+		$points = array_values( $by_location );
+
+		ob_start();
+		?>
+		<div class="wpd-events-map-wrap">
+			<?php if ( empty( $points ) ) : ?>
+				<p class="wpd-no-events"><?php esc_html_e( 'No upcoming events.', 'wp-dansal' ); ?></p>
+			<?php else : ?>
+				<div id="wpd-locations-map" class="wpd-locations-map" data-wpd-points="<?php echo esc_attr( wp_json_encode( $points ) ); ?>" data-wpd-tiles="<?php echo esc_attr( wp_json_encode( $this->tile_config() ) ); ?>"></div>
+			<?php endif; ?>
+		</div>
+		<?php
 		return ob_get_clean();
 	}
 
