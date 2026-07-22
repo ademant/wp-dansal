@@ -173,7 +173,7 @@ class WPD_Frontend {
 		$atts['location']  = absint( $atts['location'] );
 		$atts['tag']       = sanitize_key( $atts['tag'] );
 		$atts['limit']     = max( 1, min( 100, absint( $atts['limit'] ) ) );
-		$atts['view']      = in_array( $atts['view'], array( 'list', 'calendar', 'mini', 'map' ), true ) ? $atts['view'] : 'list';
+		$atts['view']      = in_array( $atts['view'], array( 'list', 'calendar', 'mini', 'map', 'map+list' ), true ) ? $atts['view'] : 'list';
 		$atts['show_past'] = ! empty( $atts['show_past'] ) && '0' !== (string) $atts['show_past'] ? 1 : 0;
 		$month             = absint( $atts['month'] );
 		$atts['month']     = ( $month >= 1 && $month <= 12 ) ? $month : '';
@@ -208,6 +208,9 @@ class WPD_Frontend {
 		}
 		if ( 'map' === $atts['view'] && ! $remote ) {
 			return $this->render_map( $atts );
+		}
+		if ( 'map+list' === $atts['view'] && ! $remote ) {
+			return $this->render_map_and_list( $atts );
 		}
 		return $remote ? $this->render_list_remote( $atts ) : $this->render_list( $atts );
 	}
@@ -478,7 +481,7 @@ class WPD_Frontend {
 		return ob_get_clean();
 	}
 
-	private function render_map( $atts ) {
+	private function build_event_query( $atts ) {
 		$meta_query = $this->base_meta_query( $atts );
 		if ( empty( $atts['show_past'] ) ) {
 			$meta_query[] = array(
@@ -487,8 +490,7 @@ class WPD_Frontend {
 				'compare' => '>=',
 			);
 		}
-
-		$query = new WP_Query(
+		return new WP_Query(
 			array(
 				'post_type'      => WPD_CPT_Event::POST_TYPE,
 				'post_status'    => 'publish',
@@ -499,10 +501,9 @@ class WPD_Frontend {
 				'meta_query'     => $meta_query,
 			)
 		);
+	}
 
-		$this->enqueue_frontend_style();
-		$this->enqueue_leaflet();
-
+	private function group_events_by_location( WP_Query $query ) {
 		$by_location = array();
 		while ( $query->have_posts() ) {
 			$query->the_post();
@@ -532,10 +533,10 @@ class WPD_Frontend {
 				'when'  => $this->format_datetime( $start ),
 			);
 		}
-		wp_reset_postdata();
+		return array_values( $by_location );
+	}
 
-		$points = array_values( $by_location );
-
+	private function render_map_markup( array $points ) {
 		ob_start();
 		?>
 		<div class="wpd-events-map-wrap">
@@ -547,6 +548,40 @@ class WPD_Frontend {
 		</div>
 		<?php
 		return ob_get_clean();
+	}
+
+	private function render_list_markup( WP_Query $query ) {
+		ob_start();
+		echo '<div class="wpd-events-list">';
+		if ( ! $query->have_posts() ) {
+			echo '<p class="wpd-no-events">' . esc_html__( 'No upcoming events.', 'wp-dansal' ) . '</p>';
+		}
+		$query->rewind_posts();
+		while ( $query->have_posts() ) {
+			$query->the_post();
+			$this->render_event_card( get_the_ID() );
+		}
+		echo '</div>';
+		return ob_get_clean();
+	}
+
+	private function render_map( $atts ) {
+		$this->enqueue_frontend_style();
+		$this->enqueue_leaflet();
+		$query  = $this->build_event_query( $atts );
+		$points = $this->group_events_by_location( $query );
+		wp_reset_postdata();
+		return $this->render_map_markup( $points );
+	}
+
+	private function render_map_and_list( $atts ) {
+		$this->enqueue_frontend_style();
+		$this->enqueue_leaflet();
+		$query  = $this->build_event_query( $atts );
+		$points = $this->group_events_by_location( $query );
+		$out    = $this->render_map_markup( $points ) . $this->render_list_markup( $query );
+		wp_reset_postdata();
+		return $out;
 	}
 
 	private function render_event_card( $post_id ) {
