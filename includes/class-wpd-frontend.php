@@ -745,9 +745,14 @@ class WPD_Frontend {
 			</div>
 			<table class="wpd-calendar-table">
 				<thead><tr>
-					<?php foreach ( array( 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ) as $d ) : ?>
-						<th><?php echo esc_html( $d ); ?></th>
-					<?php endforeach; ?>
+					<?php
+					global $wp_locale;
+					for ( $i = 1; $i <= 7; $i++ ) :
+						$wp_day = $i % 7;
+						$abbrev = $wp_locale ? $wp_locale->get_weekday_abbrev( $wp_locale->get_weekday( $wp_day ) ) : gmdate( 'D', mktime( 0, 0, 0, 1, 5 + $i, 2025 ) );
+						?>
+						<th><?php echo esc_html( $abbrev ); ?></th>
+					<?php endfor; ?>
 				</tr></thead>
 				<tbody><tr>
 					<?php for ( $i = 1; $i < $first_weekday; $i++ ) : ?>
@@ -829,9 +834,14 @@ class WPD_Frontend {
 			</div>
 			<table class="wpd-calendar-table">
 				<thead><tr>
-					<?php foreach ( array( 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ) as $d ) : ?>
-						<th><?php echo esc_html( $d ); ?></th>
-					<?php endforeach; ?>
+					<?php
+					global $wp_locale;
+					for ( $i = 1; $i <= 7; $i++ ) :
+						$wp_day = $i % 7;
+						$abbrev = $wp_locale ? $wp_locale->get_weekday_abbrev( $wp_locale->get_weekday( $wp_day ) ) : gmdate( 'D', mktime( 0, 0, 0, 1, 5 + $i, 2025 ) );
+						?>
+						<th><?php echo esc_html( $abbrev ); ?></th>
+					<?php endfor; ?>
 				</tr></thead>
 				<tbody><tr>
 					<?php for ( $i = 1; $i < $first_weekday; $i++ ) : ?>
@@ -955,9 +965,14 @@ class WPD_Frontend {
 				<?php endif; ?>
 			</div>
 			<div class="wpd-mini-grid">
-				<?php foreach ( array( 'M', 'T', 'W', 'T', 'F', 'S', 'S' ) as $d ) : ?>
-					<span class="wpd-mini-dow"><?php echo esc_html( $d ); ?></span>
-				<?php endforeach; ?>
+				<?php
+				global $wp_locale;
+				for ( $i = 1; $i <= 7; $i++ ) :
+					$wp_day = $i % 7;
+					$initial = $wp_locale ? $wp_locale->get_weekday_initial( $wp_locale->get_weekday( $wp_day ) ) : gmdate( 'D', mktime( 0, 0, 0, 1, 5 + $i, 2025 ) )[0];
+					?>
+					<span class="wpd-mini-dow"><?php echo esc_html( $initial ); ?></span>
+				<?php endfor; ?>
 				<?php for ( $i = 1; $i < $first_weekday; $i++ ) : ?>
 					<span class="wpd-mini-day wpd-mini-empty"></span>
 				<?php endfor; ?>
