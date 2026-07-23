@@ -75,6 +75,16 @@ class WPD_Settings {
 			// Optional security settings
 			'pinned_cert_sha256' => '',
 			'hmac_secret' => '',
+			// #99: WordPress-local "home" coordinates for [dansal_nearby]'s
+			// default proximity center. Explicitly NOT part of any dansal push
+			// payload — this is a plugin-side setting, not a per-location
+			// coordinate mirrored on the dansal server. Auto-seeded on
+			// activation from an existing dansal_location if any exist (see
+			// wpd_activate() in wp-dansal.php).
+			'home_lat'      => '',
+			'home_lon'      => '',
+			'home_address'  => '',
+			'home_seeded'   => false,
 		);
 	}
 
@@ -284,6 +294,70 @@ class WPD_Settings {
 		return (string) $this->get( 'nominatim_email' );
 	}
 
+	/**
+	 * @return array{lat: string, lon: string} Home coords as strings (''
+	 *                                          when unset). Strings not floats
+	 *                                          so the render can distinguish
+	 *                                          "unset" from "set to 0".
+	 */
+	public function get_home_coords() {
+		return array(
+			'lat' => (string) $this->get( 'home_lat' ),
+			'lon' => (string) $this->get( 'home_lon' ),
+		);
+	}
+
+	/**
+	 * Seed home_lat/home_lon from the most recently modified dansal_location
+	 * post carrying coordinates, once. The wpd_home_seeded flag persists the
+	 * decision so re-activation cannot clobber an admin's later hand edit.
+	 */
+	public function maybe_seed_home_coords() {
+		$opts = $this->get_all();
+		if ( ! empty( $opts['home_seeded'] ) ) {
+			return;
+		}
+		if ( '' !== (string) $opts['home_lat'] && '' !== (string) $opts['home_lon'] ) {
+			$opts['home_seeded'] = true;
+			update_option( self::OPTION, $opts );
+			return;
+		}
+		$q = new WP_Query(
+			array(
+				'post_type'      => 'dansal_location',
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'orderby'        => 'modified',
+				'order'          => 'DESC',
+				'meta_query'     => array(
+					array( 'key' => '_wpd_latitude', 'value' => '', 'compare' => '!=' ),
+					array( 'key' => '_wpd_longitude', 'value' => '', 'compare' => '!=' ),
+				),
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+			)
+		);
+		if ( ! empty( $q->posts ) ) {
+			$loc = $q->posts[0];
+			$lat = get_post_meta( $loc, '_wpd_latitude', true );
+			$lon = get_post_meta( $loc, '_wpd_longitude', true );
+			if ( '' !== $lat && '' !== $lon ) {
+				$opts['home_lat'] = (string) (float) $lat;
+				$opts['home_lon'] = (string) (float) $lon;
+				if ( empty( $opts['home_address'] ) ) {
+					$opts['home_address'] = get_the_title( $loc );
+				}
+			}
+		}
+		$opts['home_seeded'] = true;
+		update_option( self::OPTION, $opts );
+	}
+
+	public function has_home_coords() {
+		$c = $this->get_home_coords();
+		return '' !== $c['lat'] && '' !== $c['lon'];
+	}
+
 	public function get_dedup_radius_km() {
 		$v = (float) $this->get( 'dedup_radius_km' );
 		return $v > 0 ? $v : 0.2;
@@ -411,6 +485,14 @@ class WPD_Settings {
 		$out['pinned_cert_sha256'] = isset( $input['pinned_cert_sha256'] ) ? sanitize_text_field( $input['pinned_cert_sha256'] ) : ( isset( $existing['pinned_cert_sha256'] ) ? $existing['pinned_cert_sha256'] : '' );
 		$out['hmac_secret'] = isset( $input['hmac_secret'] ) ? sanitize_text_field( $input['hmac_secret'] ) : ( isset( $existing['hmac_secret'] ) ? $existing['hmac_secret'] : '' );
 
+		// Home location (#99). Accept blank explicitly so an admin can clear.
+		$raw_home_lat = isset( $input['home_lat'] ) ? trim( str_replace( ',', '.', (string) $input['home_lat'] ) ) : '';
+		$raw_home_lon = isset( $input['home_lon'] ) ? trim( str_replace( ',', '.', (string) $input['home_lon'] ) ) : '';
+		$out['home_lat'] = ( '' !== $raw_home_lat && is_numeric( $raw_home_lat ) ) ? (string) (float) $raw_home_lat : '';
+		$out['home_lon'] = ( '' !== $raw_home_lon && is_numeric( $raw_home_lon ) ) ? (string) (float) $raw_home_lon : '';
+		$out['home_address'] = isset( $input['home_address'] ) ? sanitize_text_field( wp_unslash( $input['home_address'] ) ) : ( isset( $existing['home_address'] ) ? $existing['home_address'] : '' );
+		$out['home_seeded'] = array_key_exists( 'home_seeded', $input ) ? (bool) $input['home_seeded'] : (bool) $existing['home_seeded'];
+
 		// A different dansal server may ship different vocabularies.
 		if ( $out['base_url'] !== $existing['base_url'] ) {
 			WPD_Vocab::flush();
@@ -473,6 +555,29 @@ class WPD_Settings {
 							<input type="text" inputmode="decimal" pattern="[0-9]+([.,][0-9]+)?" id="wpd_dedup_radius_km" name="<?php echo esc_attr( self::OPTION ); ?>[dedup_radius_km]" value="<?php echo esc_attr( $o['dedup_radius_km'] ); ?>" class="small-text" />
 							<p class="description"><?php esc_html_e( 'When creating a location, dansal locations within this radius are offered as possible duplicates before a new one is created.', 'wp-dansal' ); ?></p>
 						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Home location', 'wp-dansal' ); ?></h2>
+				<p class="description">
+					<?php esc_html_e( 'Default proximity center for the [dansal_nearby] shortcode when a visitor has not shared their own location. WordPress-side only — not synced to dansal.', 'wp-dansal' ); ?>
+				</p>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="wpd_home_address"><?php esc_html_e( 'Address', 'wp-dansal' ); ?></label></th>
+						<td>
+							<input type="text" id="wpd_home_address" name="<?php echo esc_attr( self::OPTION ); ?>[home_address]" value="<?php echo esc_attr( isset( $o['home_address'] ) ? $o['home_address'] : '' ); ?>" class="regular-text" />
+							<button type="button" class="button" id="wpd-home-search"><?php esc_html_e( 'Search', 'wp-dansal' ); ?></button>
+							<div id="wpd-home-results" style="margin-top:0.5em;"></div>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="wpd_home_lat"><?php esc_html_e( 'Latitude', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" inputmode="decimal" id="wpd_home_lat" name="<?php echo esc_attr( self::OPTION ); ?>[home_lat]" value="<?php echo esc_attr( isset( $o['home_lat'] ) ? $o['home_lat'] : '' ); ?>" class="regular-text" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="wpd_home_lon"><?php esc_html_e( 'Longitude', 'wp-dansal' ); ?></label></th>
+						<td><input type="text" inputmode="decimal" id="wpd_home_lon" name="<?php echo esc_attr( self::OPTION ); ?>[home_lon]" value="<?php echo esc_attr( isset( $o['home_lon'] ) ? $o['home_lon'] : '' ); ?>" class="regular-text" /></td>
 					</tr>
 				</table>
 
@@ -584,6 +689,52 @@ class WPD_Settings {
 					.catch(function (e) {
 						resultEl.textContent = String(e);
 						resultEl.style.color = 'crimson';
+					});
+			});
+		}
+
+		var homeBtn = document.getElementById('wpd-home-search');
+		if (homeBtn) {
+			homeBtn.addEventListener('click', function () {
+				var q = document.getElementById('wpd_home_address').value.trim();
+				var box = document.getElementById('wpd-home-results');
+				if (!q) { return; }
+				box.textContent = <?php echo wp_json_encode( __( 'Searching…', 'wp-dansal' ) ); ?>;
+				var url = ajaxurl + '?action=wpd_nominatim_search&_wpnonce=' + encodeURIComponent(<?php echo wp_json_encode( wp_create_nonce( 'wpd_nominatim_search' ) ); ?>) + '&q=' + encodeURIComponent(q);
+				fetch(url)
+					.then(function (r) { return r.json(); })
+					.then(function (data) {
+						box.textContent = '';
+						if (!data.success || !Array.isArray(data.data) || !data.data.length) {
+							box.textContent = <?php echo wp_json_encode( __( 'No results.', 'wp-dansal' ) ); ?>;
+							return;
+						}
+						var ul = document.createElement('ul');
+						ul.style.listStyle = 'none';
+						ul.style.margin = '0';
+						ul.style.padding = '0';
+						data.data.forEach(function (p) {
+							var li = document.createElement('li');
+							li.style.padding = '4px 0';
+							var btn = document.createElement('button');
+							btn.type = 'button';
+							btn.className = 'button-link';
+							btn.textContent = p.display_name || (p.name || '');
+							btn.addEventListener('click', function () {
+								document.getElementById('wpd_home_lat').value = p.lat;
+								document.getElementById('wpd_home_lon').value = p.lng;
+								if (p.display_name) {
+									document.getElementById('wpd_home_address').value = p.display_name;
+								}
+								box.textContent = '';
+							});
+							li.appendChild(btn);
+							ul.appendChild(li);
+						});
+						box.appendChild(ul);
+					})
+					.catch(function (e) {
+						box.textContent = String(e);
 					});
 			});
 		}

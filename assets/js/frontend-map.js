@@ -1,9 +1,12 @@
 /* global L */
-document.addEventListener( 'DOMContentLoaded', function () {
-	var mapEl = document.getElementById( 'wpd-locations-map' );
+function wpdInitMap( mapEl ) {
 	if ( ! mapEl || typeof L === 'undefined' ) {
 		return;
 	}
+	if ( mapEl.dataset.wpdMapReady === '1' ) {
+		return;
+	}
+	mapEl.dataset.wpdMapReady = '1';
 
 	// Points are shipped in a data- attribute (CSP-friendly — no inline
 	// <script> to allow) and JSON-parsed here.
@@ -94,4 +97,15 @@ document.addEventListener( 'DOMContentLoaded', function () {
 		var group = L.featureGroup( markers );
 		map.fitBounds( group.getBounds().pad( 0.2 ) );
 	}
+}
+
+window.wpdInitMaps = function () {
+	// #99: multiple map containers may share the id (initial render + AJAX swap
+	// for [dansal_nearby]); querySelectorAll picks up whichever is currently
+	// in the DOM. wpdMapReady guards against double init on the same node.
+	document.querySelectorAll( '.wpd-locations-map' ).forEach( wpdInitMap );
+};
+
+document.addEventListener( 'DOMContentLoaded', function () {
+	window.wpdInitMaps();
 } );

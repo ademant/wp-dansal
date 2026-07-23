@@ -29,10 +29,15 @@ class WPD_Frontend {
 
 		add_shortcode( 'dansal_events', array( $this, 'shortcode_events' ) );
 		add_shortcode( 'dansal_locations', array( $this, 'shortcode_locations' ) );
+		add_shortcode( 'dansal_nearby', array( $this, 'shortcode_nearby' ) );
 		add_filter( 'single_template', array( $this, 'single_template' ) );
 		add_filter( 'archive_template', array( $this, 'archive_template' ) );
 		add_filter( 'theme_page_templates', array( $this, 'register_page_templates' ) );
 		add_filter( 'page_template', array( $this, 'page_template' ) );
+		add_action( 'wp_ajax_wpd_mini_calendar', array( $this, 'ajax_mini_calendar' ) );
+		add_action( 'wp_ajax_nopriv_wpd_mini_calendar', array( $this, 'ajax_mini_calendar' ) );
+		add_action( 'wp_ajax_wpd_nearby', array( $this, 'ajax_nearby' ) );
+		add_action( 'wp_ajax_nopriv_wpd_nearby', array( $this, 'ajax_nearby' ) );
 	}
 
 	/**
@@ -106,6 +111,97 @@ class WPD_Frontend {
 		wp_enqueue_style( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.css', array(), '1.9.4' );
 		wp_enqueue_script( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.js', array(), '1.9.4', true );
 		wp_enqueue_script( 'wpd-map', WPD_PLUGIN_URL . 'assets/js/frontend-map.js', array( 'wpd-leaflet' ), wpd_asset_ver( 'assets/js/frontend-map.js' ), true );
+	}
+
+	private function enqueue_mini_calendar_script() {
+		wp_enqueue_script( 'wpd-mini-calendar', WPD_PLUGIN_URL . 'assets/js/frontend-mini-calendar.js', array(), wpd_asset_ver( 'assets/js/frontend-mini-calendar.js' ), true );
+		wp_localize_script(
+			'wpd-mini-calendar',
+			'wpdMiniCal',
+			array(
+				'ajaxurl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'wpd_mini_calendar' ),
+			)
+		);
+	}
+
+	private function enqueue_nearby_script() {
+		wp_enqueue_script( 'wpd-nearby', WPD_PLUGIN_URL . 'assets/js/frontend-nearby.js', array(), wpd_asset_ver( 'assets/js/frontend-nearby.js' ), true );
+		wp_localize_script(
+			'wpd-nearby',
+			'wpdNearby',
+			array(
+				'ajaxurl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'wpd_nearby' ),
+			)
+		);
+	}
+
+	/**
+	 * AJAX endpoint feeding the mini calendar's month arrows (see #98).
+	 * Returns the rendered HTML for the requested month; JS swaps it into
+	 * the widget in-place, avoiding the full page reload the anchor href
+	 * would otherwise trigger.
+	 */
+	public function ajax_mini_calendar() {
+		check_ajax_referer( 'wpd_mini_calendar' );
+
+		$month = isset( $_GET['month'] ) ? absint( $_GET['month'] ) : 0;
+		$year  = isset( $_GET['year'] ) ? absint( $_GET['year'] ) : 0;
+		if ( $month < 1 || $month > 12 || $year < 1970 || $year > 2100 ) {
+			wp_send_json_error( array( 'message' => 'Bad month/year' ) );
+		}
+
+		$atts = array(
+			'location'   => 0,
+			'tag'        => '',
+			'type'       => array(),
+			'limit'      => 100,
+			'view'       => 'mini',
+			'show_past'  => 1,
+			'month'      => $month,
+			'year'       => $year,
+			'show_types' => 0,
+		);
+
+		wp_send_json_success( array( 'html' => $this->render_mini_calendar( $atts ) ) );
+	}
+
+	/**
+	 * AJAX endpoint feeding [dansal_nearby] once the browser has
+	 * geolocated the visitor (see #99). Returns the rendered widget
+	 * HTML re-computed around the visitor's coords.
+	 */
+	public function ajax_nearby() {
+		check_ajax_referer( 'wpd_nearby' );
+
+		$lat       = isset( $_POST['lat'] ) && is_numeric( $_POST['lat'] ) ? (float) $_POST['lat'] : null;
+		$lon       = isset( $_POST['lon'] ) && is_numeric( $_POST['lon'] ) ? (float) $_POST['lon'] : null;
+		$radius_km = isset( $_POST['radius_km'] ) && is_numeric( $_POST['radius_km'] ) ? (float) $_POST['radius_km'] : 50.0;
+		$limit     = isset( $_POST['limit'] ) ? max( 1, min( 100, absint( $_POST['limit'] ) ) ) : 50;
+		$view      = isset( $_POST['view'] ) ? sanitize_key( wp_unslash( $_POST['view'] ) ) : 'map+list';
+		$tag       = isset( $_POST['tag'] ) ? sanitize_key( wp_unslash( $_POST['tag'] ) ) : '';
+		$exclude   = ! empty( $_POST['exclude_own_org'] ) ? 1 : 0;
+
+		if ( null === $lat || null === $lon ) {
+			wp_send_json_error( array( 'message' => 'Missing coordinates' ) );
+		}
+		$radius_km = max( 1.0, min( 500.0, $radius_km ) );
+		if ( ! in_array( $view, array( 'list', 'map', 'map+list' ), true ) ) {
+			$view = 'map+list';
+		}
+
+		$atts = array(
+			'lat'             => $lat,
+			'lon'             => $lon,
+			'radius_km'       => $radius_km,
+			'limit'           => $limit,
+			'view'            => $view,
+			'tag'             => $tag,
+			'exclude_own_org' => $exclude,
+		);
+
+		wp_send_json_success( array( 'html' => $this->render_nearby_from_coords( $atts ) ) );
 	}
 
 	/**
@@ -695,6 +791,159 @@ class WPD_Frontend {
 		return $out;
 	}
 
+	/**
+	 * Group a list of remote dansal events into location-anchored map points,
+	 * counterpart to group_events_by_location() for local WP_Query results.
+	 * dansal's event payload embeds `location` with `id/name/latitude/longitude`,
+	 * so no per-event round-trip is needed.
+	 */
+	private function group_remote_events_by_location( array $events ) {
+		$by_loc = array();
+		foreach ( $events as $event ) {
+			$loc = isset( $event['location'] ) && is_array( $event['location'] ) ? $event['location'] : array();
+			$lat = isset( $loc['latitude'] ) && is_numeric( $loc['latitude'] ) ? (float) $loc['latitude'] : null;
+			$lng = isset( $loc['longitude'] ) && is_numeric( $loc['longitude'] ) ? (float) $loc['longitude'] : null;
+			if ( null === $lat || null === $lng ) {
+				continue;
+			}
+			$loc_id = isset( $loc['id'] ) ? absint( $loc['id'] ) : 0;
+			$name   = isset( $loc['name'] ) ? (string) $loc['name'] : ( isset( $loc['location'] ) ? (string) $loc['location'] : '' );
+			$key    = $loc_id ? 'r' . $loc_id : sprintf( 'c%.5f,%.5f', $lat, $lng );
+			if ( ! isset( $by_loc[ $key ] ) ) {
+				$by_loc[ $key ] = array(
+					'lat'    => $lat,
+					'lng'    => $lng,
+					'title'  => $name,
+					'url'    => $loc_id ? $this->remote_location_url( $loc_id ) : '',
+					'events' => array(),
+				);
+			}
+			$by_loc[ $key ]['events'][] = array(
+				'title' => isset( $event['title'] ) ? (string) $event['title'] : '',
+				'url'   => $this->remote_event_url( $event ),
+				'when'  => isset( $event['start_time'] ) ? $this->format_datetime( (string) $event['start_time'] ) : '',
+			);
+		}
+		return array_values( $by_loc );
+	}
+
+	private function render_remote_events_list_markup( array $events ) {
+		ob_start();
+		echo '<div class="wpd-events-list">';
+		if ( empty( $events ) ) {
+			echo '<p class="wpd-no-events">' . esc_html__( 'No upcoming events.', 'wp-dansal' ) . '</p>';
+		}
+		foreach ( $events as $event ) {
+			$this->render_event_card_remote( $event );
+		}
+		echo '</div>';
+		return ob_get_clean();
+	}
+
+	/**
+	 * [dansal_nearby] — proximity-scoped event list/map fed by dansal's
+	 * remote GET /api/v1/events. Coordinates come from (in order):
+	 *   1. explicit lat/lon attributes,
+	 *   2. the visitor's browser (see assets/js/frontend-nearby.js — takes
+	 *      over after the initial server render via wp_ajax_wpd_nearby),
+	 *   3. the org-home coords stored in wpd_settings (#99).
+	 * If none is available the widget renders a short "not configured" note
+	 * instead of firing a bogus zero-coord query.
+	 */
+	public function shortcode_nearby( $atts ) {
+		$atts = shortcode_atts(
+			array(
+				'radius_km'       => 50,
+				'lat'             => '',
+				'lon'             => '',
+				'view'            => 'map+list',
+				'limit'           => 50,
+				'tag'             => '',
+				'type'            => '',
+				'exclude_own_org' => 1,
+			),
+			$atts,
+			'dansal_nearby'
+		);
+
+		$atts['radius_km']       = max( 1.0, min( 500.0, is_numeric( $atts['radius_km'] ) ? (float) $atts['radius_km'] : 50.0 ) );
+		$atts['lat']             = is_numeric( $atts['lat'] ) ? (float) $atts['lat'] : '';
+		$atts['lon']             = is_numeric( $atts['lon'] ) ? (float) $atts['lon'] : '';
+		$atts['view']            = in_array( $atts['view'], array( 'list', 'map', 'map+list' ), true ) ? $atts['view'] : 'map+list';
+		$atts['limit']           = max( 1, min( 100, absint( $atts['limit'] ) ) );
+		$atts['tag']             = sanitize_key( $atts['tag'] );
+		$atts['exclude_own_org'] = ! empty( $atts['exclude_own_org'] ) && '0' !== (string) $atts['exclude_own_org'] ? 1 : 0;
+
+		$this->enqueue_frontend_style();
+		$this->enqueue_nearby_script();
+
+		// Resolve fallback coords: shortcode override → org home → nothing.
+		if ( '' === $atts['lat'] || '' === $atts['lon'] ) {
+			$home = $this->settings->get_home_coords();
+			if ( '' !== $home['lat'] && '' !== $home['lon'] ) {
+				$atts['lat'] = (float) $home['lat'];
+				$atts['lon'] = (float) $home['lon'];
+			}
+		}
+
+		$data_attrs = sprintf(
+			' data-wpd-radius="%s" data-wpd-view="%s" data-wpd-limit="%d" data-wpd-tag="%s" data-wpd-exclude-own="%d"',
+			esc_attr( $atts['radius_km'] ),
+			esc_attr( $atts['view'] ),
+			(int) $atts['limit'],
+			esc_attr( $atts['tag'] ),
+			(int) $atts['exclude_own_org']
+		);
+
+		if ( '' === $atts['lat'] || '' === $atts['lon'] ) {
+			return '<div class="wpd-nearby" ' . trim( $data_attrs ) . '><p class="wpd-no-events">'
+				. esc_html__( 'Home location not configured yet — set coordinates in Settings → Dansal.', 'wp-dansal' )
+				. '</p></div>';
+		}
+
+		$inner = $this->render_nearby_from_coords( $atts );
+		return '<div class="wpd-nearby" ' . trim( $data_attrs ) . '>' . $inner . '</div>';
+	}
+
+	/**
+	 * Run the dansal remote-proximity query at the given lat/lon/radius and
+	 * return the inner markup (map, list, or both) — shared by the initial
+	 * server render (shortcode_nearby) and the AJAX swap (ajax_nearby).
+	 */
+	private function render_nearby_from_coords( $atts ) {
+		$query = array(
+			'lat'          => (float) $atts['lat'],
+			'lon'          => (float) $atts['lon'],
+			'radius_km'    => (float) $atts['radius_km'],
+			'include_past' => 'false',
+		);
+		if ( ! empty( $atts['tag'] ) ) {
+			$query['tag'] = $atts['tag'];
+		}
+
+		$fetch_atts = array(
+			'org'             => array(),
+			'exclude_own_org' => ! empty( $atts['exclude_own_org'] ) ? 1 : 0,
+		);
+		$events = $this->fetch_remote_events( $fetch_atts, $query, (int) $atts['limit'] );
+		$events = array_slice( $events, 0, (int) $atts['limit'] );
+
+		$view = isset( $atts['view'] ) ? $atts['view'] : 'map+list';
+
+		if ( 'list' === $view ) {
+			return $this->render_remote_events_list_markup( $events );
+		}
+
+		$this->enqueue_leaflet();
+		$points = $this->group_remote_events_by_location( $events );
+		$map    = $this->render_map_markup( $points );
+
+		if ( 'map' === $view ) {
+			return $map;
+		}
+		return $map . $this->render_remote_events_list_markup( $events );
+	}
+
 	private function event_type_label( $type ) {
 		$labels = array(
 			'ball'     => __( 'Ball', 'wp-dansal' ),
@@ -945,6 +1194,7 @@ class WPD_Frontend {
 	 * full day-by-day title list rendered by render_calendar().
 	 */
 	private function render_mini_calendar( $atts ) {
+		$this->enqueue_mini_calendar_script();
 		$month = $atts['month'] ? absint( $atts['month'] ) : (int) current_time( 'n' );
 		$year  = $atts['year'] ? absint( $atts['year'] ) : (int) current_time( 'Y' );
 
@@ -996,37 +1246,11 @@ class WPD_Frontend {
 		<div class="wpd-mini-calendar">
 			<div class="wpd-mini-nav">
 				<?php if ( $archive_url ) : ?>
-					<a href="
-                    <?php
-                    echo esc_url(
-                        add_query_arg(
-                            array(
-								'wpd_view' => 'calendar',
-								'wpd_month' => $prev_month,
-								'wpd_year' => $prev_year,
-                            ),
-                            $archive_url
-                        )
-                    );
-					?>
-                                ">&laquo;</a>
+					<a class="wpd-mini-prev" data-wpd-month="<?php echo esc_attr( $prev_month ); ?>" data-wpd-year="<?php echo esc_attr( $prev_year ); ?>" href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $prev_month, 'wpd_year' => $prev_year ), $archive_url ) ); ?>">&laquo;</a>
 				<?php endif; ?>
 				<span class="wpd-mini-title"><?php echo esc_html( date_i18n( 'F Y', mktime( 0, 0, 0, $month, 1, $year ) ) ); ?></span>
 				<?php if ( $archive_url ) : ?>
-					<a href="
-                    <?php
-                    echo esc_url(
-                        add_query_arg(
-                            array(
-								'wpd_view' => 'calendar',
-								'wpd_month' => $next_month,
-								'wpd_year' => $next_year,
-                            ),
-                            $archive_url
-                        )
-                    );
-					?>
-                                ">&raquo;</a>
+					<a class="wpd-mini-next" data-wpd-month="<?php echo esc_attr( $next_month ); ?>" data-wpd-year="<?php echo esc_attr( $next_year ); ?>" href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $next_month, 'wpd_year' => $next_year ), $archive_url ) ); ?>">&raquo;</a>
 				<?php endif; ?>
 			</div>
 			<div class="wpd-mini-grid">
