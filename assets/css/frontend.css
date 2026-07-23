@@ -272,3 +272,30 @@
 .wpd-mini-dot-other {
 	background: #999;
 }
+
+.wpd-events-simple {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.wpd-events-simple .wpd-event-simple {
+	padding: 4px 0;
+	border-bottom: 1px solid #eee;
+	line-height: 1.5;
+}
+
+.wpd-events-simple .wpd-event-simple-date {
+	font-weight: bold;
+}
+
+.wpd-events-simple .wpd-cancelled {
+	text-decoration: line-through;
+	opacity: 0.6;
+}
+
+.wpd-events-simple .wpd-event-simple-cancelled {
+	text-decoration: none;
+	font-weight: bold;
+	color: #d9534f;
+}

@@ -130,7 +130,7 @@ class WPD_Frontend {
 	}
 
 	/**
-	 * [dansal_events location="123" tag="bal-folk" limit="20" view="list|calendar" show_past="0"]
+	 * [dansal_events location="123" tag="bal-folk" limit="20" view="list|calendar|mini|map|map+list|simple|map+simple" show_past="0"]
 	 *
 	 * Remote-query attributes surface events from OTHER organizations/cities
 	 * on the same dansal instance, fetched live via GET /api/v1/events
@@ -173,7 +173,7 @@ class WPD_Frontend {
 		$atts['location']  = absint( $atts['location'] );
 		$atts['tag']       = sanitize_key( $atts['tag'] );
 		$atts['limit']     = max( 1, min( 100, absint( $atts['limit'] ) ) );
-		$atts['view']      = in_array( $atts['view'], array( 'list', 'calendar', 'mini', 'map', 'map+list' ), true ) ? $atts['view'] : 'list';
+		$atts['view']      = in_array( $atts['view'], array( 'list', 'calendar', 'mini', 'map', 'map+list', 'simple', 'map+simple' ), true ) ? $atts['view'] : 'list';
 		$atts['show_past'] = ! empty( $atts['show_past'] ) && '0' !== (string) $atts['show_past'] ? 1 : 0;
 		$month             = absint( $atts['month'] );
 		$atts['month']     = ( $month >= 1 && $month <= 12 ) ? $month : '';
@@ -211,6 +211,12 @@ class WPD_Frontend {
 		}
 		if ( 'map+list' === $atts['view'] && ! $remote ) {
 			return $this->render_map_and_list( $atts );
+		}
+		if ( 'simple' === $atts['view'] && ! $remote ) {
+			return $this->render_simple( $atts );
+		}
+		if ( 'map+simple' === $atts['view'] && ! $remote ) {
+			return $this->render_map_and_simple( $atts );
 		}
 		return $remote ? $this->render_list_remote( $atts ) : $this->render_list( $atts );
 	}
@@ -580,6 +586,56 @@ class WPD_Frontend {
 		$query  = $this->build_event_query( $atts );
 		$points = $this->group_events_by_location( $query );
 		$out    = $this->render_map_markup( $points ) . $this->render_list_markup( $query );
+		wp_reset_postdata();
+		return $out;
+	}
+
+	private function render_simple_markup( WP_Query $query ) {
+		ob_start();
+		echo '<ul class="wpd-events-simple">';
+		if ( ! $query->have_posts() ) {
+			echo '<li class="wpd-no-events">' . esc_html__( 'No upcoming events.', 'wp-dansal' ) . '</li>';
+		}
+		$query->rewind_posts();
+		while ( $query->have_posts() ) {
+			$query->the_post();
+			$eid       = get_the_ID();
+			$start     = get_post_meta( $eid, '_wpd_start_time', true );
+			$loc_id    = (int) get_post_meta( $eid, '_wpd_location_post_id', true );
+			$cancelled = '1' === get_post_meta( $eid, '_wpd_is_cancelled', true );
+			?>
+			<li class="wpd-event-simple<?php echo $cancelled ? ' wpd-cancelled' : ''; ?>">
+				<span class="wpd-event-simple-date"><?php echo esc_html( $this->format_datetime( $start ) ); ?></span>
+				<span class="wpd-event-simple-sep"> — </span>
+				<a class="wpd-event-simple-title" href="<?php echo esc_url( get_permalink( $eid ) ); ?>"><?php echo esc_html( get_the_title( $eid ) ); ?></a>
+				<?php if ( $loc_id ) : ?>
+					<span class="wpd-event-simple-at"> @ </span>
+					<a class="wpd-event-simple-venue" href="<?php echo esc_url( get_permalink( $loc_id ) ); ?>"><?php echo esc_html( get_the_title( $loc_id ) ); ?></a>
+				<?php endif; ?>
+				<?php if ( $cancelled ) : ?>
+					<span class="wpd-event-simple-cancelled"> (<?php esc_html_e( 'Cancelled', 'wp-dansal' ); ?>)</span>
+				<?php endif; ?>
+			</li>
+			<?php
+		}
+		echo '</ul>';
+		return ob_get_clean();
+	}
+
+	private function render_simple( $atts ) {
+		$this->enqueue_frontend_style();
+		$query = $this->build_event_query( $atts );
+		$out   = $this->render_simple_markup( $query );
+		wp_reset_postdata();
+		return $out;
+	}
+
+	private function render_map_and_simple( $atts ) {
+		$this->enqueue_frontend_style();
+		$this->enqueue_leaflet();
+		$query  = $this->build_event_query( $atts );
+		$points = $this->group_events_by_location( $query );
+		$out    = $this->render_map_markup( $points ) . $this->render_simple_markup( $query );
 		wp_reset_postdata();
 		return $out;
 	}
