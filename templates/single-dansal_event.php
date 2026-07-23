@@ -170,19 +170,19 @@ while ( have_posts() ) :
 						<?php if ( $food || $drink ) : ?>
 							<tr>
 								<th><?php esc_html_e( 'Food & drink:', 'wp-dansal' ); ?></th>
-								<td><?php echo esc_html( trim( $food . ' / ' . $drink, ' /' ) ); ?></td>
+								<td><?php echo esc_html( trim( WPD_Vocab::label( 'food', $food ) . ' / ' . WPD_Vocab::label( 'drink', $drink ), ' /' ) ); ?></td>
 							</tr>
 						<?php endif; ?>
 						<?php if ( $loc_parking ) : ?>
 							<tr>
 								<th><?php esc_html_e( 'Parking:', 'wp-dansal' ); ?></th>
-								<td><?php echo esc_html( $loc_parking ); ?></td>
+								<td><?php echo esc_html( WPD_Vocab::label( 'parking', $loc_parking ) ); ?></td>
 							</tr>
 						<?php endif; ?>
 						<?php if ( $effective_floor ) : ?>
 							<tr>
 								<th><?php esc_html_e( 'Floor:', 'wp-dansal' ); ?></th>
-								<td><?php echo esc_html( $effective_floor ); ?></td>
+								<td><?php echo esc_html( WPD_Vocab::label( 'floor_condition', $effective_floor ) ); ?></td>
 							</tr>
 						<?php endif; ?>
 						<?php if ( $amenities ) : ?>

@@ -53,6 +53,23 @@ class WPD_Vocab {
 		return array_key_exists( $value, $options ) ? $value : '';
 	}
 
+	/**
+	 * Translated label for one vocabulary slug, or the raw slug if unknown.
+	 * Use this in frontend templates instead of echoing the stored meta
+	 * value, so users see "Parkett" instead of "parquet".
+	 *
+	 * @param string $key food | drink | floor_condition | parking
+	 * @param string $slug
+	 */
+	public static function label( $key, $slug ) {
+		$slug = (string) $slug;
+		if ( '' === $slug ) {
+			return '';
+		}
+		$options = self::options( $key );
+		return isset( $options[ $slug ] ) ? $options[ $slug ] : $slug;
+	}
+
 	public static function flush() {
 		delete_transient( self::TRANSIENT );
 	}

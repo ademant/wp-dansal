@@ -76,11 +76,11 @@ while ( have_posts() ) :
 			<?php endif; ?>
 
 			<?php if ( $parking ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Parking:', 'wp-dansal' ); ?></strong> <?php echo esc_html( $parking ); ?></div>
+				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Parking:', 'wp-dansal' ); ?></strong> <?php echo esc_html( WPD_Vocab::label( 'parking', $parking ) ); ?></div>
 			<?php endif; ?>
 
 			<?php if ( $floor ) : ?>
-				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Floor:', 'wp-dansal' ); ?></strong> <?php echo esc_html( $floor ); ?></div>
+				<div class="wpd-meta-row"><strong><?php esc_html_e( 'Floor:', 'wp-dansal' ); ?></strong> <?php echo esc_html( WPD_Vocab::label( 'floor_condition', $floor ) ); ?></div>
 			<?php endif; ?>
 
 			<?php if ( $no_shoes ) : ?>
