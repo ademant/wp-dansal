@@ -605,7 +605,7 @@ class WPD_Frontend {
 			$cancelled = '1' === get_post_meta( $eid, '_wpd_is_cancelled', true );
 			?>
 			<li class="wpd-event-simple<?php echo $cancelled ? ' wpd-cancelled' : ''; ?>">
-				<span class="wpd-event-simple-date"><?php echo esc_html( $this->format_datetime( $start ) ); ?></span>
+				<span class="wpd-event-simple-date"><?php echo esc_html( $this->format_datetime( $start, 'd.m.Y H:i' ) ); ?></span>
 				<span class="wpd-event-simple-sep"> — </span>
 				<a class="wpd-event-simple-title" href="<?php echo esc_url( get_permalink( $eid ) ); ?>"><?php echo esc_html( get_the_title( $eid ) ); ?></a>
 				<?php if ( $loc_id ) : ?>
@@ -676,12 +676,15 @@ class WPD_Frontend {
 		return $active ? $active : array( 'other' );
 	}
 
-	private function format_datetime( $value ) {
+	private function format_datetime( $value, $format = null ) {
 		if ( ! $value ) {
 			return '';
 		}
+		if ( null === $format ) {
+			$format = get_option( 'date_format' ) . ' ' . get_option( 'time_format' );
+		}
 		$dt = date_create( $value );
-		return $dt ? date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $dt->getTimestamp() ) : $value;
+		return $dt ? date_i18n( $format, $dt->getTimestamp() ) : $value;
 	}
 
 	private function render_calendar( $atts ) {
