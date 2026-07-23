@@ -283,10 +283,35 @@
 	padding: 4px 0;
 	border-bottom: 1px solid #eee;
 	line-height: 1.5;
+	display: grid;
+	grid-template-columns: max-content 1fr max-content;
+	column-gap: 1em;
+	align-items: baseline;
 }
 
 .wpd-events-simple .wpd-event-simple-date {
 	font-weight: bold;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.wpd-events-simple .wpd-event-simple-sep,
+.wpd-events-simple .wpd-event-simple-at {
+	display: none;
+}
+
+.wpd-events-simple .wpd-event-simple-venue {
+	white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+	.wpd-events-simple .wpd-event-simple {
+		grid-template-columns: 1fr;
+		row-gap: 2px;
+	}
+	.wpd-events-simple .wpd-event-simple-venue {
+		white-space: normal;
+	}
 }
 
 .wpd-events-simple .wpd-cancelled {
