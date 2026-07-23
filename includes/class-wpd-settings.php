@@ -21,6 +21,24 @@ class WPD_Settings {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'wp_ajax_wpd_test_connection', array( $this, 'ajax_test_connection' ) );
 		add_action( 'wp_ajax_wpd_connect_link', array( $this, 'ajax_connect_link' ) );
+		add_action( 'wp_ajax_wpd_disconnect', array( $this, 'ajax_disconnect' ) );
+	}
+
+	/**
+	 * Wipe the stored publisher API key and related lifecycle flags. Server-
+	 * side revocation is optional and handled by the caller (see
+	 * WPD_Api_Client::revoke_apikey). Also invalidates any cached session
+	 * token so no later request tries to reuse it.
+	 */
+	public function clear_credentials() {
+		$opts                          = $this->get_all();
+		$opts['api_key']               = '';
+		$opts['api_key_encrypted']     = '';
+		$opts['api_key_expires_at']    = 0;
+		$opts['api_key_no_expiry']     = false;
+		$opts['api_key_dead']          = false;
+		update_option( self::OPTION, $opts );
+		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
 	}
 
 	private function defaults() {
@@ -512,6 +530,16 @@ class WPD_Settings {
 				<button type="button" class="button" id="wpd-test-connection"><?php esc_html_e( 'Test Connection', 'wp-dansal' ); ?></button>
 				<span id="wpd-test-connection-result" style="margin-left:10px;"></span>
 			</p>
+
+			<?php if ( '' !== $this->get_api_key() ) : ?>
+				<hr />
+				<h2><?php esc_html_e( 'Disconnect', 'wp-dansal' ); ?></h2>
+				<p><?php esc_html_e( 'Forget the publisher API key stored on this site. If the dansal server supports self-revoke, the key is also invalidated there; otherwise you\'ll need to delete it manually via /admin/users on dansal.', 'wp-dansal' ); ?></p>
+				<p>
+					<button type="button" class="button" id="wpd-disconnect"><?php esc_html_e( 'Disconnect', 'wp-dansal' ); ?></button>
+					<span id="wpd-disconnect-result" style="margin-left:10px;"></span>
+				</p>
+			<?php endif; ?>
 		</div>
 		<script>
 		document.getElementById('wpd-test-connection').addEventListener('click', function () {
@@ -528,6 +556,37 @@ class WPD_Settings {
 					resultEl.style.color = 'crimson';
 				});
 		});
+
+		var disconnectBtn = document.getElementById('wpd-disconnect');
+		if (disconnectBtn) {
+			disconnectBtn.addEventListener('click', function () {
+				if (!window.confirm(<?php echo wp_json_encode( __( 'Disconnect this site from dansal? The stored API key will be forgotten.', 'wp-dansal' ) ); ?>)) {
+					return;
+				}
+				var resultEl = document.getElementById('wpd-disconnect-result');
+				resultEl.textContent = <?php echo wp_json_encode( __( 'Disconnecting…', 'wp-dansal' ) ); ?>;
+				resultEl.style.color = '';
+				var body = new URLSearchParams();
+				body.set('action', 'wpd_disconnect');
+				body.set('_wpnonce', <?php echo wp_json_encode( wp_create_nonce( 'wpd_disconnect' ) ); ?>);
+				fetch(ajaxurl, { method: 'POST', body: body })
+					.then(function (r) { return r.json(); })
+					.then(function (data) {
+						var d = data.data || {};
+						var msg = d.message || (data.success ? 'OK' : 'Error');
+						if (d.hint) { msg += ' — ' + d.hint; }
+						resultEl.textContent = msg;
+						resultEl.style.color = data.success ? (d.server_revoked ? 'green' : '#b58900') : 'crimson';
+						if (data.success) {
+							setTimeout(function () { window.location.reload(); }, 3500);
+						}
+					})
+					.catch(function (e) {
+						resultEl.textContent = String(e);
+						resultEl.style.color = 'crimson';
+					});
+			});
+		}
 
 		document.getElementById('wpd-connect-link').addEventListener('click', function () {
 			var urlEl = document.getElementById('wpd-connect-url');
@@ -759,6 +818,59 @@ class WPD_Settings {
 				'org_id'   => $existing['org_id'],
 				/* translators: %s: organization name returned by dansal. */
 				'message'  => sprintf( __( 'Connected to organization "%s". Settings saved.', 'wp-dansal' ), isset( $body['org_name'] ) ? $body['org_name'] : $existing['org_id'] ),
+			)
+		);
+	}
+
+	/**
+	 * Admin-triggered disconnect. Best-effort server-side revocation via
+	 * DELETE /api/v1/apikeys/current (dansal #869); when the server doesn't
+	 * expose that route yet, still clear locally and return a hint so the
+	 * admin knows to delete the publisher key by hand from dansal's
+	 * /admin/users.
+	 */
+	public function ajax_disconnect() {
+		check_ajax_referer( 'wpd_disconnect' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
+		}
+		if ( '' === $this->get_api_key() ) {
+			wp_send_json_error( array( 'message' => __( 'No API key configured — nothing to disconnect.', 'wp-dansal' ) ) );
+		}
+
+		$api = wpd_plugin()->api;
+
+		$supported = $api->apikey_delete_supported();
+		$server_revoked = false;
+		$hint = '';
+
+		if ( $supported ) {
+			$result = $api->revoke_apikey();
+			if ( is_wp_error( $result ) ) {
+				if ( 'wpd_apikey_revoke_unsupported' === $result->get_error_code() ) {
+					$supported = false;
+				} else {
+					/* translators: %s: underlying error message from dansal. */
+					$hint = sprintf( __( 'Server-side revocation failed (%s). The API key stays valid on dansal — delete it by hand from /admin/users.', 'wp-dansal' ), $result->get_error_message() );
+				}
+			} else {
+				$server_revoked = true;
+			}
+		}
+
+		if ( ! $supported && '' === $hint ) {
+			$hint = __( 'This dansal server does not support self-revoke of API keys. Delete the publisher API key by hand from dansal /admin/users, otherwise it stays valid.', 'wp-dansal' );
+		}
+
+		$this->clear_credentials();
+
+		wp_send_json_success(
+			array(
+				'server_revoked' => $server_revoked,
+				'hint'           => $hint,
+				'message'        => $server_revoked
+					? __( 'Disconnected. Publisher API key revoked on dansal.', 'wp-dansal' )
+					: __( 'Disconnected locally.', 'wp-dansal' ),
 			)
 		);
 	}

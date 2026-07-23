@@ -388,4 +388,76 @@ class WPD_Api_Client {
 	public function delete( $path ) {
 		return $this->request( 'DELETE', $path );
 	}
+
+	/**
+	 * Probe whether the dansal server supports self-revoke of the current
+	 * publisher API key (DELETE /api/v1/apikeys/current — see dansal #869).
+	 * Uses HTTP OPTIONS + Allow header per RFC 7231 §4.3.7. Callers get a
+	 * plain bool: true when Allow lists DELETE, false otherwise (route
+	 * missing, older dansal, transport error). Never throws.
+	 */
+	public function apikey_delete_supported() {
+		$url = $this->settings->get_base_url() . '/api/v1/apikeys/current';
+		$response = wp_remote_request(
+			$url,
+			array(
+				'method'  => 'OPTIONS',
+				'timeout' => self::timeout( '/api/v1/apikeys/current' ),
+				'headers' => array( 'Accept' => 'application/json' ),
+			)
+		);
+		if ( is_wp_error( $response ) ) {
+			return false;
+		}
+		$allow = strtoupper( (string) wp_remote_retrieve_header( $response, 'allow' ) );
+		if ( '' === $allow ) {
+			return false;
+		}
+		$methods = array_map( 'trim', explode( ',', $allow ) );
+		return in_array( 'DELETE', $methods, true );
+	}
+
+	/**
+	 * Revoke the current publisher API key via DELETE /api/v1/apikeys/current.
+	 * Server-side counterpart to admin-triggered disconnect and uninstall
+	 * cleanup. Callers should call apikey_delete_supported() first and fall
+	 * back to a manual-cleanup hint when this returns wpd_apikey_revoke_unsupported.
+	 *
+	 * @return true|WP_Error
+	 */
+	public function revoke_apikey() {
+		$api_key = $this->settings->get_api_key();
+		if ( '' === $api_key ) {
+			return new WP_Error( 'wpd_no_api_key', __( 'No dansal API key configured.', 'wp-dansal' ) );
+		}
+		$url = $this->settings->get_base_url() . '/api/v1/apikeys/current';
+		$args = array(
+			'method'  => 'DELETE',
+			'timeout' => self::timeout( '/api/v1/apikeys/current' ),
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $api_key,
+				'Accept'        => 'application/json',
+			),
+		);
+		$response = wp_remote_request( $url, $args );
+		$response = $this->maybe_retry_after( $response, $url, $args );
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		if ( 204 === $code || ( $code >= 200 && $code < 300 ) ) {
+			return true;
+		}
+		if ( 401 === $code ) {
+			// Server already considers the key invalid — treat as revoked.
+			return true;
+		}
+		if ( 404 === $code || 405 === $code ) {
+			return new WP_Error( 'wpd_apikey_revoke_unsupported', __( 'This dansal server does not support self-revoke of API keys.', 'wp-dansal' ) );
+		}
+		$body    = json_decode( wp_remote_retrieve_body( $response ), true );
+		$message = is_array( $body ) && ! empty( $body['error'] ) ? $body['error'] : sprintf( 'HTTP %d', $code );
+		return new WP_Error( 'wpd_apikey_revoke_failed', $message );
+	}
 }
