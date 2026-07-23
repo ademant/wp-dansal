@@ -736,7 +736,47 @@ class WPD_CPT_Location {
 		}
 
 		$this->write_location_post( $post_id, $loc );
+		$this->backfill_events_for_location( $dansal_id, $post_id );
 		return 'created';
+	}
+
+	/**
+	 * When a location is newly imported, look up events that were pulled
+	 * before this location existed — they carry the dansal location id in
+	 * _wpd_last_synced_location_dansal_id but got an empty
+	 * _wpd_location_post_id because find_post_id_by_dansal_id() returned 0
+	 * at the time — and set the link now. Bounded by wpd_full_sync_cap so a
+	 * runaway org can't stall the sync tick.
+	 */
+	private function backfill_events_for_location( $dansal_id, $post_id ) {
+		if ( $dansal_id <= 0 || $post_id <= 0 ) {
+			return;
+		}
+		$cap = (int) apply_filters( 'wpd_full_sync_cap', 5000, '/api/v1/events' );
+		$q   = new WP_Query(
+			array(
+				'post_type'      => WPD_CPT_Event::POST_TYPE,
+				'post_status'    => 'any',
+				'posts_per_page' => $cap,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+				'meta_query'     => array(
+					'relation' => 'AND',
+					array(
+						'key'   => WPD_CPT_Event::META_LAST_SYNCED_LOCATION,
+						'value' => (int) $dansal_id,
+					),
+					array(
+						'relation' => 'OR',
+						array( 'key' => '_wpd_location_post_id', 'compare' => 'NOT EXISTS' ),
+						array( 'key' => '_wpd_location_post_id', 'value' => '', 'compare' => '=' ),
+					),
+				),
+			)
+		);
+		foreach ( $q->posts as $eid ) {
+			update_post_meta( (int) $eid, '_wpd_location_post_id', (int) $post_id );
+		}
 	}
 
 	/**
