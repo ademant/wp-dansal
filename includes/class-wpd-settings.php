@@ -327,9 +327,12 @@ class WPD_Settings {
 		$out['nominatim_email'] = isset( $input['nominatim_email'] ) ? sanitize_email( $input['nominatim_email'] ) : $existing['nominatim_email'];
 		$out['dedup_radius_km'] = isset( $input['dedup_radius_km'] ) ? (float) str_replace( ',', '.', (string) $input['dedup_radius_km'] ) : $existing['dedup_radius_km'];
 
-		// Only overwrite the API key if a new value was actually typed in;
-		// the settings form re-renders a masked placeholder, never the real key.
-		if ( ! empty( $input['api_key'] ) ) {
+		// Only overwrite the API key if a new real value was actually typed in.
+		// The settings form re-renders the masked placeholder '***', never the
+		// real key. Programmatic update_option() calls (e.g. ajax_connect_link)
+		// also pass '***' + a fresh api_key_encrypted — treat those the same as
+		// an unchanged field so we don't accidentally re-encrypt the placeholder.
+		if ( ! empty( $input['api_key'] ) && '***' !== $input['api_key'] ) {
 			$plaintext = sanitize_text_field( $input['api_key'] );
 			$encrypted = $this->encrypt_api_key( $plaintext );
 			if ( false !== $encrypted ) {
@@ -341,8 +344,14 @@ class WPD_Settings {
 				$out['api_key_encrypted'] = '';
 			}
 		} else {
-			$out['api_key'] = $existing['api_key'];
-			$out['api_key_encrypted'] = isset( $existing['api_key_encrypted'] ) ? $existing['api_key_encrypted'] : '';
+			// Preserve incoming api_key_encrypted when explicitly set by a
+			// programmatic call (e.g. ajax_connect_link just stored the real
+			// encrypted key there). Fall back to the current DB value when the
+			// field is absent (normal settings-form submissions don't include it).
+			$out['api_key'] = ! empty( $input['api_key'] ) ? $input['api_key'] : $existing['api_key'];
+			$out['api_key_encrypted'] = ! empty( $input['api_key_encrypted'] )
+				? $input['api_key_encrypted']
+				: ( isset( $existing['api_key_encrypted'] ) ? $existing['api_key_encrypted'] : '' );
 		}
 
 		// Credentials or org changed: any cached publisher session token is invalid now.
@@ -352,24 +361,32 @@ class WPD_Settings {
 		} elseif ( ! empty( $existing['api_key'] ) && '***' !== $existing['api_key'] ) {
 			$existing_plain = $existing['api_key'];
 		}
+		// For the incoming key, use the decrypted value when api_key is the
+		// placeholder (so we can tell whether a real key change occurred).
 		$incoming_plain = '';
-		if ( ! empty( $input['api_key'] ) ) {
+		if ( ! empty( $input['api_key'] ) && '***' !== $input['api_key'] ) {
 			$incoming_plain = sanitize_text_field( $input['api_key'] );
+		} elseif ( ! empty( $out['api_key_encrypted'] ) ) {
+			$incoming_plain = (string) $this->decrypt_api_key( $out['api_key_encrypted'] );
 		}
 		if ( $incoming_plain !== $existing_plain || $out['base_url'] !== $existing['base_url'] ) {
 			delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
 		}
 
-		// A new API key resets everything the renew flow tracks; unrelated
-		// updates preserve it.
-		if ( '' !== $incoming_plain && $incoming_plain !== $existing_plain ) {
+		// A new real plaintext key typed in the admin form resets renewal state.
+		// Programmatic callers (ajax_connect_link, record_apikey_renewed,
+		// mark_apikey_no_expiry, mark_apikey_dead) pass '***' as the api_key
+		// and supply their own lifecycle values in $input — honour those verbatim
+		// rather than resetting, so renew expiry / no-expiry / dead flags survive.
+		$real_plaintext_typed = ! empty( $input['api_key'] ) && '***' !== $input['api_key'];
+		if ( $real_plaintext_typed ) {
 			$out['api_key_expires_at'] = 0;
 			$out['api_key_no_expiry']  = false;
 			$out['api_key_dead']       = false;
 		} else {
-			$out['api_key_expires_at'] = (int) $existing['api_key_expires_at'];
-			$out['api_key_no_expiry']  = (bool) $existing['api_key_no_expiry'];
-			$out['api_key_dead']       = (bool) $existing['api_key_dead'];
+			$out['api_key_expires_at'] = array_key_exists( 'api_key_expires_at', $input ) ? (int) $input['api_key_expires_at'] : (int) $existing['api_key_expires_at'];
+			$out['api_key_no_expiry']  = array_key_exists( 'api_key_no_expiry', $input ) ? (bool) $input['api_key_no_expiry'] : (bool) $existing['api_key_no_expiry'];
+			$out['api_key_dead']       = array_key_exists( 'api_key_dead', $input ) ? (bool) $input['api_key_dead'] : (bool) $existing['api_key_dead'];
 		}
 
 		// Optional security settings
