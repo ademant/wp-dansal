@@ -108,6 +108,7 @@ final class WPD_Plugin {
 		// Domain Path header below.
 		add_action( 'init', array( $this, 'load_textdomain' ), 1 );
 		add_action( 'init', array( $this, 'ensure_cron_scheduled' ) );
+		add_action( 'init', array( $this, 'maybe_flush_rewrite_rules' ), 20 );
 		add_action( 'wpd_apikey_renew_check', array( $this, 'cron_renew_apikey' ) );
 		add_action( 'admin_notices', array( $this, 'admin_notice_apikey_dead' ) );
 	}
@@ -152,6 +153,22 @@ final class WPD_Plugin {
 	public function load_textdomain() {
 		load_plugin_textdomain( 'wp-dansal', false, dirname( plugin_basename( WPD_PLUGIN_FILE ) ) . '/languages' );
 	}
+
+	/**
+	 * Runs on 'init' at priority 20, after the CPT classes have registered
+	 * their post types at the default priority. Activation can't flush
+	 * rewrite rules directly — 'init' has already fired once by the time the
+	 * activation hook runs, and re-firing it with do_action('init') breaks
+	 * other plugins whose 'init' callbacks aren't safe to run twice in one
+	 * request (#93). So activation just sets a flag, and the actual flush
+	 * happens here on the next real 'init'.
+	 */
+	public function maybe_flush_rewrite_rules() {
+		if ( get_option( 'wpd_flush_rewrite_rules' ) ) {
+			flush_rewrite_rules();
+			delete_option( 'wpd_flush_rewrite_rules' );
+		}
+	}
 }
 
 function wpd_plugin() {
@@ -160,14 +177,12 @@ function wpd_plugin() {
 wpd_plugin();
 
 /**
- * Activation: register CPTs (via the classes' own hooks having already run
- * on this same request) then flush rewrite rules.
+ * Activation: defer the rewrite-rules flush to the next real 'init' (see
+ * WPD_Plugin::maybe_flush_rewrite_rules()) rather than forcing 'init' to
+ * fire a second time in this request, which is unsafe for other plugins.
  */
 function wpd_activate() {
-	// Post types are registered on 'init' by the CPT classes; make sure that
-	// has happened before we flush rewrite rules.
-	do_action( 'init' );
-	flush_rewrite_rules();
+	update_option( 'wpd_flush_rewrite_rules', 1 );
 	if ( ! wp_next_scheduled( 'wpd_apikey_renew_check' ) ) {
 		wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'wpd_apikey_renew_check' );
 	}
