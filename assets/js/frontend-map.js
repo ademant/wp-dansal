@@ -58,8 +58,6 @@ document.addEventListener( 'DOMContentLoaded', function () {
 	function makeLink( url, text ) {
 		var a = document.createElement( 'a' );
 		a.href = safeHttpUrl( url );
-		a.target = '_blank';
-		a.rel = 'noopener noreferrer';
 		a.textContent = text || a.href;
 		return a;
 	}
