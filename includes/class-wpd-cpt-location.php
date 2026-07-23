@@ -712,6 +712,11 @@ class WPD_CPT_Location {
 		$post_id = self::find_post_id_by_dansal_id( $dansal_id );
 
 		if ( $post_id ) {
+			// Backfill runs even when the location payload itself is current,
+			// so upgrading to a version that added the link fixes existing
+			// installs on the next Dance → Locations visit without needing
+			// a separate migration step.
+			$this->backfill_events_for_location( $dansal_id, $post_id );
 			$last_synced = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_AT, true );
 			if ( $updated_at > 0 && $updated_at <= $last_synced ) {
 				return null; // Local copy is already current.
@@ -741,12 +746,15 @@ class WPD_CPT_Location {
 	}
 
 	/**
-	 * When a location is newly imported, look up events that were pulled
-	 * before this location existed — they carry the dansal location id in
-	 * _wpd_last_synced_location_dansal_id but got an empty
-	 * _wpd_location_post_id because find_post_id_by_dansal_id() returned 0
-	 * at the time — and set the link now. Bounded by wpd_full_sync_cap so a
-	 * runaway org can't stall the sync tick.
+	 * Backfill events that carry this location's dansal id in
+	 * _wpd_last_synced_location_dansal_id but have an empty
+	 * _wpd_location_post_id. Two triggering cases:
+	 *   1. Fresh install: events were pulled before their location existed,
+	 *      so find_post_id_by_dansal_id() returned 0 → empty meta.
+	 *   2. Upgrade: an older plugin version failed to set the link at pull
+	 *      time; running this on every location pull heals those installs
+	 *      the next time Dance → Locations is visited.
+	 * Bounded by wpd_full_sync_cap so a runaway org can't stall the tick.
 	 */
 	private function backfill_events_for_location( $dansal_id, $post_id ) {
 		if ( $dansal_id <= 0 || $post_id <= 0 ) {
