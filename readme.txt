@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.8.0
+Stable tag: 0.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,13 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Translation files are available for German (de_DE), French (fr_FR), Spanish (es_ES), Czech (cs_CZ), and Polish (pl_PL). To contribute translations: edit the `.po` file for your locale and compile it to `.mo`, or use a tool like Poedit. Files can be placed in the plugin's `languages/` directory or in `wp-content/languages/plugins/` to persist across updates.
 
 == Changelog ==
+
+= 0.8.1 =
+* `[dansal_events]` gains a `type` attribute filtering the boolean event-type flags (`ball`, `workshop`, `festival`, `other`) — the existing `tag` attribute only ever matched the free-tags meta.
+* `[dansal_events view="simple"]` gains `show_types="1"`, prepending a colored dot per active event type (reusing the mini calendar palette).
+* New classic widget **Dansal Upcoming Events**: compact one-line-per-event sidebar list, with title/limit/tag/event-types/show-icons fields.
+* Settings → Dansal gains a **Disconnect** button that first probes the dansal server (OPTIONS /api/v1/apikeys/current) and, if supported, revokes the publisher key server-side before wiping local credentials; otherwise clears locally and hints that the key must be deleted by hand. `uninstall.php` does the same best-effort DELETE before dropping wpd_settings.
+* Fix: after a fresh connect-link, visiting Dance → Events before Dance → Locations left events with an empty location — `pull_one_location()` now backfills `_wpd_location_post_id` for events that were pulled before their location existed.
 
 = 0.8.0 =
 * `[dansal_locations]` gains `tag`, `country`, and `location` attributes for filtering the directory (tag filter subqueries events → locations, since only events carry tags).
