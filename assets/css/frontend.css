@@ -282,11 +282,16 @@
 .wpd-events-simple .wpd-event-simple {
 	padding: 4px 0;
 	border-bottom: 1px solid #eee;
-	line-height: 1.5;
+	line-height: 1.4;
 	display: grid;
-	grid-template-columns: max-content 1fr max-content;
-	column-gap: 1em;
+	grid-template-columns: max-content 1fr;
+	column-gap: 0.75em;
+	row-gap: 2px;
 	align-items: baseline;
+}
+
+.wpd-events-simple-with-types .wpd-event-simple {
+	grid-template-columns: max-content max-content 1fr;
 }
 
 .wpd-events-simple .wpd-event-simple-date {
@@ -295,13 +300,15 @@
 	white-space: nowrap;
 }
 
+.wpd-events-simple .wpd-event-simple-title {
+	min-width: 0;
+	overflow-wrap: break-word;
+	word-break: break-word;
+}
+
 .wpd-events-simple .wpd-event-simple-sep,
 .wpd-events-simple .wpd-event-simple-at {
 	display: none;
-}
-
-.wpd-events-simple-with-types .wpd-event-simple {
-	grid-template-columns: max-content max-content 1fr max-content;
 }
 
 .wpd-events-simple .wpd-event-simple-types {
@@ -311,18 +318,9 @@
 }
 
 .wpd-events-simple .wpd-event-simple-venue {
-	white-space: nowrap;
-}
-
-@media (max-width: 600px) {
-	.wpd-events-simple .wpd-event-simple,
-	.wpd-events-simple-with-types .wpd-event-simple {
-		grid-template-columns: 1fr;
-		row-gap: 2px;
-	}
-	.wpd-events-simple .wpd-event-simple-venue {
-		white-space: normal;
-	}
+	grid-column: 1 / -1;
+	font-size: 0.9em;
+	opacity: 0.85;
 }
 
 .wpd-events-simple .wpd-cancelled {
