@@ -59,6 +59,7 @@ require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-instructor.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-remote-events.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-frontend.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-widget-mini-calendar.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-widget-upcoming-events.php';
 
 /**
  * Central bootstrap. Everything else is wired up through the classes below,

@@ -300,12 +300,23 @@
 	display: none;
 }
 
+.wpd-events-simple-with-types .wpd-event-simple {
+	grid-template-columns: max-content max-content 1fr max-content;
+}
+
+.wpd-events-simple .wpd-event-simple-types {
+	display: inline-flex;
+	gap: 2px;
+	align-items: center;
+}
+
 .wpd-events-simple .wpd-event-simple-venue {
 	white-space: nowrap;
 }
 
 @media (max-width: 600px) {
-	.wpd-events-simple .wpd-event-simple {
+	.wpd-events-simple .wpd-event-simple,
+	.wpd-events-simple-with-types .wpd-event-simple {
 		grid-template-columns: 1fr;
 		row-gap: 2px;
 	}

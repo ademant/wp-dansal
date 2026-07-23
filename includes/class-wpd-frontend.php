@@ -168,6 +168,7 @@ class WPD_Frontend {
 				'lon'             => '',
 				'radius_km'       => '',
 				'exclude_own_org' => 0,
+				'show_types'      => 0,
             ),
             $atts,
             'dansal_events'
@@ -196,6 +197,7 @@ class WPD_Frontend {
 		$atts['lon']             = is_numeric( $atts['lon'] ) ? (float) $atts['lon'] : '';
 		$atts['radius_km']       = is_numeric( $atts['radius_km'] ) && $atts['radius_km'] > 0 ? (float) $atts['radius_km'] : '';
 		$atts['exclude_own_org'] = ! empty( $atts['exclude_own_org'] ) && '0' !== (string) $atts['exclude_own_org'] ? 1 : 0;
+		$atts['show_types']      = ! empty( $atts['show_types'] ) && '0' !== (string) $atts['show_types'] ? 1 : 0;
 		// Proximity search needs all three parts; a partial lat/lon/radius_km
 		// combination is silently dropped rather than sent to dansal, which
 		// would otherwise ignore it anyway (see API.md, GET /api/v1/events).
@@ -635,9 +637,9 @@ class WPD_Frontend {
 		return $out;
 	}
 
-	private function render_simple_markup( WP_Query $query ) {
+	private function render_simple_markup( WP_Query $query, $show_types = false ) {
 		ob_start();
-		echo '<ul class="wpd-events-simple">';
+		echo '<ul class="wpd-events-simple' . ( $show_types ? ' wpd-events-simple-with-types' : '' ) . '">';
 		if ( ! $query->have_posts() ) {
 			echo '<li class="wpd-no-events">' . esc_html__( 'No upcoming events.', 'wp-dansal' ) . '</li>';
 		}
@@ -648,8 +650,16 @@ class WPD_Frontend {
 			$start     = get_post_meta( $eid, '_wpd_start_time', true );
 			$loc_id    = (int) get_post_meta( $eid, '_wpd_location_post_id', true );
 			$cancelled = '1' === get_post_meta( $eid, '_wpd_is_cancelled', true );
+			$types     = $show_types ? $this->event_type_keys( $eid ) : array();
 			?>
 			<li class="wpd-event-simple<?php echo $cancelled ? ' wpd-cancelled' : ''; ?>">
+				<?php if ( $show_types ) : ?>
+					<span class="wpd-mini-markers wpd-event-simple-types">
+						<?php foreach ( $types as $t ) : ?>
+							<i class="wpd-mini-dot wpd-mini-dot-<?php echo esc_attr( $t ); ?>" title="<?php echo esc_attr( $this->event_type_label( $t ) ); ?>"></i>
+						<?php endforeach; ?>
+					</span>
+				<?php endif; ?>
 				<span class="wpd-event-simple-date"><?php echo esc_html( $this->format_datetime( $start, 'd.m.Y H:i' ) ); ?></span>
 				<span class="wpd-event-simple-sep"> — </span>
 				<a class="wpd-event-simple-title" href="<?php echo esc_url( get_permalink( $eid ) ); ?>"><?php echo esc_html( get_the_title( $eid ) ); ?></a>
@@ -670,7 +680,7 @@ class WPD_Frontend {
 	private function render_simple( $atts ) {
 		$this->enqueue_frontend_style();
 		$query = $this->build_event_query( $atts );
-		$out   = $this->render_simple_markup( $query );
+		$out   = $this->render_simple_markup( $query, ! empty( $atts['show_types'] ) );
 		wp_reset_postdata();
 		return $out;
 	}
@@ -680,9 +690,19 @@ class WPD_Frontend {
 		$this->enqueue_leaflet();
 		$query  = $this->build_event_query( $atts );
 		$points = $this->group_events_by_location( $query );
-		$out    = $this->render_map_markup( $points ) . $this->render_simple_markup( $query );
+		$out    = $this->render_map_markup( $points ) . $this->render_simple_markup( $query, ! empty( $atts['show_types'] ) );
 		wp_reset_postdata();
 		return $out;
+	}
+
+	private function event_type_label( $type ) {
+		$labels = array(
+			'ball'     => __( 'Ball', 'wp-dansal' ),
+			'workshop' => __( 'Workshop', 'wp-dansal' ),
+			'festival' => __( 'Festival', 'wp-dansal' ),
+			'other'    => __( 'Other', 'wp-dansal' ),
+		);
+		return isset( $labels[ $type ] ) ? $labels[ $type ] : (string) $type;
 	}
 
 	private function render_event_card( $post_id ) {
