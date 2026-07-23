@@ -130,7 +130,13 @@ class WPD_Frontend {
 	}
 
 	/**
-	 * [dansal_events location="123" tag="bal-folk" limit="20" view="list|calendar|mini|map|map+list|simple|map+simple" show_past="0"]
+	 * [dansal_events location="123" tag="bal-folk" type="ball,workshop,festival,other" limit="20" view="list|calendar|mini|map|map+list|simple|map+simple" show_past="0"]
+	 *
+	 * `tag` filters the free-tags meta (_wpd_tags), `type` filters the
+	 * boolean event-type flags (_wpd_has_ball / _wpd_has_workshop /
+	 * _wpd_has_festival), OR-combined. `other` matches events with none
+	 * of the three flags set. Remote queries currently only honor `tag`;
+	 * `type` is local-only (no confirmed dansal query param spelling).
 	 *
 	 * Remote-query attributes surface events from OTHER organizations/cities
 	 * on the same dansal instance, fetched live via GET /api/v1/events
@@ -149,6 +155,7 @@ class WPD_Frontend {
             array(
 				'location'        => '',
 				'tag'             => '',
+				'type'            => '',
 				'limit'           => 20,
 				'view'            => 'list',
 				'show_past'       => 0,
@@ -172,6 +179,8 @@ class WPD_Frontend {
 		// IDs/dates.
 		$atts['location']  = absint( $atts['location'] );
 		$atts['tag']       = sanitize_key( $atts['tag'] );
+		$raw_types         = array_map( 'sanitize_key', explode( ',', (string) $atts['type'] ) );
+		$atts['type']      = array_values( array_unique( array_intersect( $raw_types, array( 'ball', 'workshop', 'festival', 'other' ) ) ) );
 		$atts['limit']     = max( 1, min( 100, absint( $atts['limit'] ) ) );
 		$atts['view']      = in_array( $atts['view'], array( 'list', 'calendar', 'mini', 'map', 'map+list', 'simple', 'map+simple' ), true ) ? $atts['view'] : 'list';
 		$atts['show_past'] = ! empty( $atts['show_past'] ) && '0' !== (string) $atts['show_past'] ? 1 : 0;
@@ -286,6 +295,42 @@ class WPD_Frontend {
 				'value' => ',' . sanitize_key( $atts['tag'] ) . ',',
 				'compare' => 'LIKE',
 			);
+		}
+		if ( ! empty( $atts['type'] ) && is_array( $atts['type'] ) ) {
+			$type_sub = array( 'relation' => 'OR' );
+			foreach ( $atts['type'] as $type ) {
+				if ( 'other' === $type ) {
+					// event_type_keys() treats a post as "other" when none of
+					// the three flag metas equal '1'. That includes missing
+					// keys, so each flag needs (NOT EXISTS OR value != '1').
+					$type_sub[] = array(
+						'relation' => 'AND',
+						array(
+							'relation' => 'OR',
+							array( 'key' => '_wpd_has_ball', 'compare' => 'NOT EXISTS' ),
+							array( 'key' => '_wpd_has_ball', 'value' => '1', 'compare' => '!=' ),
+						),
+						array(
+							'relation' => 'OR',
+							array( 'key' => '_wpd_has_workshop', 'compare' => 'NOT EXISTS' ),
+							array( 'key' => '_wpd_has_workshop', 'value' => '1', 'compare' => '!=' ),
+						),
+						array(
+							'relation' => 'OR',
+							array( 'key' => '_wpd_has_festival', 'compare' => 'NOT EXISTS' ),
+							array( 'key' => '_wpd_has_festival', 'value' => '1', 'compare' => '!=' ),
+						),
+					);
+				} else {
+					$type_sub[] = array(
+						'key'   => '_wpd_has_' . $type,
+						'value' => '1',
+					);
+				}
+			}
+			if ( count( $type_sub ) > 1 ) {
+				$meta_query[] = $type_sub;
+			}
 		}
 		return $meta_query;
 	}
