@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.7.0
+Stable tag: 0.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -60,6 +60,12 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Translation files are available for German (de_DE), French (fr_FR), Spanish (es_ES), Czech (cs_CZ), and Polish (pl_PL). To contribute translations: edit the `.po` file for your locale and compile it to `.mo`, or use a tool like Poedit. Files can be placed in the plugin's `languages/` directory or in `wp-content/languages/plugins/` to persist across updates.
 
 == Changelog ==
+
+= 0.8.0 =
+* `[dansal_locations]` gains `tag`, `country`, and `location` attributes for filtering the directory (tag filter subqueries events → locations, since only events carry tags).
+* `[dansal_events]` gains `view="map"` (Leaflet map of upcoming events grouped by location), `view="map+list"` (map above the list, reusing one query), plus `view="simple"` and `view="map+simple"` for a compact one-line-per-event layout — date · title · venue in aligned columns (CSS grid + tabular-nums).
+* Map popups now list every event at that location (title + start time) instead of just the venue link, and open in the same tab.
+* i18n: weekday headers in the calendar and mini calendar now use `$wp_locale`, so they follow the WordPress site language. Frontend single-event / single-location templates now render `food` / `drink` / `parking` / `floor_condition` via `WPD_Vocab::label()` — users see the translated label ("Parkett") instead of the raw slug ("parquet"). All existing translations for de/fr/es/cs/pl remain valid.
 
 = 0.7.0 =
 * Events can now have a timetable — a multi-slot schedule (e.g. a workshop followed by a ball), edited as a growable Start/End/Title/Type table on the event edit screen (and shared with the series edit screen and the settings page's "Event defaults" section, same as pricing tiers). Synced via dansal's dedicated `PUT /api/v1/events/{id}/timetable` endpoint rather than the plain event save, since dansal doesn't expose it there. Description/room/location/musician per entry aren't editable from WordPress yet, but are preserved rather than wiped if set via dansal-web.
