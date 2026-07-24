@@ -22,6 +22,10 @@ abstract class WPD_CPT_Person {
 
 	const META_DANSAL_ID      = '_wpd_dansal_id';
 	const META_LAST_SYNCED_AT = '_wpd_last_synced_at';
+	// Marks a post created by the bulk stub-import (#103) that only carries
+	// a name + dansal ID, not the rest of field_map() -- cleared as soon as
+	// the post gets real field data, via write_post() or a manual save().
+	const META_STUB           = '_wpd_stub';
 
 	/** @var WPD_Api_Client */
 	protected $api;
@@ -38,6 +42,8 @@ abstract class WPD_CPT_Person {
 		add_filter( 'manage_' . static::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . static::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
+		add_filter( 'post_row_actions', array( $this, 'row_actions' ), 10, 2 );
+		WPD_Admin_Action::register( 'wpd_promote_' . static::POST_TYPE, 'edit_posts', array( $this, 'handle_promote' ) );
 	}
 
 	abstract public function register_post_type();
@@ -63,6 +69,7 @@ abstract class WPD_CPT_Person {
 
 	public function columns( $columns ) {
 		$columns['wpd_dansal_id'] = __( 'Dansal ID', 'wp-dansal' );
+		$columns['wpd_synced']    = __( 'Synced', 'wp-dansal' );
 		return $columns;
 	}
 
@@ -70,7 +77,50 @@ abstract class WPD_CPT_Person {
 		if ( 'wpd_dansal_id' === $column ) {
 			$id = get_post_meta( $post_id, self::META_DANSAL_ID, true );
 			echo $id ? esc_html( $id ) : esc_html__( 'not synced', 'wp-dansal' );
+		} elseif ( 'wpd_synced' === $column ) {
+			if ( ! get_post_meta( $post_id, self::META_DANSAL_ID, true ) ) {
+				echo '&#8212;';
+			} elseif ( get_post_meta( $post_id, self::META_STUB, true ) ) {
+				esc_html_e( 'stub', 'wp-dansal' );
+			} else {
+				esc_html_e( 'full', 'wp-dansal' );
+			}
 		}
+	}
+
+	/**
+	 * "Promote" row action for a stub post (#103): re-fetches the full
+	 * entity from dansal and fills in the rest of field_map(), the same way
+	 * the event picker's pencil-icon promote already does via
+	 * upsert_from_dansal() -- just triggered from the list table instead of
+	 * requiring the entity to be attached to an event first.
+	 */
+	public function row_actions( $actions, $post ) {
+		if ( static::POST_TYPE !== $post->post_type || ! current_user_can( 'edit_post', $post->ID ) ) {
+			return $actions;
+		}
+		if ( ! get_post_meta( $post->ID, self::META_STUB, true ) ) {
+			return $actions;
+		}
+		$url               = WPD_Admin_Action::url( 'wpd_promote_' . static::POST_TYPE, array( 'post' => $post->ID ) );
+		$actions['wpd_promote'] = sprintf( '<a href="%s">%s</a>', esc_url( $url ), esc_html__( 'Fetch full details', 'wp-dansal' ) );
+		return $actions;
+	}
+
+	public function handle_promote() {
+		$post_id = isset( $_REQUEST['post'] ) ? absint( $_REQUEST['post'] ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), 403 );
+		}
+		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
+		if ( $dansal_id ) {
+			$entity = $this->api->get_public( $this->resource_path() . '/' . $dansal_id );
+			if ( ! is_wp_error( $entity ) && is_array( $entity ) && ! empty( $entity['id'] ) ) {
+				$this->upsert_from_dansal( $entity );
+			}
+		}
+		wp_safe_redirect( admin_url( 'edit.php?post_type=' . static::POST_TYPE ) );
+		exit;
 	}
 
 	public function add_meta_boxes() {
@@ -120,6 +170,9 @@ abstract class WPD_CPT_Person {
 				update_post_meta( $post_id, $meta_key, sanitize_text_field( is_array( $raw ) ? '' : $raw ) );
 			}
 		}
+		// A manual edit means this post has real local content now, whether
+		// or not it started life as a bulk-imported stub (#103).
+		delete_post_meta( $post_id, self::META_STUB );
 
 		if ( ! $this->settings->is_configured() ) {
 			return;
@@ -229,6 +282,10 @@ abstract class WPD_CPT_Person {
 			update_post_meta( $post_id, $meta_key, $value );
 		}
 		update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
+		// Real field data now exists locally -- this is no longer a bare
+		// stub, regardless of which caller (promote, refresh-already-linked,
+		// bulk pull) got us here.
+		delete_post_meta( $post_id, self::META_STUB );
 	}
 
 	public function maybe_pull_sync() {
@@ -242,9 +299,12 @@ abstract class WPD_CPT_Person {
 		}
 		set_transient( $lock_key, 1, 30 );
 
-		// Only refresh entities the WP side already knows about — never
-		// mass-import the whole dansal catalogue. The event picker attaches
-		// dansal-side entities by ID without needing a WP post.
+		// Only refresh entities the WP side already promoted to a full local
+		// post — never re-fetch full details for a bare stub just because it
+		// exists (that would silently convert every stub into a full post on
+		// the next list-screen visit, defeating bulk_import_stubs() below).
+		// The event picker attaches dansal-side entities by ID without
+		// needing a WP post at all.
 		$post_ids = get_posts(
 			array(
 				'post_type'      => static::POST_TYPE,
@@ -255,6 +315,9 @@ abstract class WPD_CPT_Person {
 			)
 		);
 		foreach ( $post_ids as $post_id ) {
+			if ( get_post_meta( $post_id, self::META_STUB, true ) ) {
+				continue;
+			}
 			$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
 			if ( ! $dansal_id ) {
 				continue;
@@ -270,5 +333,63 @@ abstract class WPD_CPT_Person {
 			}
 			$this->write_post( $post_id, $entity );
 		}
+
+		$this->bulk_import_stubs();
+	}
+
+	/**
+	 * Lightweight bulk import (#103): fetches the whole dansal catalogue for
+	 * this resource and creates a bare stub post -- name + dansal ID only,
+	 * no other field_map() data -- for any entity not yet linked to a local
+	 * post. Existing posts (stub or full) are left untouched here; only gaps
+	 * are filled. Reuses the same 30s pull lock as the refresh loop above, so
+	 * it only runs once per list-screen visit at most.
+	 */
+	private function bulk_import_stubs() {
+		$result = $this->api->get_all_pages( $this->resource_path() );
+		if ( is_wp_error( $result ) ) {
+			return;
+		}
+		$entities = is_array( $result ) ? $result : array();
+		foreach ( $entities as $entity ) {
+			if ( ! is_array( $entity ) || empty( $entity['id'] ) ) {
+				continue;
+			}
+			if ( static::find_post_id_by_dansal_id( (int) $entity['id'] ) ) {
+				continue;
+			}
+			$this->create_stub_from_dansal( $entity );
+		}
+	}
+
+	/**
+	 * Creates a bare stub post for a dansal entity: title + dansal ID only.
+	 * The rest of field_map() (biography, MBID, country, website, etc.)
+	 * stays empty until an admin explicitly promotes it (row action or the
+	 * event picker's pencil icon), both of which go through write_post().
+	 *
+	 * @return int The new post ID, or 0 on failure.
+	 */
+	private function create_stub_from_dansal( array $entity ) {
+		$primary = $this->primary_field();
+		$title   = isset( $entity[ $primary ] ) ? (string) $entity[ $primary ] : '';
+
+		remove_action( 'save_post_' . static::POST_TYPE, array( $this, 'save' ) );
+		$post_id = wp_insert_post(
+			array(
+				'post_type'   => static::POST_TYPE,
+				'post_status' => 'publish',
+				'post_title'  => $title,
+			),
+			true
+		);
+		add_action( 'save_post_' . static::POST_TYPE, array( $this, 'save' ) );
+
+		if ( is_wp_error( $post_id ) || ! $post_id ) {
+			return 0;
+		}
+		update_post_meta( $post_id, self::META_DANSAL_ID, (int) $entity['id'] );
+		update_post_meta( $post_id, self::META_STUB, 1 );
+		return (int) $post_id;
 	}
 }

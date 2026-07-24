@@ -58,6 +58,7 @@ class WPD_CPT_Event {
 
 		add_filter( 'bulk_actions-edit-' . self::POST_TYPE, array( $this, 'register_bulk_actions' ) );
 		add_filter( 'handle_bulk_actions-edit-' . self::POST_TYPE, array( $this, 'handle_bulk_assign_series' ), 10, 3 );
+		add_filter( 'handle_bulk_actions-edit-' . self::POST_TYPE, array( $this, 'handle_bulk_accept_pull' ), 10, 3 );
 	}
 
 	/**
@@ -68,7 +69,46 @@ class WPD_CPT_Event {
 	 */
 	public function register_bulk_actions( $bulk_actions ) {
 		$bulk_actions['wpd_bulk_assign_series'] = __( 'Assign to series…', 'wp-dansal' );
+		$bulk_actions['wpd_bulk_accept_pull']   = __( 'Accept dansal update', 'wp-dansal' );
 		return $bulk_actions;
+	}
+
+	/**
+	 * Bulk counterpart of the single-post "Accept dansal version" notice
+	 * button (#102): applies apply_pending_pull() to every selected row that
+	 * actually has one stashed, silently skipping the rest, then reports a
+	 * summary via the shared store_notice() transient (rendered by
+	 * WPD_CPT_Location::show_sync_notices(), hooked globally on admin_notices).
+	 */
+	public function handle_bulk_accept_pull( $redirect_to, $doaction, $post_ids ) {
+		if ( 'wpd_bulk_accept_pull' !== $doaction ) {
+			return $redirect_to;
+		}
+		$accepted = 0;
+		$skipped  = 0;
+		foreach ( (array) $post_ids as $post_id ) {
+			$post_id = absint( $post_id );
+			if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+				continue;
+			}
+			if ( $this->apply_pending_pull( $post_id ) ) {
+				++$accepted;
+			} else {
+				++$skipped;
+			}
+		}
+		if ( $accepted || $skipped ) {
+			$this->store_notice(
+				sprintf(
+					/* translators: 1: number of events with an accepted pending pull, 2: number of selected rows that had no pending update. */
+					__( 'Accepted %1$d dansal update(s). %2$d selected event(s) had no pending update.', 'wp-dansal' ),
+					$accepted,
+					$skipped
+				),
+				'success'
+			);
+		}
+		return $redirect_to;
 	}
 
 	public function handle_bulk_assign_series( $redirect_to, $doaction, $post_ids ) {
@@ -155,6 +195,9 @@ class WPD_CPT_Event {
 			case 'wpd_dansal_id':
 				$id = get_post_meta( $post_id, self::META_DANSAL_ID, true );
 				echo $id ? esc_html( $id ) : esc_html__( 'not synced', 'wp-dansal' );
+				if ( $id && get_post_meta( $post_id, '_wpd_pending_pull', true ) ) {
+					echo ' <strong>(' . esc_html__( 'pending update', 'wp-dansal' ) . ')</strong>';
+				}
 				break;
 		}
 	}
@@ -1405,6 +1448,23 @@ class WPD_CPT_Event {
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
 			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), 403 );
 		}
+		$this->apply_pending_pull( $post_id );
+		wp_safe_redirect( get_edit_post_link( $post_id, 'raw' ) );
+		exit;
+	}
+
+	/**
+	 * Applies $post_id's stashed pending pull, if any. Shared by the
+	 * single-post "Accept dansal version" notice button (handle_pull_accept())
+	 * and the "Accept dansal update" bulk action (handle_bulk_accept_pull(),
+	 * #102) so both go through the same re-fetch-fresh/fallback logic.
+	 *
+	 * @return bool True if a pending pull existed and was applied.
+	 */
+	private function apply_pending_pull( $post_id ) {
+		if ( ! get_post_meta( $post_id, '_wpd_pending_pull', true ) ) {
+			return false;
+		}
 		// Re-fetch fresh rather than trusting the stashed snapshot: it can be
 		// up to a day old by the time the admin clicks Accept, so a dansal-side
 		// edit landing in that gap (e.g. a musician added after the notice was
@@ -1422,8 +1482,7 @@ class WPD_CPT_Event {
 		delete_transient( 'wpd_event_pending_pull_' . $post_id );
 		delete_post_meta( $post_id, '_wpd_pending_pull' );
 		delete_post_meta( $post_id, '_wpd_pull_ignored_at' );
-		wp_safe_redirect( get_edit_post_link( $post_id, 'raw' ) );
-		exit;
+		return true;
 	}
 
 	public function handle_pull_ignore() {
