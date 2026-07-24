@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.12.0
+Stable tag: 0.13.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,9 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Translation files are available for German (de_DE), French (fr_FR), Spanish (es_ES), Czech (cs_CZ), and Polish (pl_PL). To contribute translations: edit the `.po` file for your locale and compile it to `.mo`, or use a tool like Poedit. Files can be placed in the plugin's `languages/` directory or in `wp-content/languages/plugins/` to persist across updates.
 
 == Changelog ==
+
+= 0.13.0 =
+* Removed the deprecated Ball / Workshop / Festival checkboxes from the event edit page. Buckets exist only for display now (mini-calendar dots, calendar legend colors, `[dansal_events] type=` filter, `[dansal_festivals]` grouping) and are derived on the fly from tags: `bal-folk`/`fest-noz` → ball; `workshop`/`dance-workshop`/`musician-workshop`/`music-course` → workshop; `festival` → festival. The old `_wpd_has_ball`/`_wpd_has_workshop`/`_wpd_has_festival` post meta is purged from all events on upgrade (one-shot, guarded by `wpd_has_flags_purged`), and the plugin no longer sends `has_ball`/`has_workshop`/`has_festival` in event write payloads to dansal (they were deprecated there too — dansal auto-derived tags from them anyway). Aligns wp-dansal with dansal's tag-authoritative model (closes #104).
 
 = 0.12.0 =
 * Dance Events list gains an "Accept dansal update" bulk action, so several pending dansal-side changes can be applied at once instead of opening each event individually (closes #102).

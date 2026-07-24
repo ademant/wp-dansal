@@ -952,9 +952,6 @@ class WPD_CPT_Event {
 			'description'        => $post ? $post->post_content : '',
 			'start_time'         => $this->to_rfc3339( $get( '_wpd_start_time' ) ),
 			'end_time'           => $this->to_rfc3339( $get( '_wpd_end_time' ) ),
-			'has_ball'           => '1' === $get( '_wpd_has_ball' ),
-			'has_workshop'       => '1' === $get( '_wpd_has_workshop' ),
-			'has_festival'       => '1' === $get( '_wpd_has_festival' ),
 			'is_cancelled'       => '1' === $get( '_wpd_is_cancelled' ),
 			// Mirrors WordPress's own editorial workflow instead of a separate
 			// checkbox: WP core already refuses to let a post reach 'publish'
@@ -1555,9 +1552,7 @@ class WPD_CPT_Event {
 		update_post_meta( $post_id, '_wpd_instructor_ids', implode( ',', wp_list_pluck( $instructors, 'id' ) ) );
 		update_post_meta( $post_id, '_wpd_instructor_names', implode( '|', wp_list_pluck( $instructors, 'name' ) ) );
 
-		foreach ( array( 'has_ball', 'has_workshop', 'has_festival', 'is_cancelled' ) as $flag ) {
-			update_post_meta( $post_id, '_wpd_' . $flag, ! empty( $event[ $flag ] ) ? '1' : '' );
-		}
+		update_post_meta( $post_id, '_wpd_is_cancelled', ! empty( $event['is_cancelled'] ) ? '1' : '' );
 
 		update_post_meta( $post_id, '_wpd_booking_url', isset( $event['booking_url'] ) ? $event['booking_url'] : '' );
 		update_post_meta( $post_id, '_wpd_food', isset( $event['food'] ) ? $event['food'] : '' );

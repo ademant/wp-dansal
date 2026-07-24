@@ -3,7 +3,7 @@
  * Plugin Name: WP Dansal
  * Plugin URI: https://github.com/ademant/wp-dansal
  * Description: Manage dance events and locations in WordPress, backed by a dansal server (https://github.com/ademant/dansal) as the storage/publishing backend.
- * Version: 0.12.0
+ * Version: 0.13.0
  * Author: ademant
  * License: GPL-2.0-or-later
  * Text Domain: wp-dansal
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPD_VERSION', '0.12.0' );
+define( 'WPD_VERSION', '0.13.0' );
 define( 'WPD_PLUGIN_FILE', __FILE__ );
 define( 'WPD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -110,6 +110,11 @@ final class WPD_Plugin {
 		add_action( 'init', array( $this, 'load_textdomain' ), 1 );
 		add_action( 'init', array( $this, 'ensure_cron_scheduled' ) );
 		add_action( 'init', array( $this, 'maybe_flush_rewrite_rules' ), 20 );
+		// Cover the plugin-update path — WP fires the activation hook only on
+		// manual activate, not on plugin updates, so bare-minimum cleanup for
+		// deprecated meta has to run on init too. The option guard makes it a
+		// single DB query after the one-time purge.
+		add_action( 'init', 'wpd_maybe_purge_has_flags', 20 );
 		add_action( 'wpd_apikey_renew_check', array( $this, 'cron_renew_apikey' ) );
 		add_action( 'admin_notices', array( $this, 'admin_notice_apikey_dead' ) );
 	}
@@ -188,6 +193,23 @@ function wpd_activate() {
 		wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'wpd_apikey_renew_check' );
 	}
 	wpd_plugin()->settings->maybe_seed_home_coords();
+	wpd_maybe_purge_has_flags();
+}
+
+/**
+ * One-shot cleanup of the deprecated _wpd_has_ball/workshop/festival meta
+ * (#104). Buckets are derived from tags on the fly now, so this stored
+ * meta is dead weight. Guarded by wpd_has_flags_purged so re-activation
+ * doesn't re-scan the table.
+ */
+function wpd_maybe_purge_has_flags() {
+	if ( get_option( 'wpd_has_flags_purged' ) ) {
+		return;
+	}
+	foreach ( array( '_wpd_has_ball', '_wpd_has_workshop', '_wpd_has_festival' ) as $key ) {
+		delete_post_meta_by_key( $key );
+	}
+	update_option( 'wpd_has_flags_purged', 1 );
 }
 register_activation_hook( __FILE__, 'wpd_activate' );
 

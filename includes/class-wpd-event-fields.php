@@ -29,9 +29,6 @@ class WPD_Event_Fields {
 			'_wpd_room_id',
 			'_wpd_tags',
 			'_wpd_dance_ids',
-			'_wpd_has_ball',
-			'_wpd_has_workshop',
-			'_wpd_has_festival',
 			'_wpd_booking_url',
 			'_wpd_pricing_type',
 			'_wpd_pricing_amount',
@@ -217,23 +214,6 @@ class WPD_Event_Fields {
 						<option value="<?php echo esc_attr( $dance['id'] ); ?>" <?php selected( in_array( (string) $dance['id'], $selected_dances, true ) ); ?>><?php echo esc_html( $dance['name'] ); ?></option>
 					<?php endforeach; ?>
 				</select>
-			</td>
-		</tr>
-		<tr>
-			<th><?php esc_html_e( 'Event type', 'wp-dansal' ); ?></th>
-			<td>
-				<?php
-				foreach ( array(
-					'_wpd_has_ball'     => __( 'Ball', 'wp-dansal' ),
-					'_wpd_has_workshop' => __( 'Workshop', 'wp-dansal' ),
-					'_wpd_has_festival' => __( 'Festival', 'wp-dansal' ),
-				) as $key => $label ) :
-					?>
-					<label style="margin-right:1em;display:inline-block;">
-						<input type="checkbox" name="<?php echo esc_attr( $name( $key ) ); ?>" value="1" <?php checked( $v( $key ), '1' ); ?> />
-						<?php echo esc_html( $label ); ?>
-					</label>
-				<?php endforeach; ?>
 			</td>
 		</tr>
 		<?php
@@ -567,9 +547,6 @@ class WPD_Event_Fields {
 		}
 
 		$flag_keys = array(
-			'_wpd_has_ball',
-			'_wpd_has_workshop',
-			'_wpd_has_festival',
 			'_wpd_attr_wheelchair',
 			'_wpd_attr_bar',
 			'_wpd_attr_kitchen',

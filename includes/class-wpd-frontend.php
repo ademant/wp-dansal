@@ -229,11 +229,13 @@ class WPD_Frontend {
 	/**
 	 * [dansal_events location="123" tag="bal-folk" type="ball,workshop,festival,other" limit="20" view="list|calendar|mini|map|map+list|simple|map+simple" show_past="0"]
 	 *
-	 * `tag` filters the free-tags meta (_wpd_tags), `type` filters the
-	 * boolean event-type flags (_wpd_has_ball / _wpd_has_workshop /
-	 * _wpd_has_festival), OR-combined. `other` matches events with none
-	 * of the three flags set. Remote queries currently only honor `tag`;
-	 * `type` is local-only (no confirmed dansal query param spelling).
+	 * `tag` filters the free-tags meta (_wpd_tags). `type` groups events
+	 * into display buckets derived on the fly from _wpd_tags via
+	 * event_type_bucket_synonyms(): `ball` = bal-folk/fest-noz,
+	 * `workshop` = workshop/dance-workshop/musician-workshop/music-course,
+	 * `festival` = festival. `other` matches events with none of those
+	 * tags. Remote queries currently only honor `tag`; `type` is
+	 * local-only (dansal's `type=` query filter is deprecated).
 	 *
 	 * Remote-query attributes surface events from OTHER organizations/cities
 	 * on the same dansal instance, fetched live via GET /api/v1/events
@@ -396,35 +398,43 @@ class WPD_Frontend {
 			);
 		}
 		if ( ! empty( $atts['type'] ) && is_array( $atts['type'] ) ) {
-			$type_sub = array( 'relation' => 'OR' );
+			// Buckets are display-only now (see #104): derived from _wpd_tags
+			// on the fly rather than a stored flag. Each bucket's meta_query
+			// clause OR-joins the tag synonyms; "other" is AND-NOT across the
+			// union of all bucket tags plus (NOT EXISTS) so untagged events
+			// still fall into it.
+			$bucket_map = self::event_type_bucket_synonyms();
+			$type_sub   = array( 'relation' => 'OR' );
 			foreach ( $atts['type'] as $type ) {
 				if ( 'other' === $type ) {
-					// event_type_keys() treats a post as "other" when none of
-					// the three flag metas equal '1'. That includes missing
-					// keys, so each flag needs (NOT EXISTS OR value != '1').
-					$type_sub[] = array(
-						'relation' => 'AND',
-						array(
-							'relation' => 'OR',
-							array( 'key' => '_wpd_has_ball', 'compare' => 'NOT EXISTS' ),
-							array( 'key' => '_wpd_has_ball', 'value' => '1', 'compare' => '!=' ),
-						),
-						array(
-							'relation' => 'OR',
-							array( 'key' => '_wpd_has_workshop', 'compare' => 'NOT EXISTS' ),
-							array( 'key' => '_wpd_has_workshop', 'value' => '1', 'compare' => '!=' ),
-						),
-						array(
-							'relation' => 'OR',
-							array( 'key' => '_wpd_has_festival', 'compare' => 'NOT EXISTS' ),
-							array( 'key' => '_wpd_has_festival', 'value' => '1', 'compare' => '!=' ),
-						),
+					$all_tags = array();
+					foreach ( $bucket_map as $tags ) {
+						$all_tags = array_merge( $all_tags, $tags );
+					}
+					$other_sub = array( 'relation' => 'AND' );
+					$other_sub[] = array(
+						'relation' => 'OR',
+						array( 'key' => '_wpd_tags', 'compare' => 'NOT EXISTS' ),
+						array( 'key' => '_wpd_tags', 'value' => '', 'compare' => '=' ),
 					);
-				} else {
-					$type_sub[] = array(
-						'key'   => '_wpd_has_' . $type,
-						'value' => '1',
-					);
+					foreach ( array_unique( $all_tags ) as $tag ) {
+						$other_sub[] = array(
+							'key'     => '_wpd_tags',
+							'value'   => ',' . $tag . ',',
+							'compare' => 'NOT LIKE',
+						);
+					}
+					$type_sub[] = $other_sub;
+				} elseif ( isset( $bucket_map[ $type ] ) ) {
+					$or_tags = array( 'relation' => 'OR' );
+					foreach ( $bucket_map[ $type ] as $tag ) {
+						$or_tags[] = array(
+							'key'     => '_wpd_tags',
+							'value'   => ',' . $tag . ',',
+							'compare' => 'LIKE',
+						);
+					}
+					$type_sub[] = $or_tags;
 				}
 			}
 			if ( count( $type_sub ) > 1 ) {
@@ -520,17 +530,44 @@ class WPD_Frontend {
 	}
 
 	/**
+	 * Tag → display-bucket mapping. Buckets exist only for display (mini
+	 * calendar dots, legend colors, list grouping); they're derived from
+	 * tags on read, never stored. Kept as a single class-level source of
+	 * truth so base_meta_query() (WP_Query filter) and event_type_keys*()
+	 * (per-post read) can't drift on which tag counts as which bucket.
+	 * See #104 (removed the has_ball/has_workshop/has_festival booleans).
+	 */
+	public static function event_type_bucket_synonyms() {
+		return array(
+			'ball'     => array( 'bal-folk', 'fest-noz' ),
+			'workshop' => array( 'workshop', 'dance-workshop', 'musician-workshop', 'music-course' ),
+			'festival' => array( 'festival' ),
+		);
+	}
+
+	/**
+	 * @param string[] $tags Sanitized tag slugs (dansal event['tags'] shape
+	 *                        or the exploded _wpd_tags meta).
+	 * @return string[] Active bucket keys ('ball'/'workshop'/'festival'), or
+	 *                   array( 'other' ) if none of the mapped tags are set.
+	 */
+	public static function event_type_buckets_from_tags( array $tags ) {
+		$active = array();
+		foreach ( self::event_type_bucket_synonyms() as $bucket => $syns ) {
+			if ( array_intersect( $tags, $syns ) ) {
+				$active[] = $bucket;
+			}
+		}
+		return $active ? $active : array( 'other' );
+	}
+
+	/**
 	 * @return string[] Same shape as event_type_keys(), read from a dansal
 	 *                   API event array instead of dansal_event post meta.
 	 */
 	private function event_type_keys_remote( $event ) {
-		$flags  = array(
-			'ball'     => ! empty( $event['has_ball'] ),
-			'workshop' => ! empty( $event['has_workshop'] ),
-			'festival' => ! empty( $event['has_festival'] ),
-		);
-		$active = array_keys( array_filter( $flags ) );
-		return $active ? $active : array( 'other' );
+		$tags = isset( $event['tags'] ) && is_array( $event['tags'] ) ? array_map( 'sanitize_key', $event['tags'] ) : array();
+		return self::event_type_buckets_from_tags( $tags );
 	}
 
 	/**
@@ -908,7 +945,7 @@ class WPD_Frontend {
 
 	/**
 	 * [dansal_festivals] — cross-org festival browser (#100). Fetches remote
-	 * events, keeps only has_festival=1, then groups by (location_id,
+	 * events, keeps only those tagged `festival`, then groups by (location_id,
 	 * style_bucket) so a yearly "Danserla 2026"/"Danserla 2027" collapses to
 	 * one row/pin (showing the latest edition), while a balfolk festival and
 	 * a tango festival at the same venue stay distinct.
@@ -965,7 +1002,8 @@ class WPD_Frontend {
 			array_filter(
 				$events,
 				function ( $event ) {
-					return ! empty( $event['has_festival'] );
+					$tags = isset( $event['tags'] ) && is_array( $event['tags'] ) ? array_map( 'sanitize_key', $event['tags'] ) : array();
+					return in_array( 'festival', $tags, true );
 				}
 			)
 		);
@@ -1216,20 +1254,16 @@ class WPD_Frontend {
 	}
 
 	/**
-	 * @return string[] Active type keys ('ball'/'workshop'/'festival'), or
-	 *                   array( 'other' ) if the event has none of those flags.
-	 *                   An event can be more than one (e.g. a ball with a
-	 *                   workshop beforehand), matching how dansal itself
-	 *                   allows all three flags simultaneously.
+	 * @return string[] Active bucket keys ('ball'/'workshop'/'festival'), or
+	 *                   array( 'other' ) if the event has none of the tags
+	 *                   mapped to those buckets. An event can be in more
+	 *                   than one bucket (e.g. a bal-folk with a workshop
+	 *                   beforehand). See #104.
 	 */
 	private function event_type_keys( $post_id ) {
-		$flags  = array(
-			'ball'     => '1' === get_post_meta( $post_id, '_wpd_has_ball', true ),
-			'workshop' => '1' === get_post_meta( $post_id, '_wpd_has_workshop', true ),
-			'festival' => '1' === get_post_meta( $post_id, '_wpd_has_festival', true ),
-		);
-		$active = array_keys( array_filter( $flags ) );
-		return $active ? $active : array( 'other' );
+		$raw  = (string) get_post_meta( $post_id, '_wpd_tags', true );
+		$tags = array_values( array_filter( array_map( 'sanitize_key', explode( ',', $raw ) ) ) );
+		return self::event_type_buckets_from_tags( $tags );
 	}
 
 	private function format_datetime( $value, $format = null ) {
