@@ -30,6 +30,27 @@
 	margin: 0.2em 0;
 }
 
+.wpd-event-image-wrap {
+	margin: 0 0 1em;
+}
+
+.wpd-event-image {
+	max-width: 100%;
+	height: auto;
+	border-radius: 6px;
+}
+
+.wpd-event-title a,
+.wpd-event-location a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.wpd-event-title a:hover,
+.wpd-event-location a:hover {
+	text-decoration: underline;
+}
+
 .wpd-calendar-table {
 	width: 100%;
 	border-collapse: collapse;

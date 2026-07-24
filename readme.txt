@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.10.0
+Stable tag: 0.11.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -22,6 +22,7 @@ WP Dansal turns WordPress into an editing frontend for the [dansal](https://gith
 * Saving an event or location syncs it to dansal (create on first save, update thereafter), using a publisher API key scoped to one organization.
 * Event pricing supports dansal's full model — free, donation, a single price, or a growable table of named tiers (e.g. "Normal"/"Reduced"/"Presale"), all sharing one currency.
 * Events can carry a multi-slot timetable (e.g. a workshop followed by a ball), edited as a growable Start/End/Title/Type table and synced via dansal's dedicated timetable endpoint.
+* Events can carry an image via WordPress's native Featured Image, synced to dansal's image upload endpoint and shown on the single-event page.
 * `[dansal_events]` shortcode for upcoming events as a list or a monthly calendar, with `location`, `tag`, `limit`, `view`, `show_past` attributes.
 * `[dansal_events]` can also surface events from *other* organizations/cities on the same dansal instance — `org`, `country`, `bbox`, `lat`/`lon`/`radius_km`, `exclude_own_org` — fetched live from dansal's public REST API and rendered in the same list/calendar templates as local events.
 * `[dansal_locations]` shortcode for a directory of locations with a self-hosted Leaflet map.
@@ -60,6 +61,9 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Translation files are available for German (de_DE), French (fr_FR), Spanish (es_ES), Czech (cs_CZ), and Polish (pl_PL). To contribute translations: edit the `.po` file for your locale and compile it to `.mo`, or use a tool like Poedit. Files can be placed in the plugin's `languages/` directory or in `wp-content/languages/plugins/` to persist across updates.
 
 == Changelog ==
+
+= 0.11.0 =
+* Events can carry an image, sourced from WordPress's native Featured Image on the event edit screen. Synced to dansal via its dedicated image upload endpoint (create/replace on save, removed on dansal when the featured image is cleared); single-event pages show it, preferring the local Featured Image and falling back to dansal's own copy for events pulled in without ever getting a local attachment (closes #101).
 
 = 0.10.0 =
 * New shortcode `[dansal_festivals]` — cross-org festival browser (map + list). Groups editions by `location_id + style_bucket` so yearly editions (e.g. "Danserla 2026"/"2027") collapse to one row/pin showing the latest edition, while a balfolk festival and a tango festival at the same venue stay distinct. Attributes: `view` (`list`|`map`|`map+list`, default `map+list`), `limit` (1..200, default 50), `show_past` (default 1), plus `tag`/`org`/`country`/`bbox`/`lat`/`lon`/`radius_km`. Style buckets are derived from event tags via a built-in synonym map (balfolk ← bal-folk/fest-noz, tango ← tango-argentino/tango-nuevo, swing ← lindy-hop/balboa, salsa ← bachata/kizomba); untagged events get a per-event bucket so they never wrongly merge. Filter hook `wpd_festival_style_bucket` for custom mappings (closes #100).

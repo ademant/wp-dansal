@@ -109,6 +109,22 @@ while ( have_posts() ) :
 			</header>
 
 			<?php
+			// Prefer the local Featured Image (the plugin's push source, see
+			// push_image()); fall back to dansal's own image_url for events
+			// pulled in without ever getting a local attachment.
+			$wpd_image_url = get_post_meta( $wpd_post_id, '_wpd_image_url', true );
+			if ( has_post_thumbnail( $wpd_post_id ) ) :
+				?>
+				<div class="wpd-event-image-wrap"><?php echo get_the_post_thumbnail( $wpd_post_id, 'large', array( 'class' => 'wpd-event-image' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
+				<?php
+			elseif ( $wpd_image_url ) :
+				?>
+				<div class="wpd-event-image-wrap"><img class="wpd-event-image" src="<?php echo esc_url( $wpd_web_base . $wpd_image_url ); ?>" alt="" /></div>
+				<?php
+			endif;
+			?>
+
+			<?php
 			$wpd_room_name = $loc_post_id ? get_post_meta( $wpd_post_id, '_wpd_room_name', true ) : '';
 			$wpd_ev_lat    = $loc_post_id ? get_post_meta( $loc_post_id, '_wpd_latitude', true ) : '';
 			$wpd_ev_lng    = $loc_post_id ? get_post_meta( $loc_post_id, '_wpd_longitude', true ) : '';

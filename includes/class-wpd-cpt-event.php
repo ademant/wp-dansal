@@ -20,6 +20,7 @@ class WPD_CPT_Event {
 	const META_DANSAL_ID              = '_wpd_dansal_id';
 	const META_LAST_SYNCED_AT         = '_wpd_last_synced_at';
 	const META_LAST_SYNCED_LOCATION   = '_wpd_last_synced_location_dansal_id';
+	const META_LAST_SYNCED_IMAGE      = '_wpd_last_synced_image_attachment_id';
 	const POST_TYPE                   = 'dansal_event';
 
 	/** @var WPD_Api_Client */
@@ -111,7 +112,7 @@ class WPD_CPT_Event {
 				'public'       => true,
 				'has_archive'  => true,
 				'show_in_menu' => WPD_Admin_Menu::SLUG,
-				'supports'     => array( 'title', 'editor' ),
+				'supports'     => array( 'title', 'editor', 'thumbnail' ),
 				'rewrite'      => array( 'slug' => 'dance-events' ),
 				// Deliberately classic-editor-only. The event edit screen is
 				// meta-box-heavy (dansal fields, series prefill, template
@@ -123,6 +124,10 @@ class WPD_CPT_Event {
 				'show_in_rest' => false,
             )
         );
+		// Restricted to this CPT via the array arg so it doesn't force
+		// featured-image support onto other post types the theme hasn't
+		// opted into itself (#101).
+		add_theme_support( 'post-thumbnails', array( self::POST_TYPE ) );
 	}
 
 	public function columns( $columns ) {
@@ -1006,6 +1011,7 @@ class WPD_CPT_Event {
 				update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
 				update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, $current_location );
 				$this->push_timetable( $post_id, $dansal_id );
+				$this->push_image( $post_id, $dansal_id );
 			}
 			return;
 		}
@@ -1028,7 +1034,50 @@ class WPD_CPT_Event {
 			/* translators: %d: newly created dansal event ID. */
 			$this->store_notice( sprintf( __( 'Created dansal event #%d.', 'wp-dansal' ), $new_id ), 'success' );
 			$this->push_timetable( $post_id, $new_id );
+			$this->push_image( $post_id, $new_id );
 		}
+	}
+
+	/**
+	 * Event images are dansal's own upload sub-resource (multipart, not part
+	 * of the PATCH/PUT body — see API.md → Events → Images), sourced from
+	 * WordPress's native Featured Image so no dedicated upload control is
+	 * needed on the edit screen (#101). Only fires when the attached
+	 * thumbnail actually changed since the last push, so an unrelated field
+	 * edit doesn't re-upload the same image on every save.
+	 */
+	private function push_image( $post_id, $dansal_id ) {
+		$thumbnail_id = (int) get_post_thumbnail_id( $post_id );
+		$last_synced  = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_IMAGE, true );
+		if ( $thumbnail_id === $last_synced ) {
+			return;
+		}
+
+		if ( ! $thumbnail_id ) {
+			$result = $this->api->delete( "/api/v1/images/{$dansal_id}" );
+			// A 404 here just means dansal never had an image for this event
+			// in the first place (e.g. it was already cleared dansal-side) —
+			// that's not a failure worth surfacing to the admin.
+			if ( is_wp_error( $result ) && 'wpd_http_404' !== $result->get_error_code() ) {
+				/* translators: 1: dansal event ID, 2: underlying error message. */
+				$this->store_notice( sprintf( __( 'Failed to remove image on dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $result->get_error_message() ), 'error' );
+				return;
+			}
+			update_post_meta( $post_id, self::META_LAST_SYNCED_IMAGE, 0 );
+			return;
+		}
+
+		$file_path = get_attached_file( $thumbnail_id );
+		if ( ! $file_path || ! is_readable( $file_path ) ) {
+			return;
+		}
+		$result = $this->api->post_multipart( "/api/v1/images/{$dansal_id}", $file_path );
+		if ( is_wp_error( $result ) ) {
+			/* translators: 1: dansal event ID, 2: underlying error message. */
+			$this->store_notice( sprintf( __( 'Failed to upload image for dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $result->get_error_message() ), 'error' );
+			return;
+		}
+		update_post_meta( $post_id, self::META_LAST_SYNCED_IMAGE, $thumbnail_id );
 	}
 
 	/**
@@ -1457,6 +1506,13 @@ class WPD_CPT_Event {
 		update_post_meta( $post_id, '_wpd_floor_condition', isset( $event['floor_condition'] ) ? $event['floor_condition'] : '' );
 		update_post_meta( $post_id, '_wpd_contact_name', isset( $event['contact_name'] ) ? $event['contact_name'] : '' );
 		update_post_meta( $post_id, '_wpd_contact_email', isset( $event['contact_email'] ) ? $event['contact_email'] : '' );
+
+		// Display-only: dansal's image_url is a relative API path (e.g.
+		// "/api/v1/images/123") with no local WP attachment behind it, since
+		// the plugin's own source of truth for pushing an image is the
+		// Featured Image (see push_image()). We don't sideload it into the
+		// media library — just render it directly off the dansal server.
+		update_post_meta( $post_id, '_wpd_image_url', isset( $event['image_url'] ) ? (string) $event['image_url'] : '' );
 
 		$pricing = isset( $event['pricing'] ) && is_array( $event['pricing'] ) ? $event['pricing'] : array();
 		update_post_meta( $post_id, '_wpd_pricing_type', isset( $pricing['type'] ) ? $pricing['type'] : '' );

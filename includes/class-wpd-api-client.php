@@ -390,6 +390,69 @@ class WPD_Api_Client {
 	}
 
 	/**
+	 * Multipart file upload (dansal's image endpoints, e.g. POST
+	 * /api/v1/images/{event_id}, expect multipart/form-data — every other
+	 * endpoint in this client is JSON, so this is kept separate from
+	 * do_request() rather than teaching it a second body encoding).
+	 * WP core has no built-in multipart helper, so the body is hand-built
+	 * per RFC 2388 and sent as a raw string.
+	 *
+	 * @param string $file_path  Absolute path to the file to upload.
+	 * @param string $field_name Multipart field name the server expects.
+	 * @return array|WP_Error Decoded JSON body on success.
+	 */
+	public function post_multipart( $path, $file_path, $field_name = 'image' ) {
+		$token = $this->get_session_token();
+		if ( is_wp_error( $token ) ) {
+			return $token;
+		}
+
+		$result = $this->do_multipart_request( $path, $file_path, $field_name, $token );
+		if ( is_wp_error( $result ) && 'wpd_http_401' === $result->get_error_code() ) {
+			$token = $this->get_session_token( true );
+			if ( is_wp_error( $token ) ) {
+				return $token;
+			}
+			$result = $this->do_multipart_request( $path, $file_path, $field_name, $token );
+		}
+		return $result;
+	}
+
+	private function do_multipart_request( $path, $file_path, $field_name, $token ) {
+		$contents = is_readable( $file_path ) ? file_get_contents( $file_path ) : false;
+		if ( false === $contents ) {
+			return new WP_Error( 'wpd_image_unreadable', __( 'Image file is not readable.', 'wp-dansal' ) );
+		}
+
+		$boundary  = wp_generate_password( 24, false );
+		$filename  = basename( $file_path );
+		$filetype  = wp_check_filetype( $filename );
+		$mime_type = ! empty( $filetype['type'] ) ? $filetype['type'] : 'application/octet-stream';
+
+		$body  = "--{$boundary}\r\n";
+		$body .= 'Content-Disposition: form-data; name="' . $field_name . '"; filename="' . $filename . '"' . "\r\n";
+		$body .= "Content-Type: {$mime_type}\r\n\r\n";
+		$body .= $contents . "\r\n";
+		$body .= "--{$boundary}--\r\n";
+
+		$url  = $this->settings->get_base_url() . $path;
+		$args = array(
+			'method'  => 'POST',
+			'timeout' => self::timeout( $path ),
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $token,
+				'Accept'        => 'application/json',
+				'Content-Type'  => 'multipart/form-data; boundary=' . $boundary,
+			),
+			'body'    => $body,
+		);
+
+		$response = wp_remote_request( $url, $args );
+		$response = $this->maybe_retry_after( $response, $url, $args );
+		return $this->handle_response( $response );
+	}
+
+	/**
 	 * Probe whether the dansal server supports self-revoke of the current
 	 * publisher API key (DELETE /api/v1/apikeys/current — see dansal #869).
 	 * Uses HTTP OPTIONS + Allow header per RFC 7231 §4.3.7. Callers get a
