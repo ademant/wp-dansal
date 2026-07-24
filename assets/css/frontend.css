@@ -333,3 +333,41 @@
 	font-weight: bold;
 	color: #d9534f;
 }
+
+.wpd-festivals-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: grid;
+	gap: 0.5em;
+}
+
+.wpd-festival-item {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35em 0.6em;
+	padding: 0.35em 0;
+	border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+	align-items: baseline;
+}
+
+.wpd-festival-title {
+	font-weight: 600;
+}
+
+.wpd-festival-venue,
+.wpd-festival-date {
+	opacity: 0.85;
+	font-size: 0.95em;
+}
+
+.wpd-festival-last-edition {
+	font-size: 0.85em;
+	opacity: 0.7;
+	font-style: italic;
+}
+
+.wpd-festival-past .wpd-festival-title {
+	font-weight: 500;
+	opacity: 0.85;
+}

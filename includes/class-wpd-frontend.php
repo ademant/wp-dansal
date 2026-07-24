@@ -30,6 +30,7 @@ class WPD_Frontend {
 		add_shortcode( 'dansal_events', array( $this, 'shortcode_events' ) );
 		add_shortcode( 'dansal_locations', array( $this, 'shortcode_locations' ) );
 		add_shortcode( 'dansal_nearby', array( $this, 'shortcode_nearby' ) );
+		add_shortcode( 'dansal_festivals', array( $this, 'shortcode_festivals' ) );
 		add_filter( 'single_template', array( $this, 'single_template' ) );
 		add_filter( 'archive_template', array( $this, 'archive_template' ) );
 		add_filter( 'theme_page_templates', array( $this, 'register_page_templates' ) );
@@ -903,6 +904,247 @@ class WPD_Frontend {
 
 		$inner = $this->render_nearby_from_coords( $atts );
 		return '<div class="wpd-nearby" ' . trim( $data_attrs ) . '>' . $inner . '</div>';
+	}
+
+	/**
+	 * [dansal_festivals] — cross-org festival browser (#100). Fetches remote
+	 * events, keeps only has_festival=1, then groups by (location_id,
+	 * style_bucket) so a yearly "Danserla 2026"/"Danserla 2027" collapses to
+	 * one row/pin (showing the latest edition), while a balfolk festival and
+	 * a tango festival at the same venue stay distinct.
+	 */
+	public function shortcode_festivals( $atts ) {
+		$atts = shortcode_atts(
+			array(
+				'view'      => 'map+list',
+				'limit'     => 50,
+				'show_past' => 1,
+				'tag'       => '',
+				'org'       => '',
+				'country'   => '',
+				'bbox'      => '',
+				'lat'       => '',
+				'lon'       => '',
+				'radius_km' => '',
+			),
+			$atts,
+			'dansal_festivals'
+		);
+
+		$atts['view']      = in_array( $atts['view'], array( 'list', 'map', 'map+list' ), true ) ? $atts['view'] : 'map+list';
+		$atts['limit']     = max( 1, min( 200, absint( $atts['limit'] ) ) );
+		$atts['show_past'] = ! empty( $atts['show_past'] ) && '0' !== (string) $atts['show_past'] ? 1 : 0;
+		$atts['tag']       = sanitize_key( $atts['tag'] );
+		$atts['org']       = array_values( array_filter( array_map( 'sanitize_title', explode( ',', (string) $atts['org'] ) ) ) );
+		$atts['country']   = $this->sanitize_country_list( $atts['country'] );
+		$atts['bbox']      = $this->sanitize_bbox( $atts['bbox'] );
+		$atts['lat']       = is_numeric( $atts['lat'] ) ? (float) $atts['lat'] : '';
+		$atts['lon']       = is_numeric( $atts['lon'] ) ? (float) $atts['lon'] : '';
+		$atts['radius_km'] = is_numeric( $atts['radius_km'] ) && $atts['radius_km'] > 0 ? (float) $atts['radius_km'] : '';
+		if ( '' === $atts['lat'] || '' === $atts['lon'] || '' === $atts['radius_km'] ) {
+			$atts['lat']       = '';
+			$atts['lon']       = '';
+			$atts['radius_km'] = '';
+		}
+		// exclude_own_org isn't exposed as a shortcode att, but fetch_remote_events()
+		// needs the key present.
+		$atts['exclude_own_org'] = 0;
+
+		$this->enqueue_frontend_style();
+
+		$query = $this->build_remote_query( $atts );
+		if ( ! empty( $atts['show_past'] ) ) {
+			$query['include_past'] = 'true';
+		}
+		// dansal's /events endpoint has no confirmed `type=festival` filter
+		// (see [dansal_events] `type` note), so we overfetch and drop
+		// non-festivals locally. Cap the fetch generously — grouping shrinks
+		// it, and yearly editions cluster around the same festival.
+		$events = $this->fetch_remote_events( $atts, $query, min( 500, max( 200, $atts['limit'] * 5 ) ) );
+		$events = array_values(
+			array_filter(
+				$events,
+				function ( $event ) {
+					return ! empty( $event['has_festival'] );
+				}
+			)
+		);
+
+		$groups = $this->group_festivals( $events );
+		$groups = array_slice( $groups, 0, $atts['limit'] );
+
+		$out = '';
+		if ( 'list' !== $atts['view'] ) {
+			$this->enqueue_leaflet();
+			$out .= $this->render_map_markup( $this->festival_map_points( $groups ) );
+		}
+		if ( 'map' !== $atts['view'] ) {
+			$out .= $this->render_festivals_list_markup( $groups );
+		}
+		return '<div class="wpd-festivals">' . $out . '</div>';
+	}
+
+	/**
+	 * Map an event's tags to a coarse dance-style bucket. Untagged / no-match
+	 * events return a per-event bucket so they never merge with unrelated
+	 * festivals at the same venue (#100).
+	 *
+	 * @param array $event Raw dansal event array.
+	 * @return string
+	 */
+	private function festival_style_bucket( array $event ) {
+		$tags = isset( $event['tags'] ) && is_array( $event['tags'] ) ? array_map( 'sanitize_key', $event['tags'] ) : array();
+
+		$synonyms = array(
+			'balfolk' => array( 'balfolk', 'bal-folk', 'fest-noz' ),
+			'tango'   => array( 'tango', 'tango-argentino', 'tango-nuevo' ),
+			'swing'   => array( 'swing', 'lindy-hop', 'balboa' ),
+			'salsa'   => array( 'salsa', 'bachata', 'kizomba' ),
+		);
+
+		$bucket = '';
+		foreach ( $synonyms as $key => $members ) {
+			if ( array_intersect( $tags, $members ) ) {
+				$bucket = $key;
+				break;
+			}
+		}
+		if ( '' === $bucket ) {
+			$id     = isset( $event['id'] ) ? (int) $event['id'] : 0;
+			$bucket = 'event_' . $id;
+		}
+
+		return (string) apply_filters( 'wpd_festival_style_bucket', $bucket, $tags, $event );
+	}
+
+	/**
+	 * Group festival events by (location_id, style_bucket), keep the latest
+	 * edition of each group as representative, and return sorted by that
+	 * latest edition's start_time descending.
+	 */
+	private function group_festivals( array $events ) {
+		$groups = array();
+		foreach ( $events as $event ) {
+			$loc_id = isset( $event['location']['id'] ) ? (int) $event['location']['id'] : 0;
+			if ( ! $loc_id ) {
+				continue;
+			}
+			$bucket = $this->festival_style_bucket( $event );
+			$key    = $loc_id . '|' . $bucket;
+			$start  = isset( $event['start_time'] ) ? (string) $event['start_time'] : '';
+
+			if ( ! isset( $groups[ $key ] ) ) {
+				$groups[ $key ] = array(
+					'latest'   => $event,
+					'bucket'   => $bucket,
+					'editions' => array( $event ),
+				);
+				continue;
+			}
+			$groups[ $key ]['editions'][] = $event;
+			$cur_start = isset( $groups[ $key ]['latest']['start_time'] ) ? (string) $groups[ $key ]['latest']['start_time'] : '';
+			if ( strcmp( $start, $cur_start ) > 0 ) {
+				$groups[ $key ]['latest'] = $event;
+			}
+		}
+
+		usort(
+			$groups,
+			function ( $a, $b ) {
+				$sa = isset( $a['latest']['start_time'] ) ? (string) $a['latest']['start_time'] : '';
+				$sb = isset( $b['latest']['start_time'] ) ? (string) $b['latest']['start_time'] : '';
+				return strcmp( $sb, $sa );
+			}
+		);
+
+		return $groups;
+	}
+
+	/**
+	 * @param array $groups Output of group_festivals().
+	 * @return array Points shape consumed by render_map_markup(): one pin per
+	 *               (location, style bucket); popup shows the latest edition
+	 *               with up to a few prior editions listed underneath.
+	 */
+	private function festival_map_points( array $groups ) {
+		$points = array();
+		foreach ( $groups as $group ) {
+			$event = $group['latest'];
+			$loc   = isset( $event['location'] ) && is_array( $event['location'] ) ? $event['location'] : array();
+			$lat   = isset( $loc['latitude'] ) && is_numeric( $loc['latitude'] ) ? (float) $loc['latitude'] : null;
+			$lng   = isset( $loc['longitude'] ) && is_numeric( $loc['longitude'] ) ? (float) $loc['longitude'] : null;
+			if ( null === $lat || null === $lng ) {
+				continue;
+			}
+			// Show up to the 3 most recent editions in the popup (latest first).
+			$editions = $group['editions'];
+			usort(
+				$editions,
+				function ( $a, $b ) {
+					return strcmp( (string) ( $b['start_time'] ?? '' ), (string) ( $a['start_time'] ?? '' ) );
+				}
+			);
+			$pin_events = array();
+			foreach ( array_slice( $editions, 0, 3 ) as $ed ) {
+				$pin_events[] = array(
+					'title' => isset( $ed['title'] ) ? (string) $ed['title'] : '',
+					'url'   => $this->remote_event_url( $ed ),
+					'when'  => isset( $ed['start_time'] ) ? $this->format_datetime( (string) $ed['start_time'], get_option( 'date_format' ) ) : '',
+				);
+			}
+			$points[] = array(
+				'lat'    => $lat,
+				'lng'    => $lng,
+				'title'  => isset( $event['title'] ) ? (string) $event['title'] : '',
+				'url'    => $this->remote_event_url( $event ),
+				'events' => $pin_events,
+			);
+		}
+		return $points;
+	}
+
+	private function render_festivals_list_markup( array $groups ) {
+		ob_start();
+		echo '<ul class="wpd-festivals-list">';
+		if ( empty( $groups ) ) {
+			echo '<li class="wpd-no-events">' . esc_html__( 'No festivals found.', 'wp-dansal' ) . '</li>';
+		}
+		$now = current_time( 'Y-m-d\TH:i' );
+		foreach ( $groups as $group ) {
+			$event    = $group['latest'];
+			$title    = isset( $event['title'] ) ? (string) $event['title'] : '';
+			$start    = isset( $event['start_time'] ) ? (string) $event['start_time'] : '';
+			$is_past  = $start && strcmp( $start, $now ) < 0;
+			$loc      = isset( $event['location'] ) && is_array( $event['location'] ) ? $event['location'] : array();
+			$loc_name = isset( $loc['name'] ) ? (string) $loc['name'] : ( isset( $loc['location'] ) ? (string) $loc['location'] : '' );
+			$loc_id   = isset( $loc['id'] ) ? absint( $loc['id'] ) : 0;
+			?>
+			<li class="wpd-festival-item<?php echo $is_past ? ' wpd-festival-past' : ''; ?>">
+				<a class="wpd-festival-title" href="<?php echo esc_url( $this->remote_event_url( $event ) ); ?>"><?php echo esc_html( $title ); ?></a>
+				<?php if ( '' !== $loc_name ) : ?>
+					<span class="wpd-festival-venue">
+						@
+						<?php if ( $loc_id ) : ?>
+							<a href="<?php echo esc_url( $this->remote_location_url( $loc_id ) ); ?>"><?php echo esc_html( $loc_name ); ?></a>
+						<?php else : ?>
+							<?php echo esc_html( $loc_name ); ?>
+						<?php endif; ?>
+					</span>
+				<?php endif; ?>
+				<span class="wpd-festival-date"><?php echo esc_html( $this->format_datetime( $start, get_option( 'date_format' ) ) ); ?></span>
+				<?php if ( $is_past ) : ?>
+					<span class="wpd-festival-last-edition">
+						<?php
+						/* translators: %s: latest edition date */
+						printf( esc_html__( 'Last edition: %s', 'wp-dansal' ), esc_html( $this->format_datetime( $start, get_option( 'date_format' ) ) ) );
+						?>
+					</span>
+				<?php endif; ?>
+			</li>
+			<?php
+		}
+		echo '</ul>';
+		return ob_get_clean();
 	}
 
 	/**
