@@ -993,11 +993,12 @@ class WPD_Frontend {
 		if ( ! empty( $atts['show_past'] ) ) {
 			$query['include_past'] = 'true';
 		}
-		// dansal's /events endpoint has no confirmed `type=festival` filter
-		// (see [dansal_events] `type` note), so we overfetch and drop
-		// non-festivals locally. Cap the fetch generously — grouping shrinks
-		// it, and yearly editions cluster around the same festival.
-		$events = $this->fetch_remote_events( $atts, $query, min( 500, max( 200, $atts['limit'] * 5 ) ) );
+		// Use the API's tag filter so only festival events are returned.
+		// Without this, the limit cap would exclude far-future editions (events
+		// are returned start_time ASC, so a 2027 festival sitting beyond a
+		// limit=200 window simply disappears).
+		$query['tag'] = 'festival';
+		$events       = $this->fetch_remote_events( $atts, $query, max( 200, $atts['limit'] * 5 ) );
 		$events = array_values(
 			array_filter(
 				$events,
