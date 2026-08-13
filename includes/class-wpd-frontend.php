@@ -31,6 +31,7 @@ class WPD_Frontend {
 		add_shortcode( 'dansal_locations', array( $this, 'shortcode_locations' ) );
 		add_shortcode( 'dansal_nearby', array( $this, 'shortcode_nearby' ) );
 		add_shortcode( 'dansal_festivals', array( $this, 'shortcode_festivals' ) );
+		add_shortcode( 'dansal_calendar_embed', array( $this, 'shortcode_calendar_embed' ) );
 		add_filter( 'single_template', array( $this, 'single_template' ) );
 		add_filter( 'archive_template', array( $this, 'archive_template' ) );
 		add_filter( 'theme_page_templates', array( $this, 'register_page_templates' ) );
@@ -993,13 +994,18 @@ class WPD_Frontend {
 		if ( ! empty( $atts['show_past'] ) ) {
 			$query['include_past'] = 'true';
 		}
-		// Use the API's tag filter so only festival events are returned.
-		// Without this, the limit cap would exclude far-future editions (events
-		// are returned start_time ASC, so a 2027 festival sitting beyond a
-		// limit=200 window simply disappears).
+		// The shortcode's contract is festivals only, so we always send
+		// tag=festival to the server (API.md, GET /api/v1/events) — this
+		// overrides any caller-supplied tag= in build_remote_query(). We
+		// still overfetch generously because events come back start_time
+		// ASC: a small $atts['limit'] would truncate far-future editions
+		// (e.g. a 2027 edition sitting past a limit=50 window) before
+		// group_festivals() gets to collapse yearly editions to one row.
+		// The array_filter is belt-and-braces against a schema surprise
+		// where a non-festival slips through the server tag filter.
 		$query['tag'] = 'festival';
 		$events       = $this->fetch_remote_events( $atts, $query, max( 200, $atts['limit'] * 5 ) );
-		$events = array_values(
+		$events       = array_values(
 			array_filter(
 				$events,
 				function ( $event ) {
@@ -1021,6 +1027,87 @@ class WPD_Frontend {
 			$out .= $this->render_festivals_list_markup( $groups );
 		}
 		return '<div class="wpd-festivals">' . $out . '</div>';
+	}
+
+	/**
+	 * Thin iframe wrapper around dansal-web's `/embed/calendar` widget
+	 * (WEB.md → Embeds). Complements our native shortcodes for sites that
+	 * want dansal's server-rendered combined map + filterable event list
+	 * instead of the local re-implementation.
+	 *
+	 * Attributes mirror the widget's documented query params:
+	 *   org       — comma-separated org slugs (repeatable via multiple org=)
+	 *   location  — comma-separated location IDs (repeatable via multiple location=)
+	 *   from,to   — YYYY-MM-DD range; server defaults today / from+14d, capped 366d
+	 *   tag       — pre-selects a tag in the client-side filter
+	 *   lang      — override display language (2-letter code)
+	 *   width     — iframe width (default 100%)
+	 *   height    — iframe height in px (default 700)
+	 */
+	public function shortcode_calendar_embed( $atts ) {
+		$atts = shortcode_atts(
+			array(
+				'org'      => '',
+				'location' => '',
+				'from'     => '',
+				'to'       => '',
+				'tag'      => '',
+				'lang'     => '',
+				'width'    => '100%',
+				'height'   => '700',
+			),
+			$atts,
+			'dansal_calendar_embed'
+		);
+
+		$base = $this->settings->get_web_url();
+		if ( '' === $base ) {
+			return '';
+		}
+
+		// Repeatable params (org, location) get one query pair per value so
+		// dansal-web sees them as arrays; single-value params are appended
+		// once when non-empty. Dates are checked against YYYY-MM-DD rather
+		// than passed blindly, since a malformed date on dansal's side just
+		// falls back to the default range anyway.
+		$pairs = array();
+		foreach ( array_filter( array_map( 'sanitize_title', explode( ',', (string) $atts['org'] ) ) ) as $slug ) {
+			$pairs[] = 'org=' . rawurlencode( $slug );
+		}
+		foreach ( array_filter( array_map( 'absint', explode( ',', (string) $atts['location'] ) ) ) as $id ) {
+			$pairs[] = 'location=' . $id;
+		}
+		foreach ( array( 'from', 'to' ) as $k ) {
+			$v = trim( (string) $atts[ $k ] );
+			if ( '' !== $v && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $v ) ) {
+				$pairs[] = $k . '=' . rawurlencode( $v );
+			}
+		}
+		$tag = sanitize_key( $atts['tag'] );
+		if ( '' !== $tag ) {
+			$pairs[] = 'tag=' . rawurlencode( $tag );
+		}
+		$lang = preg_replace( '/[^a-zA-Z\-]/', '', (string) $atts['lang'] );
+		if ( '' !== $lang ) {
+			$pairs[] = 'lang=' . rawurlencode( $lang );
+		}
+
+		$src = $base . '/embed/calendar' . ( $pairs ? '?' . implode( '&', $pairs ) : '' );
+
+		// Height is treated as a bare number → px so simple numeric input
+		// works ("700"), while explicit CSS units ("70vh") also pass through.
+		$height = trim( (string) $atts['height'] );
+		if ( ctype_digit( $height ) ) {
+			$height .= 'px';
+		}
+		$width = trim( (string) $atts['width'] );
+
+		return sprintf(
+			'<iframe class="wpd-calendar-embed" src="%s" style="border:0;width:%s;height:%s" loading="lazy"></iframe>',
+			esc_url( $src ),
+			esc_attr( $width ),
+			esc_attr( $height )
+		);
 	}
 
 	/**

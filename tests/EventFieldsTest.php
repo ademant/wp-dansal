@@ -20,16 +20,16 @@ class EventFieldsTest extends WP_UnitTestCase {
 	public function test_flag_keys_normalize_to_1_or_empty_string() {
 		$out = WPD_Event_Fields::sanitize_field_group(
 			array(
-				'_wpd_has_ball'     => '1',
-				'_wpd_has_workshop' => '0',
-				'_wpd_has_festival' => '',
+				'_wpd_attr_wheelchair' => '1',
+				'_wpd_attr_bar'        => '0',
+				'_wpd_attr_kitchen'    => '',
 			)
 		);
-		$this->assertSame( '1', $out['_wpd_has_ball'] );
+		$this->assertSame( '1', $out['_wpd_attr_wheelchair'] );
 		// '0' is falsy in PHP, so the sanitizer treats it as unset — an
 		// unchecked checkbox posts nothing, so this shape matches reality.
-		$this->assertSame( '', $out['_wpd_has_workshop'] );
-		$this->assertSame( '', $out['_wpd_has_festival'] );
+		$this->assertSame( '', $out['_wpd_attr_bar'] );
+		$this->assertSame( '', $out['_wpd_attr_kitchen'] );
 	}
 
 	public function test_tags_are_comma_boundary_padded() {

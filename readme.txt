@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.13.0
+Stable tag: 0.14.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -28,6 +28,7 @@ WP Dansal turns WordPress into an editing frontend for the [dansal](https://gith
 * `[dansal_events]` shortcode for upcoming events as a list or a monthly calendar, with `location`, `tag`, `limit`, `view`, `show_past` attributes.
 * `[dansal_events]` can also surface events from *other* organizations/cities on the same dansal instance — `org`, `country`, `bbox`, `lat`/`lon`/`radius_km`, `exclude_own_org` — fetched live from dansal's public REST API and rendered in the same list/calendar templates as local events.
 * `[dansal_locations]` shortcode for a directory of locations with a self-hosted Leaflet map.
+* `[dansal_calendar_embed]` shortcode — thin iframe wrapper around dansal-web's `/embed/calendar` widget for sites that want dansal's own server-rendered combined map + list.
 * Single and archive templates for events and locations, with theme override support at `{theme}/dansal/`.
 * Filter hooks for OSM tile source (`wpd_tile_url_template`), HTTP timeouts (`wpd_http_timeout`), and content wipe on uninstall (`wpd_uninstall_delete_content`).
 
@@ -63,6 +64,11 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Translation files are available for German (de_DE), French (fr_FR), Spanish (es_ES), Czech (cs_CZ), and Polish (pl_PL). To contribute translations: edit the `.po` file for your locale and compile it to `.mo`, or use a tool like Poedit. Files can be placed in the plugin's `languages/` directory or in `wp-content/languages/plugins/` to persist across updates.
 
 == Changelog ==
+
+= 0.14.0 =
+* `[dansal_festivals]` now sends `tag=festival` to dansal instead of overfetching up to 500 events and filtering non-festivals in PHP — the `limit` attribute actually caps the transferred payload now (closes #105).
+* New shortcode `[dansal_calendar_embed]` — thin iframe wrapper around dansal-web's `/embed/calendar` widget (combined map + filterable event list, server-rendered). Attributes: `org`, `location` (both comma-separated → repeated query params), `from`/`to` (`YYYY-MM-DD`), `tag`, `lang`, `width` (default `100%`), `height` (default `700`, bare numbers get `px` appended). Complements the native `[dansal_events]`/`[dansal_nearby]` for sites that specifically want dansal's own widget (closes #107).
+* Housekeeping: refreshed the `EventFieldsTest` flag-key coverage to use the surviving `_wpd_attr_*` amenity flags instead of the removed `_wpd_has_*` bucket booleans (closes #106).
 
 = 0.13.0 =
 * Removed the deprecated Ball / Workshop / Festival checkboxes from the event edit page. Buckets exist only for display now (mini-calendar dots, calendar legend colors, `[dansal_events] type=` filter, `[dansal_festivals]` grouping) and are derived on the fly from tags: `bal-folk`/`fest-noz` → ball; `workshop`/`dance-workshop`/`musician-workshop`/`music-course` → workshop; `festival` → festival. The old `_wpd_has_ball`/`_wpd_has_workshop`/`_wpd_has_festival` post meta is purged from all events on upgrade (one-shot, guarded by `wpd_has_flags_purged`), and the plugin no longer sends `has_ball`/`has_workshop`/`has_festival` in event write payloads to dansal (they were deprecated there too — dansal auto-derived tags from them anyway). Aligns wp-dansal with dansal's tag-authoritative model (closes #104).
