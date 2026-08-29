@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.14.0
+Stable tag: 0.14.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -64,6 +64,10 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Translation files are available for German (de_DE), French (fr_FR), Spanish (es_ES), Czech (cs_CZ), and Polish (pl_PL). To contribute translations: edit the `.po` file for your locale and compile it to `.mo`, or use a tool like Poedit. Files can be placed in the plugin's `languages/` directory or in `wp-content/languages/plugins/` to persist across updates.
 
 == Changelog ==
+
+= 0.14.1 =
+* Connect-link redemption now records the `expires_at` dansal returns on the response (dansal #1189), so the daily renewal cron proactively rotates the publisher key via `POST /api/v1/apikeys/renew` before it expires instead of only discovering the expiry via a failed 401. When dansal omits `expires_at` (invite-created keys have none by default), the key is correctly marked as having no expiry.
+* Dead-key admin notice now points at dansal's **Reconnect link** flow (dansal #1190): asking an org member to click "Reconnect link" next to the publisher on `/admin/users` rotates the key in place (same publisher, same `user_id`/`org_id`) instead of creating a duplicate account, which is what a plain fresh connect link would do (closes #108).
 
 = 0.14.0 =
 * `[dansal_festivals]` now sends `tag=festival` to dansal instead of overfetching up to 500 events and filtering non-festivals in PHP — the `limit` attribute actually caps the transferred payload now (closes #105).

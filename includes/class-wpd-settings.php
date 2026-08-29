@@ -945,8 +945,16 @@ class WPD_Settings {
 			$existing['api_key'] = $plaintext_key;
 			$existing['api_key_encrypted'] = '';
 		}
-		$existing['api_key_expires_at'] = 0;
-		$existing['api_key_no_expiry']  = false;
+		// dansal surfaces expires_at on the redemption response when the
+		// invite's new key was created with an expiry (dansal #1189); when
+		// it isn't set, the key has no expiry (invite-created keys have
+		// none by default). Recording both correctly lets the daily renewal
+		// cron (WPD_Api_Client::apikey_should_renew()) proactively rotate
+		// via POST /api/v1/apikeys/renew before the key expires, instead of
+		// only discovering the expiry via a failed 401.
+		$expires_ts                     = ! empty( $body['expires_at'] ) ? (int) strtotime( (string) $body['expires_at'] ) : 0;
+		$existing['api_key_expires_at'] = $expires_ts > 0 ? $expires_ts : 0;
+		$existing['api_key_no_expiry']  = 0 === $existing['api_key_expires_at'];
 		$existing['api_key_dead']       = false;
 		update_option( self::OPTION, $existing );
 		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );

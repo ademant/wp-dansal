@@ -3,7 +3,7 @@
  * Plugin Name: WP Dansal
  * Plugin URI: https://github.com/ademant/wp-dansal
  * Description: Manage dance events and locations in WordPress, backed by a dansal server (https://github.com/ademant/dansal) as the storage/publishing backend.
- * Version: 0.14.0
+ * Version: 0.14.1
  * Author: ademant
  * License: GPL-2.0-or-later
  * Text Domain: wp-dansal
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPD_VERSION', '0.14.0' );
+define( 'WPD_VERSION', '0.14.1' );
 define( 'WPD_PLUGIN_FILE', __FILE__ );
 define( 'WPD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -148,11 +148,18 @@ final class WPD_Plugin {
 		if ( ! current_user_can( 'manage_options' ) || ! $this->settings->is_api_key_dead() ) {
 			return;
 		}
+		// Point the admin at dansal's Reconnect-link flow (dansal #1190):
+		// an org member clicks "Reconnect link" next to this publisher's
+		// row on /admin/users, then pastes the resulting URL into the same
+		// Connect-via-link field. Redemption reuses the existing publisher
+		// (same user_id/org_id, key rotated in place) instead of creating
+		// a duplicate account, which is what a plain fresh connect link
+		// would do here.
 		printf(
 			'<div class="notice notice-error"><p>%s <a href="%s">%s</a></p></div>',
-			esc_html__( 'WP Dansal: the publisher API key has expired.', 'wp-dansal' ),
+			esc_html__( 'WP Dansal: the publisher API key has expired. Ask an org member to click "Reconnect link" next to this publisher on dansal\'s /admin/users page, then paste the new URL below — the existing publisher will be reused (key rotated in place, no duplicate account).', 'wp-dansal' ),
 			esc_url( admin_url( 'options-general.php?page=wpd-settings' ) ),
-			esc_html__( 'Re-run the connect-link flow to restore the connection.', 'wp-dansal' )
+			esc_html__( 'Open WP Dansal settings', 'wp-dansal' )
 		);
 	}
 
