@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <!-- Screenshot 3: Settings Page -->
+  <rect x="0" y="0" width="1200" height="800" fill="#f5f7fa"/>
+  
+  <!-- Header -->
+  <rect x="0" y="0" width="1200" height="60" fill="#2c3e50"/>
+  <text x="60" y="40" fill="#fff" font-family="Arial, sans-serif" font-size="20">wp-dansal - Settings</text>
+  
+  <!-- WordPress Admin Menu (simplified) -->
+  <rect x="0" y="60" width="180" height="740" fill="#3a4a5c"/>
+  <text x="20" y="90" fill="#bdc3c7" font-family="Arial, sans-serif" font-size="12">Dashboard</text>
+  <text x="20" y="115" fill="#bdc3c7" font-family="Arial, sans-serif" font-size="12">Posts</text>
+  <text x="20" y="140" fill="#bdc3c7" font-family="Arial, sans-serif" font-size="12">Media</text>
+  <text x="20" y="165" fill="#bdc3c7" font-family="Arial, sans-serif" font-size="12">Pages</text>
+  <text x="20" y="190" fill="#bdc3c7" font-family="Arial, sans-serif" font-size="12">Comments</text>
+  <text x="20" y="215" fill="#bdc3c7" font-family="Arial, sans-serif" font-size="12">Appearance</text>
+  <text x="20" y="240" fill="#fff" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Dansal</text>
+  <text x="30" y="265" fill="#bdc3c7" font-family="Arial, sans-serif" font-size="11">Events</text>
+  <text x="30" y="285" fill="#bdc3c7" font-family="Arial, sans-serif" font-size="11">Locations</text>
+  <text x="30" y="305" fill="#fff" font-family="Arial, sans-serif" font-size="11" font-weight="bold">Settings</text>
+  
+  <!-- Main content area -->
+  <rect x="200" y="60" width="980" height="740" fill="#fff"/>
+  
+  <!-- Page title -->
+  <rect x="220" y="80" width="940" height="60" fill="#f8f9fa" stroke="#ecf0f1"/>
+  <text x="230" y="110" fill="#2c3e50" font-family="Arial, sans-serif" font-size="20" font-weight="bold">Dansal Settings</text>
+  
+  <!-- Tabs -->
+  <g transform="translate(240,150)">
+    <rect x="0" y="0" width="100" height="40" fill="#fff" stroke="#bdc3c7" stroke-bottom="#3498db" stroke-width="1"/>
+    <text x="50" y="25" text-anchor="middle" fill="#3498db" font-family="Arial, sans-serif" font-size="14" font-weight="bold">Connection</text>
+    
+    <rect x="100" y="0" width="100" height="40" fill="#f8f9fa" stroke="#bdc3c7" rx="3 3 0 0"/>
+    <text x="150" y="25" text-anchor="middle" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="14">Tile Settings</text>
+    
+    <rect x="200" y="0" width="100" height="40" fill="#f8f9fa" stroke="#bdc3c7" rx="3 3 0 0"/>
+    <text x="250" y="25" text-anchor="middle" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="14">Sync</text>
+    
+    <rect x="300" y="0" width="100" height="40" fill="#f8f9fa" stroke="#bdc3c7" rx="3 3 0 0"/>
+    <text x="350" y="25" text-anchor="middle" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="14">Advanced</text>
+  </g>
+  
+  <!-- Connection settings section -->
+  <g transform="translate(240,220)">
+    <rect x="0" y="0" width="900" height="40" fill="#f8f9fa" stroke="#bdc3c7"/>
+    <text x="10" y="25" fill="#2c3e50" font-family="Arial, sans-serif" font-size="14" font-weight="bold">Connect via Link</text>
+    
+    <rect x="0" y="50" width="600" height="100" fill="#fff" stroke="#bdc3c7"/>
+    <text x="10" y="75" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="12">Paste the one-time connection link from dansal:</text>
+    <rect x="10" y="90" width="580" height="35" fill="#fff" stroke="#bdc3c7" rx="3"/>
+    <text x="15" y="115" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="12">https://dansal.example.com/api/v1/connect/abc123...</text>
+    
+    <rect x="620" y="50" width="100" height="100" fill="#3498db" rx="3"/>
+    <text x="670" y="75" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Test</text>
+    <text x="670" y="95" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Connection</text>
+    
+    <rect x="620" y="160" width="100" height="35" fill="#2ecc71" rx="3"/>
+    <text x="670" y="182" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Connect</text>
+    
+    <!-- Connection status -->
+    <g transform="translate(0,200)">
+      <rect x="10" y="0" width="30" height="30" fill="#2ecc71" rx="15"/>
+      <text x="25" y="20" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="16">✓</text>
+      <text x="50" y="20" fill="#2ecc71" font-family="Arial, sans-serif" font-size="14" font-weight="bold">Connected to dansal.example.com</text>
+      <text x="50" y="35" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="12">Organization: Dance Academy (ID: 12345)</text>
+    </g>
+  </g>
+  
+  <!-- Manual connection section (collapsed) -->
+  <g transform="translate(240,350)">
+    <rect x="0" y="0" width="900" height="40" fill="#f8f9fa" stroke="#bdc3c7"/>
+    <text x="10" y="25" fill="#2c3e50" font-family="Arial, sans-serif" font-size="14" font-weight="bold">Manual connection (advanced)</text>
+    <text x="880" y="25" text-anchor="end" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="12">▼ Expand</text>
+  </g>
+  
+  <!-- Current connection info -->
+  <g transform="translate(240,420)">
+    <rect x="0" y="0" width="430" height="200" fill="#fff" stroke="#bdc3c7"/>
+    <text x="10" y="25" fill="#2c3e50" font-family="Arial, sans-serif" font-size="14" font-weight="bold">Current Connection</text>
+    
+    <g transform="translate(10,50)">
+      <text x="0" y="15" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="12">Base URL:</text>
+      <rect x="100" y="0" width="310" height="25" fill="#f8f9fa" stroke="#bdc3c7" rx="3"/>
+      <text x="105" y="20" fill="#2c3e50" font-family="Arial, sans-serif" font-size="12">https://dansal.example.com/api/v1</text>
+      
+      <text x="0" y="45" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="12">Organization ID:</text>
+      <rect x="100" y="30" width="310" height="25" fill="#f8f9fa" stroke="#bdc3c7" rx="3"/>
+      <text x="105" y="50" fill="#2c3e50" font-family="Arial, sans-serif" font-size="12">12345</text>
+      
+      <text x="0" y="75" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="12">API Key:</text>
+      <rect x="100" y="60" width="310" height="25" fill="#f8f9fa" stroke="#bdc3c7" rx="3"/>
+      <text x="105" y="80" fill="#2c3e50" font-family="Arial, sans-serif" font-size="12">sk_live_abc123def456...</text>
+      
+      <text x="0" y="105" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="12">Key Expires:</text>
+      <rect x="100" y="90" width="310" height="25" fill="#f8f9fa" stroke="#bdc3c7" rx="3"/>
+      <text x="105" y="110" fill="#2c3e50" font-family="Arial, sans-serif" font-size="12">2026-12-31 23:59:59</text>
+      
+      <rect x="100" y="130" width="100" height="30" fill="#e74c3c" rx="3"/>
+      <text x="150" y="150" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Disconnect</text>
+    </g>
+  </g>
+  
+  <!-- Save button -->
+  <rect x="1100" y="680" width="80" height="35" fill="#3498db" rx="3"/>
+  <text x="1140" y="702" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Save Settings</text>
+  
+  <!-- Screenshot label -->
+  <rect x="0" y="750" width="1200" height="50" fill="#2c3e50"/>
+  <text x="600" y="780" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="14">Screenshot 3: Plugin Settings - Connection Management</text>
+</svg>

@@ -63,6 +63,12 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 
 Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Translation files are available for German (de_DE), French (fr_FR), Spanish (es_ES), Czech (cs_CZ), and Polish (pl_PL). To contribute translations: edit the `.po` file for your locale and compile it to `.mo`, or use a tool like Poedit. Files can be placed in the plugin's `languages/` directory or in `wp-content/languages/plugins/` to persist across updates.
 
+== Screenshots ==
+
+1. **Events Calendar View** - The `[dansal_events view="calendar"]` shortcode displays upcoming dance events in a monthly calendar with color-coded event types.
+2. **Interactive Locations Map** - The `[dansal_locations]` shortcode renders a directory of dance venues with an interactive Leaflet map showing all location markers.
+3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
+
 == Changelog ==
 
 = 0.14.2 =
