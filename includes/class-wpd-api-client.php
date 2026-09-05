@@ -523,4 +523,55 @@ class WPD_Api_Client {
 		$message = is_array( $body ) && ! empty( $body['error'] ) ? $body['error'] : sprintf( 'HTTP %d', $code );
 		return new WP_Error( 'wpd_apikey_revoke_failed', $message );
 	}
+
+	/**
+	 * Fetch one OSM tile through dansal's tile proxy (#109, #111, #118).
+	 *
+	 * Authenticates with the publisher API key as an `Authorization: Bearer`
+	 * header — the only auth path dansal's proxy accepts for a real API key
+	 * (see dansal WEB.md, "Map Tile Proxy"). A browser-rendered
+	 * `<img>`/`L.tileLayer()` request can't attach a header at all, which is
+	 * exactly why this call has to happen here, server-side, in
+	 * WPD_Frontend::ajax_tile() — the key must never be echoed into a URL
+	 * the browser sees.
+	 *
+	 * @param int $z Zoom level.
+	 * @param int $x Tile column.
+	 * @param int $y Tile row.
+	 * @return string|WP_Error Raw tile image bytes, or WP_Error on failure.
+	 */
+	public function fetch_tile( $z, $x, $y ) {
+		$api_key = $this->settings->get_api_key();
+		if ( '' === $api_key || $this->settings->is_api_key_dead() ) {
+			return new WP_Error( 'wpd_no_api_key', __( 'No usable dansal API key configured.', 'wp-dansal' ) );
+		}
+
+		$url = trailingslashit( $this->settings->get_base_url() ) . "tiles/osm/{$z}/{$x}/{$y}.png";
+		$response = wp_remote_get(
+			$url,
+			array(
+				'timeout' => self::timeout( '/tiles/osm' ),
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $api_key,
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( 401 === $code ) {
+			// dansal rejected the key outright — same handling as every other
+			// endpoint in this client, so the renew cron/admin notice picks it up.
+			$this->settings->mark_apikey_dead();
+		}
+		if ( $code < 200 || $code >= 300 ) {
+			/* translators: %d: HTTP status code returned by the tile proxy. */
+			return new WP_Error( 'wpd_tile_http_' . $code, sprintf( __( 'Tile proxy returned HTTP %d', 'wp-dansal' ), $code ) );
+		}
+
+		return wp_remote_retrieve_body( $response );
+	}
 }

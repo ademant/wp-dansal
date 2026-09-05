@@ -3,7 +3,7 @@
  * Plugin Name: WP Dansal
  * Plugin URI: https://github.com/ademant/wp-dansal
  * Description: Manage dance events and locations in WordPress, backed by a dansal server (https://github.com/ademant/dansal) as the storage/publishing backend.
- * Version: 0.14.2
+ * Version: 0.14.3
  * Author: ademant
  * License: GPL-2.0-or-later
  * Text Domain: wp-dansal
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPD_VERSION', '0.14.2' );
+define( 'WPD_VERSION', '0.14.3' );
 define( 'WPD_PLUGIN_FILE', __FILE__ );
 define( 'WPD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -101,7 +101,7 @@ final class WPD_Plugin {
 		$this->cpt_musician   = new WPD_CPT_Musician( $this->api, $this->settings );
 		$this->cpt_instructor = new WPD_CPT_Instructor( $this->api, $this->settings );
 		$this->remote_events  = new WPD_Remote_Events( $this->settings, $this->api );
-		$this->frontend     = new WPD_Frontend( $this->settings, $this->remote_events );
+		$this->frontend     = new WPD_Frontend( $this->settings, $this->remote_events, $this->api );
 
 		// WP 6.7+ core warns (_doing_it_wrong) if just-in-time translation
 		// loading is triggered before 'init', so load here rather than on

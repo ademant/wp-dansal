@@ -23,9 +23,13 @@ class WPD_Frontend {
 	/** @var WPD_Remote_Events */
 	private $remote_events;
 
-	public function __construct( WPD_Settings $settings, WPD_Remote_Events $remote_events ) {
+	/** @var WPD_Api_Client */
+	private $api;
+
+	public function __construct( WPD_Settings $settings, WPD_Remote_Events $remote_events, WPD_Api_Client $api ) {
 		$this->settings      = $settings;
 		$this->remote_events = $remote_events;
+		$this->api           = $api;
 
 		add_shortcode( 'dansal_events', array( $this, 'shortcode_events' ) );
 		add_shortcode( 'dansal_locations', array( $this, 'shortcode_locations' ) );
@@ -40,6 +44,8 @@ class WPD_Frontend {
 		add_action( 'wp_ajax_nopriv_wpd_mini_calendar', array( $this, 'ajax_mini_calendar' ) );
 		add_action( 'wp_ajax_wpd_nearby', array( $this, 'ajax_nearby' ) );
 		add_action( 'wp_ajax_nopriv_wpd_nearby', array( $this, 'ajax_nearby' ) );
+		add_action( 'wp_ajax_wpd_tile', array( $this, 'ajax_tile' ) );
+		add_action( 'wp_ajax_nopriv_wpd_tile', array( $this, 'ajax_tile' ) );
 	}
 
 	/**
@@ -223,32 +229,143 @@ class WPD_Frontend {
 		// filter as a no-code override point; the filter still wins when both
 		// are set, same precedence as any other WP filter over a stored option.
 		$configured = $this->settings->get_tile_url_template();
-		
-		// If no custom tile URL is configured, try to use dansal's tile proxy (#109)
-		// with API key authentication (#111). dansal_web serves tiles at
-		// /tiles/osm/{z}/{x}/{y}.png when the proxy is enabled.
+
+		// If no custom tile URL is configured, try to use dansal's tile proxy
+		// (#109). dansal_web serves tiles at /tiles/osm/{z}/{x}/{y}.png when
+		// the proxy is enabled, but only accepts a real API key via an
+		// Authorization: Bearer header (see dansal WEB.md) — never as a URL
+		// query param, since a <img>/L.tileLayer() request can't send custom
+		// headers and any credential put in that URL is world-readable page
+		// source. So instead of talking to dansal directly, the browser is
+		// pointed at our own ajax_tile() below, which holds the key
+		// server-side and proxies the fetch (#118).
 		if ( '' === $configured ) {
 			$base_url = $this->settings->get_base_url();
 			$api_key  = $this->settings->get_api_key();
-			
-			$tile_proxy_url = '';
-			if ( '' !== $base_url && '' !== $api_key ) {
-				$tile_proxy_url = trailingslashit( $base_url ) . 'tiles/osm/{z}/{x}/{y}.png';
-				// Add API key as query parameter for authentication (#111)
-				$tile_proxy_url = add_query_arg( 'key', $api_key, $tile_proxy_url );
+			$usable   = '' !== $base_url && '' !== $api_key && ! $this->settings->is_api_key_dead();
+
+			if ( $usable ) {
+				$ajax_url = admin_url( 'admin-ajax.php' );
+				$default  = $ajax_url . ( false === strpos( $ajax_url, '?' ) ? '?' : '&' ) . 'action=wpd_tile&z={z}&x={x}&y={y}';
+			} else {
+				$default = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 			}
-			
-			$default = '' !== $tile_proxy_url ? $tile_proxy_url : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 		} else {
 			$default = $configured;
 		}
-		
+
 		return array(
 			'urlTemplate'    => (string) apply_filters( 'wpd_tile_url_template', $default ),
 			'attribution'    => (string) apply_filters( 'wpd_tile_attribution', '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' ),
 			'maxZoom'        => (int) apply_filters( 'wpd_tile_max_zoom', 19 ),
 			'referrerPolicy' => (string) apply_filters( 'wpd_tile_referrer_policy', 'origin' ),
 		);
+	}
+
+	/**
+	 * ajax_tile() backing store: a flat disk cache under uploads/, keyed by
+	 * z/x/y. Kept separate from dansal's own 30-day tile cache (WEB.md) so a
+	 * slow/unreachable dansal doesn't turn into a per-pageview latency hit —
+	 * most tiles are requested by many visitors and rarely change.
+	 *
+	 * @return string|false Absolute cache file path, or false if the uploads
+	 *                       dir isn't writable.
+	 */
+	private function tile_cache_path( $z, $x, $y ) {
+		$uploads = wp_upload_dir();
+		if ( ! empty( $uploads['error'] ) ) {
+			return false;
+		}
+		return trailingslashit( $uploads['basedir'] ) . "wpd-tiles/{$z}/{$x}/{$y}.png";
+	}
+
+	/**
+	 * Last-resort tile source when dansal's proxy is unset or unreachable:
+	 * fetch straight from OSM, server-side. Still keeps individual visitor
+	 * IPs out of it (OSM sees this site's server, not each browser) even
+	 * though it isn't disk-cached by dansal the way the proxied path is.
+	 *
+	 * @return string|false Raw image bytes, or false on failure.
+	 */
+	private function fetch_tile_from_osm( $z, $x, $y ) {
+		$response = wp_remote_get(
+			"https://tile.openstreetmap.org/{$z}/{$x}/{$y}.png",
+			array(
+				'timeout' => WPD_Api_Client::timeout( '/tiles/osm' ),
+				'headers' => array(
+					'User-Agent' => 'wp-dansal-plugin/' . WPD_VERSION . ' (' . home_url() . ')',
+				),
+			)
+		);
+		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+			return false;
+		}
+		return wp_remote_retrieve_body( $response );
+	}
+
+	/**
+	 * Tile-proxy AJAX endpoint (#118). Fronts dansal's tile proxy so the
+	 * publisher API key never reaches the browser — see tile_config() above
+	 * for why, and WPD_Api_Client::fetch_tile() for the authenticated call.
+	 * No nonce: like any other static image URL this is a plain, idempotent
+	 * GET a Leaflet tile request can't attach one to anyway, and the
+	 * credential this protects never leaves the server regardless.
+	 */
+	public function ajax_tile() {
+		$z = isset( $_GET['z'] ) ? absint( $_GET['z'] ) : -1;
+		$x = isset( $_GET['x'] ) ? absint( $_GET['x'] ) : -1;
+		$y = isset( $_GET['y'] ) ? absint( $_GET['y'] ) : -1;
+
+		// Valid OSM tile coords: 0 <= x,y < 2^z. Reject anything else instead
+		// of forwarding it to dansal or OSM.
+		$max_index = ( $z >= 0 && $z <= 22 ) ? ( 1 << $z ) - 1 : -1;
+		if ( $z < 0 || $z > 22 || $x < 0 || $x > $max_index || $y < 0 || $y > $max_index ) {
+			status_header( 400 );
+			exit;
+		}
+
+		$cache_file = $this->tile_cache_path( $z, $x, $y );
+		if ( $cache_file && file_exists( $cache_file ) && ( time() - filemtime( $cache_file ) ) < WEEK_IN_SECONDS ) {
+			$cached = file_get_contents( $cache_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_get_contents -- local cache file under uploads/, not a remote URL.
+			if ( false !== $cached && '' !== $cached ) {
+				$this->send_tile( $cached );
+			}
+		}
+
+		$image = $this->api->fetch_tile( $z, $x, $y );
+		if ( is_wp_error( $image ) || '' === $image ) {
+			// Serve a stale cached copy rather than a broken map tile if we have one.
+			if ( $cache_file && file_exists( $cache_file ) ) {
+				$stale = file_get_contents( $cache_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_get_contents -- local cache file under uploads/, not a remote URL.
+				if ( false !== $stale && '' !== $stale ) {
+					$this->send_tile( $stale );
+				}
+			}
+			$fallback = $this->fetch_tile_from_osm( $z, $x, $y );
+			if ( false !== $fallback ) {
+				$this->send_tile( $fallback );
+			}
+			status_header( 502 );
+			exit;
+		}
+
+		if ( $cache_file ) {
+			wp_mkdir_p( dirname( $cache_file ) );
+			file_put_contents( $cache_file, $image ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- local cache file under uploads/, not writing to a remote URL.
+		}
+
+		$this->send_tile( $image );
+	}
+
+	/**
+	 * Output raw tile bytes with image headers and stop. Browser-cacheable
+	 * for a day — tiles are effectively static per z/x/y.
+	 */
+	private function send_tile( $image ) {
+		header( 'Content-Type: image/png' );
+		header( 'Cache-Control: public, max-age=' . DAY_IN_SECONDS );
+		echo $image; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- binary image bytes, not markup.
+		exit;
 	}
 
 	/**

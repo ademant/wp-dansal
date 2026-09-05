@@ -91,6 +91,24 @@ foreach ( $wpd_prefixes as $wpd_prefix ) {
 	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s", $wpd_like, $wpdb->esc_like( '_transient_timeout_' . $wpd_prefix ) . '%' ) );
 }
 
+// Disk-cached tiles from the ajax_tile() proxy (#118), under uploads/.
+$wpd_tile_cache = trailingslashit( wp_upload_dir()['basedir'] ) . 'wpd-tiles';
+if ( is_dir( $wpd_tile_cache ) ) {
+	$wpd_tile_files = new RecursiveIteratorIterator(
+		new RecursiveDirectoryIterator( $wpd_tile_cache, FilesystemIterator::SKIP_DOTS ),
+		RecursiveIteratorIterator::CHILD_FIRST
+	);
+	foreach ( $wpd_tile_files as $wpd_tile_file ) {
+		if ( $wpd_tile_file->isDir() ) {
+			rmdir( $wpd_tile_file->getPathname() ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- local uploads cache dir, not remote.
+		} else {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- local uploads cache file, not remote.
+			unlink( $wpd_tile_file->getPathname() );
+		}
+	}
+	rmdir( $wpd_tile_cache ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- local uploads cache dir, not remote.
+}
+
 // Opt-in content wipe. Off by default; a site owner who really wants
 // their events/locations/series gone can add:
 //   add_filter( 'wpd_uninstall_delete_content', '__return_true' );

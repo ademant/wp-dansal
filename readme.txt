@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.14.2
+Stable tag: 0.14.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.14.3 =
+* Security fix: the dansal tile-proxy support added in 0.14.2 put the publisher API key in a `?key=` query parameter, which then rendered into public page HTML on any `[dansal_locations]`/map page — anyone viewing page source could lift a live, full-privilege API key. Tile requests are now proxied through a same-origin WordPress endpoint instead: the browser's Leaflet map fetches from WordPress, and only the WordPress server (never the visitor's browser) sends the key to dansal, as an `Authorization: Bearer` header — the only auth path dansal's tile proxy actually accepts for a real API key. Also fixes the proxy silently continuing to use a revoked/expired key instead of falling back to public OSM tiles (closes #118).
 
 = 0.14.2 =
 * Added support for dansal's built-in OSM tile proxy: when a custom tile URL is not configured, the plugin now automatically uses `{base_url}/tiles/osm/{z}/{x}/{y}.png` with API key authentication (closes #109, #111). This routes tile requests through the dansal instance instead of directly to OSM, hiding visitor IPs from OSM servers and complying with OSM's tile usage policy. Requires a dansal instance with the tile proxy enabled (dansal #1079). Falls back to direct OSM tiles when no base URL or API key is configured.
