@@ -223,7 +223,26 @@ class WPD_Frontend {
 		// filter as a no-code override point; the filter still wins when both
 		// are set, same precedence as any other WP filter over a stored option.
 		$configured = $this->settings->get_tile_url_template();
-		$default    = '' !== $configured ? $configured : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+		
+		// If no custom tile URL is configured, try to use dansal's tile proxy (#109)
+		// with API key authentication (#111). dansal_web serves tiles at
+		// /tiles/osm/{z}/{x}/{y}.png when the proxy is enabled.
+		if ( '' === $configured ) {
+			$base_url = $this->settings->get_base_url();
+			$api_key  = $this->settings->get_api_key();
+			
+			$tile_proxy_url = '';
+			if ( '' !== $base_url && '' !== $api_key ) {
+				$tile_proxy_url = trailingslashit( $base_url ) . 'tiles/osm/{z}/{x}/{y}.png';
+				// Add API key as query parameter for authentication (#111)
+				$tile_proxy_url = add_query_arg( 'key', $api_key, $tile_proxy_url );
+			}
+			
+			$default = '' !== $tile_proxy_url ? $tile_proxy_url : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+		} else {
+			$default = $configured;
+		}
+		
 		return array(
 			'urlTemplate'    => (string) apply_filters( 'wpd_tile_url_template', $default ),
 			'attribution'    => (string) apply_filters( 'wpd_tile_attribution', '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' ),

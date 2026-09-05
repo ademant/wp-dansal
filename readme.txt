@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.14.1
+Stable tag: 0.14.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -64,6 +64,10 @@ No. Uninstalling removes plugin settings and caches only. To also wipe event/loc
 Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Translation files are available for German (de_DE), French (fr_FR), Spanish (es_ES), Czech (cs_CZ), and Polish (pl_PL). To contribute translations: edit the `.po` file for your locale and compile it to `.mo`, or use a tool like Poedit. Files can be placed in the plugin's `languages/` directory or in `wp-content/languages/plugins/` to persist across updates.
 
 == Changelog ==
+
+= 0.14.2 =
+* Added support for dansal's built-in OSM tile proxy: when a custom tile URL is not configured, the plugin now automatically uses `{base_url}/tiles/osm/{z}/{x}/{y}.png` with API key authentication (closes #109, #111). This routes tile requests through the dansal instance instead of directly to OSM, hiding visitor IPs from OSM servers and complying with OSM's tile usage policy. Requires a dansal instance with the tile proxy enabled (dansal #1079). Falls back to direct OSM tiles when no base URL or API key is configured.
+* Map Tile URL setting added to Settings → Dansal for sites that want to use a different tile source without writing PHP (closes #110).
 
 = 0.14.1 =
 * Connect-link redemption now records the `expires_at` dansal returns on the response (dansal #1189), so the daily renewal cron proactively rotates the publisher key via `POST /api/v1/apikeys/renew` before it expires instead of only discovering the expiry via a failed 401. When dansal omits `expires_at` (invite-created keys have none by default), the key is correctly marked as having no expiry.
