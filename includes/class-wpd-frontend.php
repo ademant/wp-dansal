@@ -219,8 +219,13 @@ class WPD_Frontend {
 	 * <script>, so a strict site CSP still works.
 	 */
 	public function tile_config() {
+		// Settings → Dansal's "Map Tile URL" field (#110) sits below the
+		// filter as a no-code override point; the filter still wins when both
+		// are set, same precedence as any other WP filter over a stored option.
+		$configured = $this->settings->get_tile_url_template();
+		$default    = '' !== $configured ? $configured : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 		return array(
-			'urlTemplate'    => (string) apply_filters( 'wpd_tile_url_template', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' ),
+			'urlTemplate'    => (string) apply_filters( 'wpd_tile_url_template', $default ),
 			'attribution'    => (string) apply_filters( 'wpd_tile_attribution', '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' ),
 			'maxZoom'        => (int) apply_filters( 'wpd_tile_max_zoom', 19 ),
 			'referrerPolicy' => (string) apply_filters( 'wpd_tile_referrer_policy', 'origin' ),

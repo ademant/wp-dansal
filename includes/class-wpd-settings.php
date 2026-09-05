@@ -51,6 +51,13 @@ class WPD_Settings {
 			// commonly separate hosts, so this can't be derived from
 			// base_url. Falls back to base_url when empty.
 			'web_url'         => '',
+			// Optional override for the frontend map's tile source (#110).
+			// Empty means "use the default" (OSM's public tiles, see
+			// WPD_Frontend::tile_config()) — this exists so a site owner whose
+			// CSP blocks third-party image origins can point at their own
+			// dansal instance's tile proxy (dansal_web's `/tiles/osm/{z}/{x}/{y}.png`,
+			// where it runs one) without writing a wpd_tile_url_template filter.
+			'tile_url_template' => '',
 			'org_id'          => '',
 			// Deprecated: kept for UI placeholder only. Real key may be stored
 			// encrypted in 'api_key_encrypted'. Do NOT store plaintext here.
@@ -120,6 +127,15 @@ class WPD_Settings {
 	public function get_web_url() {
 		$web = untrailingslashit( trim( (string) $this->get( 'web_url' ) ) );
 		return '' !== $web ? $web : $this->get_base_url();
+	}
+
+	/**
+	 * Site-configured override for the frontend map's tile source (#110).
+	 * Empty string means "no override" — callers fall back to their own
+	 * default (see WPD_Frontend::tile_config()).
+	 */
+	public function get_tile_url_template() {
+		return trim( (string) $this->get( 'tile_url_template' ) );
 	}
 
 	public function get_org_id() {
@@ -415,6 +431,16 @@ class WPD_Settings {
 			$out['web_url'] = $existing['web_url'];
 		}
 
+		// Tile URL template (#110). Not run through esc_url_raw() — that strips
+		// the "{"/"}" placeholder braces a Leaflet urlTemplate needs, since
+		// they're outside the character set clean_url() allows through.
+		$raw_tile = isset( $input['tile_url_template'] ) ? trim( wp_unslash( $input['tile_url_template'] ) ) : $existing['tile_url_template'];
+		if ( '' === $raw_tile || preg_match( $scheme_re, $raw_tile ) ) {
+			$out['tile_url_template'] = sanitize_text_field( $raw_tile );
+		} else {
+			$out['tile_url_template'] = $existing['tile_url_template'];
+		}
+
 		$out['org_id']          = isset( $input['org_id'] ) ? absint( $input['org_id'] ) : $existing['org_id'];
 		$out['nominatim_email'] = isset( $input['nominatim_email'] ) ? sanitize_email( $input['nominatim_email'] ) : $existing['nominatim_email'];
 		$out['dedup_radius_km'] = isset( $input['dedup_radius_km'] ) ? (float) str_replace( ',', '.', (string) $input['dedup_radius_km'] ) : $existing['dedup_radius_km'];
@@ -595,6 +621,13 @@ class WPD_Settings {
 							<td>
 								<input type="url" id="wpd_web_url" name="<?php echo esc_attr( self::OPTION ); ?>[web_url]" value="<?php echo esc_attr( $o['web_url'] ); ?>" class="regular-text" placeholder="https://dansal.example.com" />
 								<p class="description"><?php esc_html_e( 'Optional. The dansal-web public site, only used to link to events/orgs/locations from other organizations that have no page on this WordPress site. Leave blank to reuse the base URL above.', 'wp-dansal' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpd_tile_url_template"><?php esc_html_e( 'Map Tile URL', 'wp-dansal' ); ?></label></th>
+							<td>
+								<input type="text" id="wpd_tile_url_template" name="<?php echo esc_attr( self::OPTION ); ?>[tile_url_template]" value="<?php echo esc_attr( $o['tile_url_template'] ); ?>" class="regular-text" placeholder="https://tile.openstreetmap.org/{z}/{x}/{y}.png" />
+								<p class="description"><?php esc_html_e( 'Optional. Overrides the tile source used by this plugin\'s Leaflet maps (default: OpenStreetMap\'s public tiles). Useful if your CSP blocks third-party image origins — if your dansal instance runs dansal-web with its tile proxy, try its own {web URL}/tiles/osm/{z}/{x}/{y}.png and allow just that host in img-src instead of opening up to OSM directly.', 'wp-dansal' ); ?></p>
 							</td>
 						</tr>
 						<tr>
