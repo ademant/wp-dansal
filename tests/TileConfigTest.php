@@ -1,12 +1,13 @@
 <?php
 /**
- * Seed suite for WPD_Frontend::tile_config() (#118).
+ * Seed suite for WPD_Frontend::tile_config() (#118, #120).
  *
- * The API key must never end up in a URL the browser can see, so these
- * pin down the routing: a usable dansal connection points the map at our
- * own ajax_tile() proxy instead of embedding the key, and anything short
- * of "usable" (no connection, or a dead key) falls back to public OSM
- * tiles rather than silently forwarding a query param dansal would reject.
+ * The API key must never end up in a URL the browser can see, so tile_config()
+ * always points the map at our own ajax_tile() proxy instead — regardless of
+ * connection/key state (#120: ajax_tile()/WPD_Api_Client::fetch_tile() handle
+ * every case server-side already — API key, then dansal's public tile token,
+ * then a same-origin raw-OSM fetch as the last resort — so tile_config()
+ * itself no longer needs to pre-decide whether the connection is "usable").
  */
 
 class TileConfigTest extends WP_UnitTestCase {
@@ -16,15 +17,19 @@ class TileConfigTest extends WP_UnitTestCase {
 		parent::tearDown();
 	}
 
-	public function test_falls_back_to_osm_when_no_connection_configured() {
+	public function test_no_connection_still_points_at_local_proxy() {
 		update_option( 'wpd_settings', array( 'base_url' => '', 'api_key' => '' ) );
 
 		$tiles = wpd_plugin()->frontend->tile_config();
 
-		$this->assertSame( 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', $tiles['urlTemplate'] );
+		// ajax_tile() itself falls back to a same-origin raw OSM fetch when
+		// there's no dansal connection at all — but the browser-facing
+		// urlTemplate stays same-origin either way, never a third-party host.
+		$this->assertStringContainsString( 'admin-ajax.php', $tiles['urlTemplate'] );
+		$this->assertStringContainsString( 'action=wpd_tile', $tiles['urlTemplate'] );
 	}
 
-	public function test_falls_back_to_osm_when_key_is_dead() {
+	public function test_dead_key_still_points_at_local_proxy() {
 		update_option(
 			'wpd_settings',
 			array(
@@ -36,7 +41,8 @@ class TileConfigTest extends WP_UnitTestCase {
 
 		$tiles = wpd_plugin()->frontend->tile_config();
 
-		$this->assertSame( 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', $tiles['urlTemplate'] );
+		$this->assertStringContainsString( 'admin-ajax.php', $tiles['urlTemplate'] );
+		$this->assertStringContainsString( 'action=wpd_tile', $tiles['urlTemplate'] );
 	}
 
 	public function test_usable_connection_points_at_local_proxy_not_dansal() {

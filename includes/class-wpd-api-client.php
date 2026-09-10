@@ -15,8 +15,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class WPD_Api_Client {
 
-	const TOKEN_TRANSIENT = 'wpd_dansal_session_token';
-	const RENEW_LOCK      = 'wpd_apikey_renew_lock';
+	const TOKEN_TRANSIENT      = 'wpd_dansal_session_token';
+	const RENEW_LOCK           = 'wpd_apikey_renew_lock';
+	const TILE_TOKEN_TRANSIENT = 'wpd_dansal_tile_token';
 
 	/** @var WPD_Settings */
 	private $settings;
@@ -525,15 +526,24 @@ class WPD_Api_Client {
 	}
 
 	/**
-	 * Fetch one OSM tile through dansal's tile proxy (#109, #111, #118).
+	 * Fetch one OSM tile through dansal's tile proxy (#109, #111, #118, #120).
 	 *
-	 * Authenticates with the publisher API key as an `Authorization: Bearer`
-	 * header — the only auth path dansal's proxy accepts for a real API key
-	 * (see dansal WEB.md, "Map Tile Proxy"). A browser-rendered
-	 * `<img>`/`L.tileLayer()` request can't attach a header at all, which is
-	 * exactly why this call has to happen here, server-side, in
-	 * WPD_Frontend::ajax_tile() — the key must never be echoed into a URL
-	 * the browser sees.
+	 * Two auth paths, tried in order:
+	 *   1. The publisher API key as an `Authorization: Bearer` header — the
+	 *      only auth path dansal's proxy accepts for a real API key (see
+	 *      dansal WEB.md, "Map Tile Proxy"). Requires this site to be a
+	 *      connected publisher.
+	 *   2. dansal's public tile token (#120, dansal #1287) as a `?t=` query
+	 *      param, for sites with no API key configured at all (e.g. a
+	 *      read-only display of nearby events, never publishing its own).
+	 *      Not a secret — every dansal_web page already embeds this value in
+	 *      plain HTML — so it's safe to fetch and use even without a
+	 *      publisher relationship.
+	 *
+	 * Both happen here, server-side, in WPD_Frontend::ajax_tile() — a
+	 * browser-rendered `<img>`/`L.tileLayer()` request can't attach a custom
+	 * header at all, and the API key specifically must never be echoed into
+	 * a URL the browser sees.
 	 *
 	 * @param int $z Zoom level.
 	 * @param int $x Tile column.
@@ -541,19 +551,56 @@ class WPD_Api_Client {
 	 * @return string|WP_Error Raw tile image bytes, or WP_Error on failure.
 	 */
 	public function fetch_tile( $z, $x, $y ) {
-		$api_key = $this->settings->get_api_key();
-		if ( '' === $api_key || $this->settings->is_api_key_dead() ) {
-			return new WP_Error( 'wpd_no_api_key', __( 'No usable dansal API key configured.', 'wp-dansal' ) );
+		$base_url = $this->settings->get_base_url();
+		if ( '' === $base_url ) {
+			return new WP_Error( 'wpd_no_connection', __( 'No dansal instance configured.', 'wp-dansal' ) );
 		}
 
-		$url = trailingslashit( $this->settings->get_base_url() ) . "tiles/osm/{$z}/{$x}/{$y}.png";
+		$api_key = $this->settings->get_api_key();
+		if ( '' !== $api_key && ! $this->settings->is_api_key_dead() ) {
+			$result = $this->request_tile( $base_url, $z, $x, $y, array( 'Authorization' => 'Bearer ' . $api_key ) );
+			if ( is_wp_error( $result ) && 'wpd_tile_http_401' === $result->get_error_code() ) {
+				// dansal rejected the key outright — same handling as every other
+				// endpoint in this client, so the renew cron/admin notice picks it up.
+				$this->settings->mark_apikey_dead();
+			}
+			return $result;
+		}
+
+		// No usable API key — fall back to dansal's public tile token rather
+		// than giving up straight to WPD_Frontend::ajax_tile()'s own
+		// last-resort raw-OSM fetch, so this site's map still benefits from
+		// dansal's own cached tile proxy instead of every wp-dansal install
+		// hitting OSM redundantly on its own.
+		$token = $this->get_public_tile_token();
+		if ( '' === $token ) {
+			return new WP_Error( 'wpd_no_tile_auth', __( 'No usable dansal API key or public tile token.', 'wp-dansal' ) );
+		}
+		return $this->request_tile( $base_url, $z, $x, $y, array(), $token );
+	}
+
+	/**
+	 * Shared GET to dansal's tile proxy — fetch_tile()'s two auth paths
+	 * differ only in how the request is authenticated.
+	 *
+	 * @param string $base_url Dansal base URL, already known non-empty.
+	 * @param int    $z Zoom level.
+	 * @param int    $x Tile column.
+	 * @param int    $y Tile row.
+	 * @param array  $headers Extra request headers (e.g. Authorization).
+	 * @param string $token   Public tile token to send as `?t=`, or '' for none.
+	 * @return string|WP_Error
+	 */
+	private function request_tile( $base_url, $z, $x, $y, array $headers, $token = '' ) {
+		$url = trailingslashit( $base_url ) . "tiles/osm/{$z}/{$x}/{$y}.png";
+		if ( '' !== $token ) {
+			$url = add_query_arg( 't', $token, $url );
+		}
 		$response = wp_remote_get(
 			$url,
 			array(
 				'timeout' => self::timeout( '/tiles/osm' ),
-				'headers' => array(
-					'Authorization' => 'Bearer ' . $api_key,
-				),
+				'headers' => $headers,
 			)
 		);
 
@@ -561,17 +608,49 @@ class WPD_Api_Client {
 			return $response;
 		}
 
-		$code = wp_remote_retrieve_response_code( $response );
-		if ( 401 === $code ) {
-			// dansal rejected the key outright — same handling as every other
-			// endpoint in this client, so the renew cron/admin notice picks it up.
-			$this->settings->mark_apikey_dead();
-		}
+		$code = (int) wp_remote_retrieve_response_code( $response );
 		if ( $code < 200 || $code >= 300 ) {
 			/* translators: %d: HTTP status code returned by the tile proxy. */
 			return new WP_Error( 'wpd_tile_http_' . $code, sprintf( __( 'Tile proxy returned HTTP %d', 'wp-dansal' ), $code ) );
 		}
 
 		return wp_remote_retrieve_body( $response );
+	}
+
+	/**
+	 * Fetch + cache dansal's public tile-proxy token (#120, dansal #1287).
+	 * Not a secret — every dansal_web page already embeds it in plain HTML
+	 * (view-source readable); this just gives a server-side caller like this
+	 * one a way to get it without an API key or a publisher relationship.
+	 * Empty string means "no token available" (no base_url configured, the
+	 * fetch failed, or this dansal instance predates #1287's endpoint) —
+	 * callers fall back accordingly, same as an unset API key.
+	 *
+	 * A failed fetch is still cached, just briefly, so an older dansal
+	 * instance without this route (or one that's temporarily down) doesn't
+	 * get hit on every single tile request.
+	 *
+	 * @return string
+	 */
+	private function get_public_tile_token() {
+		$cached = get_transient( self::TILE_TOKEN_TRANSIENT );
+		if ( false !== $cached ) {
+			return (string) $cached;
+		}
+
+		$base_url = $this->settings->get_base_url();
+		$url      = trailingslashit( $base_url ) . 'tiles/token';
+		$response = wp_remote_get( $url, array( 'timeout' => self::timeout( '/tiles/token' ) ) );
+
+		if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+			set_transient( self::TILE_TOKEN_TRANSIENT, '', 5 * MINUTE_IN_SECONDS );
+			return '';
+		}
+
+		$body  = json_decode( wp_remote_retrieve_body( $response ), true );
+		$token = is_array( $body ) && ! empty( $body['token'] ) ? (string) $body['token'] : '';
+
+		set_transient( self::TILE_TOKEN_TRANSIENT, $token, DAY_IN_SECONDS );
+		return $token;
 	}
 }

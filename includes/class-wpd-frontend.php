@@ -232,26 +232,22 @@ class WPD_Frontend {
 		// are set, same precedence as any other WP filter over a stored option.
 		$configured = $this->settings->get_tile_url_template();
 
-		// If no custom tile URL is configured, try to use dansal's tile proxy
-		// (#109). dansal_web serves tiles at /tiles/osm/{z}/{x}/{y}.png when
-		// the proxy is enabled, but only accepts a real API key via an
-		// Authorization: Bearer header (see dansal WEB.md) — never as a URL
-		// query param, since a <img>/L.tileLayer() request can't send custom
-		// headers and any credential put in that URL is world-readable page
-		// source. So instead of talking to dansal directly, the browser is
-		// pointed at our own ajax_tile() below, which holds the key
-		// server-side and proxies the fetch (#118).
+		// If no custom tile URL is configured, always point the browser at our
+		// own ajax_tile() below rather than talking to dansal (or OSM)
+		// directly (#109, #118, #120). ajax_tile()/WPD_Api_Client::fetch_tile()
+		// already handle every case server-side, in priority order: the
+		// publisher API key (Authorization: Bearer — the only auth path
+		// dansal's proxy accepts for a real key, and one a plain
+		// <img>/L.tileLayer() request can't send anyway, so it could never
+		// have worked client-side), dansal's public tile token (#120, no
+		// publisher relationship required), and finally a same-origin raw OSM
+		// fetch as the last resort when dansal is unreachable or unconfigured
+		// entirely. Every one of those stays same-origin to the browser, so
+		// this is safe to default to unconditionally — no site CSP needs to
+		// allow a third-party image host for any of them.
 		if ( '' === $configured ) {
-			$base_url = $this->settings->get_base_url();
-			$api_key  = $this->settings->get_api_key();
-			$usable   = '' !== $base_url && '' !== $api_key && ! $this->settings->is_api_key_dead();
-
-			if ( $usable ) {
-				$ajax_url = admin_url( 'admin-ajax.php' );
-				$default  = $ajax_url . ( false === strpos( $ajax_url, '?' ) ? '?' : '&' ) . 'action=wpd_tile&z={z}&x={x}&y={y}';
-			} else {
-				$default = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-			}
+			$ajax_url = admin_url( 'admin-ajax.php' );
+			$default  = $ajax_url . ( false === strpos( $ajax_url, '?' ) ? '?' : '&' ) . 'action=wpd_tile&z={z}&x={x}&y={y}';
 		} else {
 			$default = $configured;
 		}
