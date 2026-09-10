@@ -17,6 +17,7 @@
 		body.set( 'limit', wrap.getAttribute( 'data-wpd-limit' ) || '50' );
 		body.set( 'tag', wrap.getAttribute( 'data-wpd-tag' ) || '' );
 		body.set( 'exclude_own_org', wrap.getAttribute( 'data-wpd-exclude-own' ) || '0' );
+		body.set( 'show_cancelled', wrap.getAttribute( 'data-wpd-show-cancelled' ) || '0' );
 
 		fetch( wpdNearby.ajaxurl, { method: 'POST', body: body, credentials: 'same-origin' } )
 			.then( function ( r ) { return r.json(); } )

@@ -190,6 +190,7 @@ class WPD_Frontend {
 		$view      = isset( $_POST['view'] ) ? sanitize_key( wp_unslash( $_POST['view'] ) ) : 'map+list';
 		$tag       = isset( $_POST['tag'] ) ? sanitize_key( wp_unslash( $_POST['tag'] ) ) : '';
 		$exclude   = ! empty( $_POST['exclude_own_org'] ) ? 1 : 0;
+		$cancelled = ! empty( $_POST['show_cancelled'] ) ? 1 : 0;
 
 		if ( null === $lat || null === $lon ) {
 			wp_send_json_error( array( 'message' => 'Missing coordinates' ) );
@@ -207,6 +208,7 @@ class WPD_Frontend {
 			'view'            => $view,
 			'tag'             => $tag,
 			'exclude_own_org' => $exclude,
+			'show_cancelled'  => $cancelled,
 		);
 
 		wp_send_json_success( array( 'html' => $this->render_nearby_from_coords( $atts ) ) );
@@ -1041,6 +1043,7 @@ class WPD_Frontend {
 				'tag'             => '',
 				'type'            => '',
 				'exclude_own_org' => 1,
+				'show_cancelled'  => 0,
 			),
 			$atts,
 			'dansal_nearby'
@@ -1053,6 +1056,7 @@ class WPD_Frontend {
 		$atts['limit']           = max( 1, min( 100, absint( $atts['limit'] ) ) );
 		$atts['tag']             = sanitize_key( $atts['tag'] );
 		$atts['exclude_own_org'] = ! empty( $atts['exclude_own_org'] ) && '0' !== (string) $atts['exclude_own_org'] ? 1 : 0;
+		$atts['show_cancelled']  = ! empty( $atts['show_cancelled'] ) && '0' !== (string) $atts['show_cancelled'] ? 1 : 0;
 
 		$this->enqueue_frontend_style();
 		$this->enqueue_nearby_script();
@@ -1067,12 +1071,13 @@ class WPD_Frontend {
 		}
 
 		$data_attrs = sprintf(
-			' data-wpd-radius="%s" data-wpd-view="%s" data-wpd-limit="%d" data-wpd-tag="%s" data-wpd-exclude-own="%d"',
+			' data-wpd-radius="%s" data-wpd-view="%s" data-wpd-limit="%d" data-wpd-tag="%s" data-wpd-exclude-own="%d" data-wpd-show-cancelled="%d"',
 			esc_attr( $atts['radius_km'] ),
 			esc_attr( $atts['view'] ),
 			(int) $atts['limit'],
 			esc_attr( $atts['tag'] ),
-			(int) $atts['exclude_own_org']
+			(int) $atts['exclude_own_org'],
+			(int) $atts['show_cancelled']
 		);
 
 		if ( '' === $atts['lat'] || '' === $atts['lon'] ) {
@@ -1434,7 +1439,29 @@ class WPD_Frontend {
 			'org'             => array(),
 			'exclude_own_org' => ! empty( $atts['exclude_own_org'] ) ? 1 : 0,
 		);
-		$events = $this->fetch_remote_events( $fetch_atts, $query, (int) $atts['limit'] );
+		// Cancelled events get filtered out client-side below (unless opted
+		// back in), so over-fetch a bit when that's going to happen — otherwise
+		// a handful of cancellations in the radius could leave the list short
+		// of the requested limit even though more uncancelled events exist
+		// just outside the original fetch window.
+		$fetch_limit = empty( $atts['show_cancelled'] ) ? min( 100, (int) $atts['limit'] * 2 ) : (int) $atts['limit'];
+		$events      = $this->fetch_remote_events( $fetch_atts, $query, $fetch_limit );
+
+		// Cancelled events are hidden by default (#119) — they're still real
+		// rows dansal returns (a cancellation doesn't delete the event), just
+		// not useful clutter on a "what's happening nearby" widget unless a
+		// site owner explicitly opts in via show_cancelled="1".
+		if ( empty( $atts['show_cancelled'] ) ) {
+			$events = array_values(
+				array_filter(
+					$events,
+					function ( $event ) {
+						return empty( $event['is_cancelled'] );
+					}
+				)
+			);
+		}
+
 		$events = array_slice( $events, 0, (int) $atts['limit'] );
 
 		$view = isset( $atts['view'] ) ? $atts['view'] : 'map+list';

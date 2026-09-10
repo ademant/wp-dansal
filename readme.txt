@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.14.3
+Stable tag: 0.14.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 
 == Changelog ==
 
+= 0.14.4 =
+* `[dansal_nearby]` now hides cancelled events by default — pass `show_cancelled="1"` to include them again, same pattern as `[dansal_festivals]`'s `show_past` (closes #119).
+
 = 0.14.3 =
 * Security fix: the dansal tile-proxy support added in 0.14.2 put the publisher API key in a `?key=` query parameter, which then rendered into public page HTML on any `[dansal_locations]`/map page — anyone viewing page source could lift a live, full-privilege API key. Tile requests are now proxied through a same-origin WordPress endpoint instead: the browser's Leaflet map fetches from WordPress, and only the WordPress server (never the visitor's browser) sends the key to dansal, as an `Authorization: Bearer` header — the only auth path dansal's tile proxy actually accepts for a real API key. Also fixes the proxy silently continuing to use a revoked/expired key instead of falling back to public OSM tiles (closes #118).
 
@@ -102,7 +105,7 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 
 = 0.9.0 =
 * Mini calendar widget: prev/next month arrows now swap the grid in place via AJAX instead of reloading the whole archive page. Hrefs are preserved as a JS-off fallback (closes #98).
-* New shortcode `[dansal_nearby]` — a proximity-scoped list/map of dansal events. Attributes: `radius_km` (default 50, bounded 1..500), `lat`/`lon` (optional override), `view` (`list`|`map`|`map+list`, default `map+list`), plus `limit`/`tag`/`type`/`exclude_own_org`. If the visitor's browser grants geolocation, the widget re-fetches around them; otherwise it falls back to the site-configured Home location.
+* New shortcode `[dansal_nearby]` — a proximity-scoped list/map of dansal events. Attributes: `radius_km` (default 50, bounded 1..500), `lat`/`lon` (optional override), `view` (`list`|`map`|`map+list`, default `map+list`), plus `limit`/`tag`/`type`/`exclude_own_org`/`show_cancelled` (default 0 — cancelled events are hidden unless set to 1). If the visitor's browser grants geolocation, the widget re-fetches around them; otherwise it falls back to the site-configured Home location.
 * Settings → Dansal gains a **Home location** section: address + latitude/longitude, with a Nominatim "Search" button that populates coordinates from the picked result. Auto-seeded on activation from the most recently modified `dansal_location` post carrying coordinates (guarded by a one-shot `home_seeded` flag). Values are **not** synced to dansal — they live only in WordPress.
 * Remote-event map: `[dansal_events]` map / map+list views now work for remote (org/country/bbox/proximity) queries too, feeding the same Leaflet markup as local queries (closes #99).
 
