@@ -1,0 +1,40 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "wp-dansal/locations",
+	"title": "Dance locations map",
+	"icon": "location-alt",
+	"description": "A map and directory of the dance venues synced from dansal.",
+	"keywords": [
+		"dance",
+		"locations",
+		"venues",
+		"map",
+		"dansal"
+	],
+	"attributes": {
+		"tag": {
+			"type": "string",
+			"default": ""
+		},
+		"country": {
+			"type": "string",
+			"default": ""
+		},
+		"location": {
+			"type": "string",
+			"default": ""
+		}
+	},
+	"category": "widgets",
+	"textdomain": "wp-dansal",
+	"editorScript": "wpd-blocks-editor",
+	"editorStyle": "wpd-blocks-editor-style",
+	"supports": {
+		"html": false,
+		"align": [
+			"wide",
+			"full"
+		]
+	}
+}

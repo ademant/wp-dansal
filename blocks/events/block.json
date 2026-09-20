@@ -1,0 +1,84 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "wp-dansal/events",
+	"title": "Dance events",
+	"icon": "calendar-alt",
+	"description": "Upcoming dance events from this site and its dansal server — as a list, monthly calendar, map or compact ticker.",
+	"keywords": [
+		"dance",
+		"events",
+		"calendar",
+		"dansal",
+		"balfolk"
+	],
+	"attributes": {
+		"view": {
+			"type": "string",
+			"default": "list"
+		},
+		"limit": {
+			"type": "number",
+			"default": 20
+		},
+		"tag": {
+			"type": "string",
+			"default": ""
+		},
+		"type": {
+			"type": "string",
+			"default": ""
+		},
+		"location": {
+			"type": "string",
+			"default": ""
+		},
+		"showPast": {
+			"type": "boolean",
+			"default": false
+		},
+		"showTypes": {
+			"type": "boolean",
+			"default": false
+		},
+		"org": {
+			"type": "string",
+			"default": ""
+		},
+		"country": {
+			"type": "string",
+			"default": ""
+		},
+		"excludeOwnOrg": {
+			"type": "boolean",
+			"default": false
+		},
+		"bbox": {
+			"type": "string",
+			"default": ""
+		},
+		"lat": {
+			"type": "string",
+			"default": ""
+		},
+		"lon": {
+			"type": "string",
+			"default": ""
+		},
+		"radiusKm": {
+			"type": "string",
+			"default": ""
+		}
+	},
+	"category": "widgets",
+	"textdomain": "wp-dansal",
+	"editorScript": "wpd-blocks-editor",
+	"editorStyle": "wpd-blocks-editor-style",
+	"supports": {
+		"html": false,
+		"align": [
+			"wide",
+			"full"
+		]
+	}
+}

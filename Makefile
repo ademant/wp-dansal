@@ -14,7 +14,7 @@ ZIP_FILE  := $(DIST_DIR)/$(SLUG)-$(VERSION).zip
 # (rather than excluding dev cruft) so nothing new — composer.json, phpcs
 # config, CI workflows, .git — leaks into a release by accident just because
 # it was added to the repo root later.
-DIST_FILES := wp-dansal.php uninstall.php includes templates assets languages LICENSE README.md readme.txt
+DIST_FILES := wp-dansal.php uninstall.php includes templates assets blocks languages LICENSE README.md readme.txt
 
 .PHONY: all zip build deploy setup-env clean version help pot mo wp-cli
 

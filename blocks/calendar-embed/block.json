@@ -1,0 +1,60 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "wp-dansal/calendar-embed",
+	"title": "Dansal calendar embed",
+	"icon": "embed-generic",
+	"description": "dansal's own combined map and filterable event list, embedded from your dansal server.",
+	"keywords": [
+		"dance",
+		"calendar",
+		"embed",
+		"iframe",
+		"dansal"
+	],
+	"attributes": {
+		"org": {
+			"type": "string",
+			"default": ""
+		},
+		"location": {
+			"type": "string",
+			"default": ""
+		},
+		"from": {
+			"type": "string",
+			"default": ""
+		},
+		"to": {
+			"type": "string",
+			"default": ""
+		},
+		"tag": {
+			"type": "string",
+			"default": ""
+		},
+		"lang": {
+			"type": "string",
+			"default": ""
+		},
+		"width": {
+			"type": "string",
+			"default": "100%"
+		},
+		"height": {
+			"type": "string",
+			"default": "700"
+		}
+	},
+	"category": "widgets",
+	"textdomain": "wp-dansal",
+	"editorScript": "wpd-blocks-editor",
+	"editorStyle": "wpd-blocks-editor-style",
+	"supports": {
+		"html": false,
+		"align": [
+			"wide",
+			"full"
+		]
+	}
+}

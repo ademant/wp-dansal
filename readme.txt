@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.15.1
+Stable tag: 0.16.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.16.0 =
+* Gutenberg blocks for the shortcodes (refs #123): **Dance events**, **Dance locations map**, **Dance events nearby**, **Dance festivals** and **Dansal calendar embed**, with live preview and sidebar controls. They are server-side rendered by exactly the same code as the shortcodes, so the two can never disagree; the shortcodes keep working unchanged (classic themes, the Shortcode block, existing content). Block equivalents of the two widgets are available as variations of the events block — *Upcoming dance events* (the Upcoming Events widget) and *Dance mini calendar* (the Mini Calendar widget); the legacy widgets remain for classic themes.
 
 = 0.15.1 =
 * The plugin's own front-end endpoints (mini-calendar month arrows, `[dansal_nearby]` refresh, map tiles) now run on the REST API (`/wp-json/wpd/v1/…`) instead of `admin-ajax.php`. They only render data that is already public on your pages, so they need no nonce — pages served from a full-page cache no longer break once the nonce baked into their HTML expires, tiles get clean cacheable URLs, and hosts/WAFs that block `admin-ajax.php` for visitors are no longer a problem. The old `admin-ajax` actions stay registered so pages cached before the upgrade keep working. Refs #123.

@@ -1,0 +1,64 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "wp-dansal/nearby",
+	"title": "Dance events nearby",
+	"icon": "location",
+	"description": "Events near the visitor (with their permission) or near your organization's home.",
+	"keywords": [
+		"dance",
+		"nearby",
+		"events",
+		"geolocation",
+		"dansal"
+	],
+	"attributes": {
+		"radiusKm": {
+			"type": "number",
+			"default": 50
+		},
+		"view": {
+			"type": "string",
+			"default": "map+list"
+		},
+		"limit": {
+			"type": "number",
+			"default": 50
+		},
+		"tag": {
+			"type": "string",
+			"default": ""
+		},
+		"type": {
+			"type": "string",
+			"default": ""
+		},
+		"excludeOwnOrg": {
+			"type": "boolean",
+			"default": true
+		},
+		"showCancelled": {
+			"type": "boolean",
+			"default": false
+		},
+		"lat": {
+			"type": "string",
+			"default": ""
+		},
+		"lon": {
+			"type": "string",
+			"default": ""
+		}
+	},
+	"category": "widgets",
+	"textdomain": "wp-dansal",
+	"editorScript": "wpd-blocks-editor",
+	"editorStyle": "wpd-blocks-editor-style",
+	"supports": {
+		"html": false,
+		"align": [
+			"wide",
+			"full"
+		]
+	}
+}
