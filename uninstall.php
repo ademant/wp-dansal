@@ -61,6 +61,7 @@ delete_option( 'wpd_settings' );
 $wpd_named_transients = array(
 	'wpd_dansal_session_token', // WPD_Api_Client::TOKEN_TRANSIENT
 	'wpd_apikey_renew_lock',    // WPD_Api_Client::RENEW_LOCK
+	'wpd_dansal_tile_token',    // WPD_Api_Client::TILE_TOKEN_TRANSIENT
 	'wpd_event_pull_lock',
 	'wpd_location_pull_lock',
 	'wpd_series_pull_lock',

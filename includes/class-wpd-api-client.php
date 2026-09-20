@@ -560,20 +560,24 @@ class WPD_Api_Client {
 	 * @return string|WP_Error Raw tile image bytes, or WP_Error on failure.
 	 */
 	public function fetch_tile( $z, $x, $y ) {
-		$base_url = $this->settings->get_base_url();
-		if ( '' === $base_url ) {
+		// /tiles/* is served by dansal_web, not the API host — web_url falls
+		// back to base_url when unset, so single-host setups are unaffected (#122).
+		$web_url = $this->settings->get_web_url();
+		if ( '' === $web_url ) {
 			return new WP_Error( 'wpd_no_connection', __( 'No dansal instance configured.', 'wp-dansal' ) );
 		}
 
 		$api_key = $this->settings->get_api_key();
 		if ( '' !== $api_key && ! $this->settings->is_api_key_dead() ) {
-			$result = $this->request_tile( $base_url, $z, $x, $y, array( 'Authorization' => 'Bearer ' . $api_key ) );
-			if ( is_wp_error( $result ) && 'wpd_tile_http_401' === $result->get_error_code() ) {
-				// dansal rejected the key outright — same handling as every other
-				// endpoint in this client, so the renew cron/admin notice picks it up.
-				$this->settings->mark_apikey_dead();
+			$result = $this->request_tile( $web_url, $z, $x, $y, array( 'Authorization' => 'Bearer ' . $api_key ) );
+			if ( ! is_wp_error( $result ) || 'wpd_tile_http_401' !== $result->get_error_code() ) {
+				return $result;
 			}
-			return $result;
+			// dansal rejected the key outright — same handling as every other
+			// endpoint in this client, so the renew cron/admin notice picks it up.
+			// The public token would still have worked for this very request, so
+			// fall through to it instead of dropping straight to a raw-OSM fetch.
+			$this->settings->mark_apikey_dead();
 		}
 
 		// No usable API key — fall back to dansal's public tile token rather
@@ -581,18 +585,39 @@ class WPD_Api_Client {
 		// last-resort raw-OSM fetch, so this site's map still benefits from
 		// dansal's own cached tile proxy instead of every wp-dansal install
 		// hitting OSM redundantly on its own.
-		$token = $this->get_public_tile_token();
+		return $this->fetch_tile_with_public_token( $web_url, $z, $x, $y );
+	}
+
+	/**
+	 * Token-authenticated tile GET. dansal has no token-rotation UI (an admin
+	 * edits site_settings by hand), but when it does happen every cached copy
+	 * would otherwise 401 until the transient expires — so a 401 here drops the
+	 * cached token and retries once with a freshly fetched one (#122).
+	 *
+	 * @return string|WP_Error
+	 */
+	private function fetch_tile_with_public_token( $web_url, $z, $x, $y ) {
+		$token = $this->get_public_tile_token( $web_url );
 		if ( '' === $token ) {
 			return new WP_Error( 'wpd_no_tile_auth', __( 'No usable dansal API key or public tile token.', 'wp-dansal' ) );
 		}
-		return $this->request_tile( $base_url, $z, $x, $y, array(), $token );
+
+		$result = $this->request_tile( $web_url, $z, $x, $y, array(), $token );
+		if ( is_wp_error( $result ) && 'wpd_tile_http_401' === $result->get_error_code() ) {
+			delete_transient( self::TILE_TOKEN_TRANSIENT );
+			$fresh = $this->get_public_tile_token( $web_url );
+			if ( '' !== $fresh && $fresh !== $token ) {
+				return $this->request_tile( $web_url, $z, $x, $y, array(), $fresh );
+			}
+		}
+		return $result;
 	}
 
 	/**
 	 * Shared GET to dansal's tile proxy — fetch_tile()'s two auth paths
 	 * differ only in how the request is authenticated.
 	 *
-	 * @param string $base_url Dansal base URL, already known non-empty.
+	 * @param string $web_url Dansal web (dansal_web) base URL, already known non-empty.
 	 * @param int    $z Zoom level.
 	 * @param int    $x Tile column.
 	 * @param int    $y Tile row.
@@ -600,8 +625,8 @@ class WPD_Api_Client {
 	 * @param string $token   Public tile token to send as `?t=`, or '' for none.
 	 * @return string|WP_Error
 	 */
-	private function request_tile( $base_url, $z, $x, $y, array $headers, $token = '' ) {
-		$url = trailingslashit( $base_url ) . "tiles/osm/{$z}/{$x}/{$y}.png";
+	private function request_tile( $web_url, $z, $x, $y, array $headers, $token = '' ) {
+		$url = trailingslashit( $web_url ) . "tiles/osm/{$z}/{$x}/{$y}.png";
 		if ( '' !== $token ) {
 			$url = add_query_arg( 't', $token, $url );
 		}
@@ -631,7 +656,7 @@ class WPD_Api_Client {
 	 * Not a secret — every dansal_web page already embeds it in plain HTML
 	 * (view-source readable); this just gives a server-side caller like this
 	 * one a way to get it without an API key or a publisher relationship.
-	 * Empty string means "no token available" (no base_url configured, the
+	 * Empty string means "no token available" (no web/base URL configured, the
 	 * fetch failed, or this dansal instance predates #1287's endpoint) —
 	 * callers fall back accordingly, same as an unset API key.
 	 *
@@ -639,16 +664,16 @@ class WPD_Api_Client {
 	 * instance without this route (or one that's temporarily down) doesn't
 	 * get hit on every single tile request.
 	 *
+	 * @param string $web_url Dansal web (dansal_web) base URL, already known non-empty.
 	 * @return string
 	 */
-	private function get_public_tile_token() {
+	private function get_public_tile_token( $web_url ) {
 		$cached = get_transient( self::TILE_TOKEN_TRANSIENT );
 		if ( false !== $cached ) {
 			return (string) $cached;
 		}
 
-		$base_url = $this->settings->get_base_url();
-		$url      = trailingslashit( $base_url ) . 'tiles/token';
+		$url      = trailingslashit( $web_url ) . 'tiles/token';
 		$response = wp_remote_get( $url, array( 'timeout' => self::timeout( '/tiles/token' ) ) );
 
 		if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {

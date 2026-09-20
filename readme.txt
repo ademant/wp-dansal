@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.14.5
+Stable tag: 0.14.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -70,6 +70,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.14.6 =
+* Tile proxy fixes (closes #122): tiles and the public tile token are now requested from the *Dansal Web URL* (falling back to the base URL when unset) since `dansal_web`, not the API host, serves `/tiles/*` — previously a split API/web deployment got 404s. A rejected API key no longer sinks the same request to a raw-OSM fetch; it falls through to dansal's public tile token. A rotated public tile token is now dropped and re-fetched once on a 401 instead of staying broken for up to 24 hours. Uninstall now also removes the cached tile-token transient.
 
 = 0.14.5 =
 * The tile proxy now works with no dansal API key configured at all — sites that only display events (never publish their own) previously fell back to a direct, CSP-breaking OpenStreetMap URL. `WPD_Api_Client::fetch_tile()` now falls back to dansal's public tile token (requires dansal #1287) when there's no usable API key, before finally falling back to a same-origin server-side OSM fetch; `tile_config()` always routes through the local proxy regardless of connection state, so no site's CSP ever needs to allow a third-party image host for the map to work (closes #120).

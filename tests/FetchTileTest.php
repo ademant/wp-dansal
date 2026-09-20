@@ -98,7 +98,7 @@ class FetchTileTest extends WP_UnitTestCase {
 		$this->assertSame( 'Bearer ak_test', $this->requests[0]['args']['headers']['Authorization'] );
 	}
 
-	public function test_401_from_key_path_marks_key_dead_and_does_not_fall_back() {
+	public function test_401_from_key_path_marks_key_dead_and_falls_back_to_public_token() {
 		update_option(
 			'wpd_settings',
 			array(
@@ -108,7 +108,145 @@ class FetchTileTest extends WP_UnitTestCase {
 			)
 		);
 		$this->mock_http(
+			function ( $url, $args ) {
+				if ( false !== strpos( $url, '/tiles/token' ) ) {
+					return self::http_ok( wp_json_encode( array( 'token' => 'pub_tok_123' ) ) );
+				}
+				if ( isset( $args['headers']['Authorization'] ) ) {
+					return array(
+						'response' => array( 'code' => 401 ),
+						'body'     => '',
+					);
+				}
+				return self::http_ok( 'tile-bytes' );
+			}
+		);
+
+		$result = wpd_plugin()->api->fetch_tile( 1, 2, 3 );
+
+		// The rejected key is flagged, but the same request still gets served
+		// through the public token instead of failing over to raw OSM (#122).
+		$this->assertTrue( wpd_plugin()->settings->is_api_key_dead() );
+		$this->assertSame( 'tile-bytes', $result );
+		$this->assertSame( 'https://dansal.example/tiles/osm/1/2/3.png?t=pub_tok_123', end( $this->requests )['url'] );
+	}
+
+	public function test_non_401_error_from_key_path_does_not_mark_key_dead_or_fall_back() {
+		update_option(
+			'wpd_settings',
+			array(
+				'base_url'     => 'https://dansal.example',
+				'api_key'      => 'ak_test',
+				'api_key_dead' => false,
+			)
+		);
+		$this->mock_http(
+			function () {
+				return array(
+					'response' => array( 'code' => 502 ),
+					'body'     => '',
+				);
+			}
+		);
+
+		$result = wpd_plugin()->api->fetch_tile( 1, 2, 3 );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'wpd_tile_http_502', $result->get_error_code() );
+		$this->assertFalse( wpd_plugin()->settings->is_api_key_dead() );
+		$this->assertCount( 1, $this->requests );
+	}
+
+	public function test_tiles_are_requested_from_web_url_when_it_differs_from_base_url() {
+		update_option(
+			'wpd_settings',
+			array(
+				'base_url' => 'https://api.dansal.example',
+				'web_url'  => 'https://www.dansal.example',
+				'api_key'  => '',
+			)
+		);
+		$this->mock_http(
 			function ( $url ) {
+				if ( false !== strpos( $url, '/tiles/token' ) ) {
+					return self::http_ok( wp_json_encode( array( 'token' => 'pub_tok_123' ) ) );
+				}
+				return self::http_ok( 'tile-bytes' );
+			}
+		);
+
+		wpd_plugin()->api->fetch_tile( 1, 2, 3 );
+
+		$this->assertSame( 'https://www.dansal.example/tiles/token', $this->requests[0]['url'] );
+		$this->assertSame( 'https://www.dansal.example/tiles/osm/1/2/3.png?t=pub_tok_123', $this->requests[1]['url'] );
+	}
+
+	public function test_web_url_only_is_enough_to_fetch_tiles() {
+		update_option(
+			'wpd_settings',
+			array(
+				'base_url' => '',
+				'web_url'  => 'https://www.dansal.example',
+				'api_key'  => '',
+			)
+		);
+		$this->mock_http(
+			function ( $url ) {
+				if ( false !== strpos( $url, '/tiles/token' ) ) {
+					return self::http_ok( wp_json_encode( array( 'token' => 'pub_tok_123' ) ) );
+				}
+				return self::http_ok( 'tile-bytes' );
+			}
+		);
+
+		$this->assertSame( 'tile-bytes', wpd_plugin()->api->fetch_tile( 1, 2, 3 ) );
+	}
+
+	public function test_rotated_public_token_is_refetched_and_retried_once_on_401() {
+		update_option(
+			'wpd_settings',
+			array(
+				'base_url' => 'https://dansal.example',
+				'api_key'  => '',
+			)
+		);
+		set_transient( WPD_Api_Client::TILE_TOKEN_TRANSIENT, 'old_token', DAY_IN_SECONDS );
+		$this->mock_http(
+			function ( $url ) {
+				if ( false !== strpos( $url, '/tiles/token' ) ) {
+					return self::http_ok( wp_json_encode( array( 'token' => 'new_token' ) ) );
+				}
+				if ( false !== strpos( $url, 't=old_token' ) ) {
+					return array(
+						'response' => array( 'code' => 401 ),
+						'body'     => '',
+					);
+				}
+				return self::http_ok( 'tile-bytes' );
+			}
+		);
+
+		$result = wpd_plugin()->api->fetch_tile( 1, 2, 3 );
+
+		$this->assertSame( 'tile-bytes', $result );
+		$this->assertSame( 'new_token', get_transient( WPD_Api_Client::TILE_TOKEN_TRANSIENT ) );
+		$this->assertCount( 3, $this->requests ); // stale-token tile, token refetch, retry.
+	}
+
+	public function test_still_401_after_token_refresh_gives_up_instead_of_looping() {
+		update_option(
+			'wpd_settings',
+			array(
+				'base_url' => 'https://dansal.example',
+				'api_key'  => '',
+			)
+		);
+		set_transient( WPD_Api_Client::TILE_TOKEN_TRANSIENT, 'old_token', DAY_IN_SECONDS );
+		$this->mock_http(
+			function ( $url ) {
+				if ( false !== strpos( $url, '/tiles/token' ) ) {
+					return self::http_ok( wp_json_encode( array( 'token' => 'new_token' ) ) );
+				}
 				return array(
 					'response' => array( 'code' => 401 ),
 					'body'     => '',
@@ -120,10 +258,7 @@ class FetchTileTest extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'wpd_tile_http_401', $result->get_error_code() );
-		$this->assertTrue( wpd_plugin()->settings->is_api_key_dead() );
-		// A rejected key doesn't chain into the public-token path within the
-		// same call — only one request should have gone out.
-		$this->assertCount( 1, $this->requests );
+		$this->assertCount( 3, $this->requests );
 	}
 
 	public function test_no_key_falls_back_to_public_token_as_query_param() {
