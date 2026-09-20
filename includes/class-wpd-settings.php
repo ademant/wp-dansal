@@ -346,8 +346,16 @@ class WPD_Settings {
 				'orderby'        => 'modified',
 				'order'          => 'DESC',
 				'meta_query'     => array(
-					array( 'key' => '_wpd_latitude', 'value' => '', 'compare' => '!=' ),
-					array( 'key' => '_wpd_longitude', 'value' => '', 'compare' => '!=' ),
+					array(
+						'key' => '_wpd_latitude',
+						'value' => '',
+						'compare' => '!=',
+					),
+					array(
+						'key' => '_wpd_longitude',
+						'value' => '',
+						'compare' => '!=',
+					),
 				),
 				'fields'         => 'ids',
 				'no_found_rows'  => true,

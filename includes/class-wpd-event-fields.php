@@ -227,7 +227,12 @@ class WPD_Event_Fields {
 
 		$current_type = $v( '_wpd_pricing_type', 'free' );
 		$tiers        = $v( '_wpd_pricing_tiers' );
-		$tiers        = is_array( $tiers ) && $tiers ? $tiers : array( array( 'label' => '', 'amount' => '' ) );
+		$tiers        = is_array( $tiers ) && $tiers ? $tiers : array(
+			array(
+				'label' => '',
+				'amount' => '',
+			),
+		);
 		?>
 		<tr>
 			<th><label><?php esc_html_e( 'Booking URL', 'wp-dansal' ); ?></label></th>

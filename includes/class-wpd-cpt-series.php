@@ -102,11 +102,16 @@ class WPD_CPT_Series {
 
 		$events = $this->api->get( "/api/v1/series/{$dansal_id}/events" );
 		if ( is_wp_error( $events ) ) {
-			printf( '<p>%s</p>', esc_html( sprintf(
-				/* translators: %s: error message from dansal */
-				__( 'Could not load series events: %s', 'wp-dansal' ),
-				$events->get_error_message()
-			) ) );
+			printf(
+                '<p>%s</p>',
+                esc_html(
+                    sprintf(
+                    /* translators: %s: error message from dansal */
+                        __( 'Could not load series events: %s', 'wp-dansal' ),
+                        $events->get_error_message()
+                    )
+                )
+            );
 			return;
 		}
 		if ( ! is_array( $events ) || empty( $events ) ) {

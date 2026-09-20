@@ -358,7 +358,16 @@ class WPD_Api_Client {
 		$offset = 0;
 		$out    = array();
 		while ( true ) {
-			$page = $this->get( $path, array_merge( $query, array( 'limit' => $limit, 'offset' => $offset ) ) );
+			$page = $this->get(
+                $path,
+                array_merge(
+                    $query,
+                    array(
+						'limit' => $limit,
+						'offset' => $offset,
+                    )
+                )
+            );
 			if ( is_wp_error( $page ) ) {
 				return $page;
 			}

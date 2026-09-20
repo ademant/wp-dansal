@@ -776,8 +776,15 @@ class WPD_CPT_Location {
 					),
 					array(
 						'relation' => 'OR',
-						array( 'key' => '_wpd_location_post_id', 'compare' => 'NOT EXISTS' ),
-						array( 'key' => '_wpd_location_post_id', 'value' => '', 'compare' => '=' ),
+						array(
+							'key' => '_wpd_location_post_id',
+							'compare' => 'NOT EXISTS',
+						),
+						array(
+							'key' => '_wpd_location_post_id',
+							'value' => '',
+							'compare' => '=',
+						),
 					),
 				),
 			)

@@ -18,7 +18,13 @@ class TileConfigTest extends WP_UnitTestCase {
 	}
 
 	public function test_no_connection_still_points_at_local_proxy() {
-		update_option( 'wpd_settings', array( 'base_url' => '', 'api_key' => '' ) );
+		update_option(
+            'wpd_settings',
+            array(
+				'base_url' => '',
+				'api_key' => '',
+            )
+        );
 
 		$tiles = wpd_plugin()->frontend->tile_config();
 

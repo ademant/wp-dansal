@@ -554,8 +554,15 @@ class WPD_Frontend {
 					$other_sub = array( 'relation' => 'AND' );
 					$other_sub[] = array(
 						'relation' => 'OR',
-						array( 'key' => '_wpd_tags', 'compare' => 'NOT EXISTS' ),
-						array( 'key' => '_wpd_tags', 'value' => '', 'compare' => '=' ),
+						array(
+							'key' => '_wpd_tags',
+							'compare' => 'NOT EXISTS',
+						),
+						array(
+							'key' => '_wpd_tags',
+							'value' => '',
+							'compare' => '=',
+						),
 					);
 					foreach ( array_unique( $all_tags ) as $tag ) {
 						$other_sub[] = array(
@@ -1774,11 +1781,37 @@ class WPD_Frontend {
 		<div class="wpd-mini-calendar">
 			<div class="wpd-mini-nav">
 				<?php if ( $archive_url ) : ?>
-					<a class="wpd-mini-prev" data-wpd-month="<?php echo esc_attr( $prev_month ); ?>" data-wpd-year="<?php echo esc_attr( $prev_year ); ?>" href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $prev_month, 'wpd_year' => $prev_year ), $archive_url ) ); ?>">&laquo;</a>
+					<a class="wpd-mini-prev" data-wpd-month="<?php echo esc_attr( $prev_month ); ?>" data-wpd-year="<?php echo esc_attr( $prev_year ); ?>" href="
+                    <?php
+                    echo esc_url(
+                        add_query_arg(
+                            array(
+								'wpd_view' => 'calendar',
+								'wpd_month' => $prev_month,
+								'wpd_year' => $prev_year,
+                            ),
+                            $archive_url
+                        )
+                    );
+					?>
+                                                                ">&laquo;</a>
 				<?php endif; ?>
 				<span class="wpd-mini-title"><?php echo esc_html( date_i18n( 'F Y', mktime( 0, 0, 0, $month, 1, $year ) ) ); ?></span>
 				<?php if ( $archive_url ) : ?>
-					<a class="wpd-mini-next" data-wpd-month="<?php echo esc_attr( $next_month ); ?>" data-wpd-year="<?php echo esc_attr( $next_year ); ?>" href="<?php echo esc_url( add_query_arg( array( 'wpd_view' => 'calendar', 'wpd_month' => $next_month, 'wpd_year' => $next_year ), $archive_url ) ); ?>">&raquo;</a>
+					<a class="wpd-mini-next" data-wpd-month="<?php echo esc_attr( $next_month ); ?>" data-wpd-year="<?php echo esc_attr( $next_year ); ?>" href="
+                    <?php
+                    echo esc_url(
+                        add_query_arg(
+                            array(
+								'wpd_view' => 'calendar',
+								'wpd_month' => $next_month,
+								'wpd_year' => $next_year,
+                            ),
+                            $archive_url
+                        )
+                    );
+					?>
+                                                                ">&raquo;</a>
 				<?php endif; ?>
 			</div>
 			<div class="wpd-mini-grid">

@@ -55,8 +55,18 @@ class FetchTileTest extends WP_UnitTestCase {
 	}
 
 	public function test_no_base_url_returns_error_without_any_request() {
-		update_option( 'wpd_settings', array( 'base_url' => '', 'api_key' => '' ) );
-		$this->mock_http( function () { return self::http_ok( 'unused' ); } );
+		update_option(
+            'wpd_settings',
+            array(
+				'base_url' => '',
+				'api_key' => '',
+            )
+        );
+		$this->mock_http(
+            function () {
+                return self::http_ok( 'unused' );
+            }
+        );
 
 		$result = wpd_plugin()->api->fetch_tile( 1, 2, 3 );
 
@@ -74,7 +84,11 @@ class FetchTileTest extends WP_UnitTestCase {
 				'api_key_dead' => false,
 			)
 		);
-		$this->mock_http( function () { return self::http_ok( 'tile-bytes' ); } );
+		$this->mock_http(
+            function () {
+                return self::http_ok( 'tile-bytes' );
+            }
+        );
 
 		$result = wpd_plugin()->api->fetch_tile( 1, 2, 3 );
 
@@ -113,7 +127,13 @@ class FetchTileTest extends WP_UnitTestCase {
 	}
 
 	public function test_no_key_falls_back_to_public_token_as_query_param() {
-		update_option( 'wpd_settings', array( 'base_url' => 'https://dansal.example', 'api_key' => '' ) );
+		update_option(
+            'wpd_settings',
+            array(
+				'base_url' => 'https://dansal.example',
+				'api_key' => '',
+            )
+        );
 		$this->mock_http(
 			function ( $url ) {
 				if ( false !== strpos( $url, '/tiles/token' ) ) {
@@ -133,7 +153,13 @@ class FetchTileTest extends WP_UnitTestCase {
 	}
 
 	public function test_public_token_fetch_is_cached_across_calls() {
-		update_option( 'wpd_settings', array( 'base_url' => 'https://dansal.example', 'api_key' => '' ) );
+		update_option(
+            'wpd_settings',
+            array(
+				'base_url' => 'https://dansal.example',
+				'api_key' => '',
+            )
+        );
 		$this->mock_http(
 			function ( $url ) {
 				if ( false !== strpos( $url, '/tiles/token' ) ) {
@@ -149,18 +175,28 @@ class FetchTileTest extends WP_UnitTestCase {
 		// Two tile fetches, but the token lookup itself only happens once.
 		$token_requests = array_filter(
 			$this->requests,
-			function ( $r ) { return false !== strpos( $r['url'], '/tiles/token' ); }
+			function ( $r ) {
+				return false !== strpos( $r['url'], '/tiles/token' ); }
 		);
 		$this->assertCount( 1, $token_requests );
 	}
 
 	public function test_no_key_and_no_public_token_returns_error_without_crashing() {
-		update_option( 'wpd_settings', array( 'base_url' => 'https://dansal.example', 'api_key' => '' ) );
+		update_option(
+            'wpd_settings',
+            array(
+				'base_url' => 'https://dansal.example',
+				'api_key' => '',
+            )
+        );
 		$this->mock_http(
 			function ( $url ) {
 				if ( false !== strpos( $url, '/tiles/token' ) ) {
 					// Older dansal instance without #1287's endpoint yet.
-					return array( 'response' => array( 'code' => 404 ), 'body' => 'not found' );
+					return array(
+						'response' => array( 'code' => 404 ),
+						'body' => 'not found',
+					);
 				}
 				return self::http_ok( 'tile-bytes' );
 			}

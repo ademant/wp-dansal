@@ -43,14 +43,16 @@ while ( have_posts() ) :
 			$did = isset( $ids[ $i ] ) ? (int) $ids[ $i ] : 0;
 			$url = '';
 			if ( $did ) {
-				$local = get_posts( array(
-					'post_type'      => $post_type,
-					'post_status'    => 'publish',
-					'posts_per_page' => 1,
-					'meta_key'       => '_wpd_dansal_id',
-					'meta_value'     => $did,
-					'fields'         => 'ids',
-				) );
+				$local = get_posts(
+                    array(
+						'post_type'      => $post_type,
+						'post_status'    => 'publish',
+						'posts_per_page' => 1,
+						'meta_key'       => '_wpd_dansal_id',
+						'meta_value'     => $did,
+						'fields'         => 'ids',
+                    )
+                );
 				$url = $local ? get_permalink( (int) $local[0] ) : ( $wpd_web_base . $web_path . $did );
 			}
 			$out[] = $url
