@@ -119,12 +119,12 @@ class WPD_Frontend {
 
 	private function enqueue_leaflet() {
 		wp_enqueue_style( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.css', array(), '1.9.4' );
-		wp_enqueue_script( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.js', array(), '1.9.4', true );
-		wp_enqueue_script( 'wpd-map', WPD_PLUGIN_URL . 'assets/js/frontend-map.js', array( 'wpd-leaflet' ), wpd_asset_ver( 'assets/js/frontend-map.js' ), true );
+		wp_enqueue_script( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.js', array(), '1.9.4', wpd_footer_script_args() );
+		wp_enqueue_script( 'wpd-map', WPD_PLUGIN_URL . 'assets/js/frontend-map.js', array( 'wpd-leaflet' ), wpd_asset_ver( 'assets/js/frontend-map.js' ), wpd_footer_script_args() );
 	}
 
 	private function enqueue_mini_calendar_script() {
-		wp_enqueue_script( 'wpd-mini-calendar', WPD_PLUGIN_URL . 'assets/js/frontend-mini-calendar.js', array(), wpd_asset_ver( 'assets/js/frontend-mini-calendar.js' ), true );
+		wp_enqueue_script( 'wpd-mini-calendar', WPD_PLUGIN_URL . 'assets/js/frontend-mini-calendar.js', array(), wpd_asset_ver( 'assets/js/frontend-mini-calendar.js' ), wpd_footer_script_args() );
 		wp_localize_script(
 			'wpd-mini-calendar',
 			'wpdMiniCal',
@@ -139,7 +139,7 @@ class WPD_Frontend {
 	}
 
 	private function enqueue_nearby_script() {
-		wp_enqueue_script( 'wpd-nearby', WPD_PLUGIN_URL . 'assets/js/frontend-nearby.js', array(), wpd_asset_ver( 'assets/js/frontend-nearby.js' ), true );
+		wp_enqueue_script( 'wpd-nearby', WPD_PLUGIN_URL . 'assets/js/frontend-nearby.js', array(), wpd_asset_ver( 'assets/js/frontend-nearby.js' ), wpd_footer_script_args() );
 		wp_localize_script(
 			'wpd-nearby',
 			'wpdNearby',

@@ -3,7 +3,7 @@
  * Plugin Name: WP Dansal
  * Plugin URI: https://github.com/ademant/wp-dansal
  * Description: Manage dance events and locations in WordPress, backed by a dansal server (https://github.com/ademant/dansal) as the storage/publishing backend.
- * Version: 0.16.0
+ * Version: 0.16.1
  * Author: ademant
  * License: GPL-2.0-or-later
  * Text Domain: wp-dansal
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPD_VERSION', '0.16.0' );
+define( 'WPD_VERSION', '0.16.1' );
 define( 'WPD_PLUGIN_FILE', __FILE__ );
 define( 'WPD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -38,7 +38,22 @@ function wpd_asset_ver( $rel ) {
 	return WPD_VERSION;
 }
 
+/**
+ * Arguments for enqueuing a front-end script: in the footer and, on WordPress
+ * 6.3+, deferred so it never blocks parsing. Older WordPress reads a truthy
+ * array in this position as plain `$in_footer`, so it degrades to the previous
+ * behavior instead of breaking. Deferred scripts still run before
+ * DOMContentLoaded, which is all the plugin's scripts wait for.
+ */
+function wpd_footer_script_args() {
+	return array(
+		'strategy'  => 'defer',
+		'in_footer' => true,
+	);
+}
+
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-vocab.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-secret.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-settings.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-api-client.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-nominatim.php';

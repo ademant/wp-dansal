@@ -15,21 +15,18 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 // Best-effort self-revoke of the publisher API key on the dansal side, so
 // deleting the plugin doesn't leave a live key on the server. Runs before
 // we drop wpd_settings because we need base_url + the decrypted key. Silent
-// on any failure (network, older dansal without the route, missing openssl)
+// on any failure (network, older dansal without the route, unreadable key)
 // so uninstall never blocks on a broken/offline dansal.
 $wpd_opts = get_option( 'wpd_settings', array() );
 if ( is_array( $wpd_opts ) && ! empty( $wpd_opts['base_url'] ) ) {
 	$wpd_key = '';
-	if ( ! empty( $wpd_opts['api_key_encrypted'] ) && function_exists( 'openssl_decrypt' ) && defined( 'AUTH_KEY' ) && defined( 'AUTH_SALT' ) ) {
-		$wpd_blob = base64_decode( (string) $wpd_opts['api_key_encrypted'], true );
-		if ( false !== $wpd_blob && strlen( $wpd_blob ) > 16 ) {
-			$wpd_iv     = substr( $wpd_blob, 0, 16 );
-			$wpd_cipher = substr( $wpd_blob, 16 );
-			$wpd_km     = substr( hash( 'sha256', AUTH_KEY . AUTH_SALT, true ), 0, 32 );
-			$wpd_plain  = openssl_decrypt( $wpd_cipher, 'AES-256-CBC', $wpd_km, OPENSSL_RAW_DATA, $wpd_iv );
-			if ( false !== $wpd_plain && '' !== $wpd_plain ) {
-				$wpd_key = $wpd_plain;
-			}
+	if ( ! empty( $wpd_opts['api_key_encrypted'] ) ) {
+		// Same code path as the running plugin (current and legacy formats).
+		// The plugin isn't loaded during uninstall, so pull in just this class.
+		require_once __DIR__ . '/includes/class-wpd-secret.php';
+		$wpd_plain = WPD_Secret::decrypt( (string) $wpd_opts['api_key_encrypted'] );
+		if ( false !== $wpd_plain ) {
+			$wpd_key = $wpd_plain;
 		}
 	}
 	if ( '' === $wpd_key && ! empty( $wpd_opts['api_key'] ) && '***' !== $wpd_opts['api_key'] ) {

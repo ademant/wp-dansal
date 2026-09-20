@@ -2,9 +2,9 @@
 Contributors: ademant
 Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.16.0
+Stable tag: 0.16.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,11 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.16.1 =
+* The stored dansal API key is now encrypted with libsodium's authenticated `secretbox` (a tampered value is rejected instead of decrypting to garbage) instead of unauthenticated AES-CBC. Existing keys are re-encrypted once automatically on the first request after the update, and the old format stays readable, so nobody has to reconnect; the uninstall-time self-revoke of the key keeps working in both formats (refs #123).
+* Front-end scripts are loaded with the WordPress 6.3+ `defer` strategy (falling back to plain footer loading on older versions).
+* Tested with WordPress 7.1, including block themes (Twenty Twenty-Five): single event/location pages, the locations map and the new blocks render correctly.
 
 = 0.16.0 =
 * Gutenberg blocks for the shortcodes (refs #123): **Dance events**, **Dance locations map**, **Dance events nearby**, **Dance festivals** and **Dansal calendar embed**, with live preview and sidebar controls. They are server-side rendered by exactly the same code as the shortcodes, so the two can never disagree; the shortcodes keep working unchanged (classic themes, the Shortcode block, existing content). Block equivalents of the two widgets are available as variations of the events block — *Upcoming dance events* (the Upcoming Events widget) and *Dance mini calendar* (the Mini Calendar widget); the legacy widgets remain for classic themes.

@@ -17,6 +17,7 @@ class WPD_Settings {
 
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
+		add_action( 'init', array( $this, 'maybe_upgrade_key_encryption' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'wp_ajax_wpd_test_connection', array( $this, 'ajax_test_connection' ) );
@@ -205,50 +206,42 @@ class WPD_Settings {
 	}
 
 	/**
-	 * Encrypt API key using openssl with a key derived from site salts.
-	 * Returns base64(iv . ciphertext) on success, false on failure.
+	 * Authenticated encryption of the API key at rest — see WPD_Secret.
+	 *
+	 * @return string|false Blob to store, or false if encryption is unavailable.
 	 */
 	private function encrypt_api_key( $plaintext ) {
-		if ( empty( $plaintext ) || ! function_exists( 'openssl_encrypt' ) ) {
-			return false;
-		}
-		$key_material = defined( 'AUTH_KEY' ) && defined( 'AUTH_SALT' ) ? AUTH_KEY . AUTH_SALT : '';
-		if ( '' === $key_material ) {
-			return false;
-		}
-		$key = substr( hash( 'sha256', $key_material, true ), 0, 32 );
-		$iv  = openssl_random_pseudo_bytes( 16 );
-		$cipher = openssl_encrypt( $plaintext, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv );
-		if ( false === $cipher ) {
-			return false;
-		}
-		return base64_encode( $iv . $cipher );
+		return WPD_Secret::encrypt( $plaintext );
 	}
 
 	/**
-	 * Decrypt an API key stored as base64(iv . ciphertext).
-	 * Returns plaintext on success or false on failure.
+	 * @return string|false Plaintext, or false if the stored blob can't be read.
 	 */
 	private function decrypt_api_key( $blob ) {
-		if ( empty( $blob ) || ! function_exists( 'openssl_decrypt' ) ) {
-			return false;
+		return WPD_Secret::decrypt( $blob );
+	}
+
+	/**
+	 * Rewrites a key stored in the pre-libsodium format (unauthenticated
+	 * AES-CBC) in the current one — once, on the first request after the
+	 * upgrade. A key that can't be decrypted (salts changed) is left alone;
+	 * the dead-key/reconnect flow deals with that as it always has.
+	 */
+	public function maybe_upgrade_key_encryption() {
+		$opts = get_option( self::OPTION, array() );
+		if ( ! is_array( $opts ) || empty( $opts['api_key_encrypted'] ) || WPD_Secret::is_current( $opts['api_key_encrypted'] ) ) {
+			return;
 		}
-		$data = base64_decode( $blob, true );
-		if ( false === $data || strlen( $data ) <= 16 ) {
-			return false;
+		$plain = $this->decrypt_api_key( $opts['api_key_encrypted'] );
+		if ( false === $plain ) {
+			return;
 		}
-		$iv = substr( $data, 0, 16 );
-		$cipher = substr( $data, 16 );
-		$key_material = defined( 'AUTH_KEY' ) && defined( 'AUTH_SALT' ) ? AUTH_KEY . AUTH_SALT : '';
-		if ( '' === $key_material ) {
-			return false;
+		$upgraded = $this->encrypt_api_key( $plain );
+		if ( false === $upgraded ) {
+			return;
 		}
-		$key = substr( hash( 'sha256', $key_material, true ), 0, 32 );
-		$plaintext = openssl_decrypt( $cipher, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv );
-		if ( false === $plaintext ) {
-			return false;
-		}
-		return $plaintext;
+		$opts['api_key_encrypted'] = $upgraded;
+		update_option( self::OPTION, $opts );
 	}
 
 	public function mark_apikey_dead() {

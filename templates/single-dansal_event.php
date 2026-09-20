@@ -16,8 +16,8 @@ $wpd_map_lat    = $wpd_map_loc_id ? get_post_meta( $wpd_map_loc_id, '_wpd_latitu
 $wpd_map_lng    = $wpd_map_loc_id ? get_post_meta( $wpd_map_loc_id, '_wpd_longitude', true ) : '';
 if ( '' !== $wpd_map_lat && '' !== $wpd_map_lng ) {
 	wp_enqueue_style( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.css', array(), '1.9.4' );
-	wp_enqueue_script( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.js', array(), '1.9.4', true );
-	wp_enqueue_script( 'wpd-map', WPD_PLUGIN_URL . 'assets/js/frontend-map.js', array( 'wpd-leaflet' ), wpd_asset_ver( 'assets/js/frontend-map.js' ), true );
+	wp_enqueue_script( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.js', array(), '1.9.4', wpd_footer_script_args() );
+	wp_enqueue_script( 'wpd-map', WPD_PLUGIN_URL . 'assets/js/frontend-map.js', array( 'wpd-leaflet' ), wpd_asset_ver( 'assets/js/frontend-map.js' ), wpd_footer_script_args() );
 }
 
 get_header();
