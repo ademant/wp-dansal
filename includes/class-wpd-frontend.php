@@ -46,6 +46,8 @@ class WPD_Frontend {
 		add_action( 'wp_ajax_nopriv_wpd_nearby', array( $this, 'ajax_nearby' ) );
 		add_action( 'wp_ajax_wpd_tile', array( $this, 'ajax_tile' ) );
 		add_action( 'wp_ajax_nopriv_wpd_tile', array( $this, 'ajax_tile' ) );
+		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
+		add_filter( 'rest_pre_serve_request', array( $this, 'serve_tile_raw' ), 10, 3 );
 	}
 
 	/**
@@ -127,6 +129,9 @@ class WPD_Frontend {
 			'wpd-mini-calendar',
 			'wpdMiniCal',
 			array(
+				'restUrl' => rest_url( 'wpd/v1/mini-calendar' ),
+				// Legacy admin-ajax fallback, kept so a cached page that still
+				// carries the old localized data keeps working with new JS.
 				'ajaxurl' => admin_url( 'admin-ajax.php' ),
 				'nonce'   => wp_create_nonce( 'wpd_mini_calendar' ),
 			)
@@ -139,6 +144,7 @@ class WPD_Frontend {
 			'wpd-nearby',
 			'wpdNearby',
 			array(
+				'restUrl' => rest_url( 'wpd/v1/nearby' ),
 				'ajaxurl' => admin_url( 'admin-ajax.php' ),
 				'nonce'   => wp_create_nonce( 'wpd_nearby' ),
 			)
@@ -146,10 +152,127 @@ class WPD_Frontend {
 	}
 
 	/**
-	 * AJAX endpoint feeding the mini calendar's month arrows (see #98).
-	 * Returns the rendered HTML for the requested month; JS swaps it into
-	 * the widget in-place, avoiding the full page reload the anchor href
-	 * would otherwise trigger.
+	 * Registers the plugin's own front-end endpoints (mini-calendar month
+	 * arrows, [dansal_nearby] refresh, map tiles) on the REST API instead of
+	 * admin-ajax.php. They only render data that is already public on the
+	 * site's pages, so they need no auth and no nonce — which also means a
+	 * page served from a full-page cache keeps working after the 12–24 h a
+	 * nonce baked into its HTML would have lasted. This is *not* a data API
+	 * (see #116): each route returns rendered markup or an image for the
+	 * plugin's own scripts.
+	 */
+	public function register_rest_routes() {
+		register_rest_route(
+			'wpd/v1',
+			'/mini-calendar',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'rest_mini_calendar' ),
+				'permission_callback' => '__return_true',
+				'args'                => array(
+					'month' => array(
+						'type'     => 'integer',
+						'required' => true,
+						'minimum'  => 1,
+						'maximum'  => 12,
+					),
+					'year'  => array(
+						'type'     => 'integer',
+						'required' => true,
+						'minimum'  => 1970,
+						'maximum'  => 2100,
+					),
+				),
+			)
+		);
+
+		// POST, not GET: the visitor's coordinates are in the request, and a
+		// query string ends up in web-server access logs.
+		register_rest_route(
+			'wpd/v1',
+			'/nearby',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'rest_nearby' ),
+				'permission_callback' => '__return_true',
+				'args'                => array(
+					'lat'             => array(
+						'type'     => 'number',
+						'required' => true,
+						'minimum'  => -90,
+						'maximum'  => 90,
+					),
+					'lon'             => array(
+						'type'     => 'number',
+						'required' => true,
+						'minimum'  => -180,
+						'maximum'  => 180,
+					),
+					'radius_km'       => array(
+						'type'    => 'number',
+						'default' => 50,
+					),
+					'limit'           => array(
+						'type'    => 'integer',
+						'default' => 50,
+					),
+					'view'            => array(
+						'type'    => 'string',
+						'default' => 'map+list',
+					),
+					'tag'             => array(
+						'type'    => 'string',
+						'default' => '',
+					),
+					'exclude_own_org' => array(
+						'default' => 0,
+					),
+					'show_cancelled'  => array(
+						'default' => 0,
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			'wpd/v1',
+			'/tiles/(?P<z>\d+)/(?P<x>\d+)/(?P<y>\d+)',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'rest_tile' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+	}
+
+	private function mini_calendar_html( $month, $year ) {
+		$atts = array(
+			'location'   => 0,
+			'tag'        => '',
+			'type'       => array(),
+			'limit'      => 100,
+			'view'       => 'mini',
+			'show_past'  => 1,
+			'month'      => (int) $month,
+			'year'       => (int) $year,
+			'show_types' => 0,
+		);
+
+		return $this->render_mini_calendar( $atts );
+	}
+
+	/**
+	 * Feeds the mini calendar's month arrows (see #98): the rendered widget
+	 * for the requested month, which the JS swaps in place instead of
+	 * reloading the page.
+	 */
+	public function rest_mini_calendar( WP_REST_Request $request ) {
+		return rest_ensure_response( array( 'html' => $this->mini_calendar_html( $request['month'], $request['year'] ) ) );
+	}
+
+	/**
+	 * Legacy admin-ajax twin of rest_mini_calendar(), kept for pages cached
+	 * before the REST route existed (see register_rest_routes()).
 	 */
 	public function ajax_mini_calendar() {
 		check_ajax_referer( 'wpd_mini_calendar' );
@@ -160,56 +283,65 @@ class WPD_Frontend {
 			wp_send_json_error( array( 'message' => 'Bad month/year' ) );
 		}
 
-		$atts = array(
-			'location'   => 0,
-			'tag'        => '',
-			'type'       => array(),
-			'limit'      => 100,
-			'view'       => 'mini',
-			'show_past'  => 1,
-			'month'      => $month,
-			'year'       => $year,
-			'show_types' => 0,
-		);
-
-		wp_send_json_success( array( 'html' => $this->render_mini_calendar( $atts ) ) );
+		wp_send_json_success( array( 'html' => $this->mini_calendar_html( $month, $year ) ) );
 	}
 
 	/**
-	 * AJAX endpoint feeding [dansal_nearby] once the browser has
-	 * geolocated the visitor (see #99). Returns the rendered widget
-	 * HTML re-computed around the visitor's coords.
+	 * Normalises the raw request values for [dansal_nearby]'s refresh into
+	 * render_nearby_from_coords() attributes — shared by the REST route and
+	 * the legacy admin-ajax twin so the clamping can't drift apart.
+	 *
+	 * @param array $in lat, lon, radius_km, limit, view, tag, exclude_own_org, show_cancelled.
+	 * @return array|null Attributes, or null when coordinates are missing.
 	 */
-	public function ajax_nearby() {
-		check_ajax_referer( 'wpd_nearby' );
-
-		$lat       = isset( $_POST['lat'] ) && is_numeric( $_POST['lat'] ) ? (float) $_POST['lat'] : null;
-		$lon       = isset( $_POST['lon'] ) && is_numeric( $_POST['lon'] ) ? (float) $_POST['lon'] : null;
-		$radius_km = isset( $_POST['radius_km'] ) && is_numeric( $_POST['radius_km'] ) ? (float) $_POST['radius_km'] : 50.0;
-		$limit     = isset( $_POST['limit'] ) ? max( 1, min( 100, absint( $_POST['limit'] ) ) ) : 50;
-		$view      = isset( $_POST['view'] ) ? sanitize_key( wp_unslash( $_POST['view'] ) ) : 'map+list';
-		$tag       = isset( $_POST['tag'] ) ? sanitize_key( wp_unslash( $_POST['tag'] ) ) : '';
-		$exclude   = ! empty( $_POST['exclude_own_org'] ) ? 1 : 0;
-		$cancelled = ! empty( $_POST['show_cancelled'] ) ? 1 : 0;
-
+	private function nearby_atts( array $in ) {
+		$lat = isset( $in['lat'] ) && is_numeric( $in['lat'] ) ? (float) $in['lat'] : null;
+		$lon = isset( $in['lon'] ) && is_numeric( $in['lon'] ) ? (float) $in['lon'] : null;
 		if ( null === $lat || null === $lon ) {
-			wp_send_json_error( array( 'message' => 'Missing coordinates' ) );
+			return null;
 		}
-		$radius_km = max( 1.0, min( 500.0, $radius_km ) );
+
+		$radius_km = isset( $in['radius_km'] ) && is_numeric( $in['radius_km'] ) ? (float) $in['radius_km'] : 50.0;
+		$view      = isset( $in['view'] ) ? sanitize_key( $in['view'] ) : 'map+list';
 		if ( ! in_array( $view, array( 'list', 'map', 'map+list' ), true ) ) {
 			$view = 'map+list';
 		}
 
-		$atts = array(
+		return array(
 			'lat'             => $lat,
 			'lon'             => $lon,
-			'radius_km'       => $radius_km,
-			'limit'           => $limit,
+			'radius_km'       => max( 1.0, min( 500.0, $radius_km ) ),
+			'limit'           => isset( $in['limit'] ) ? max( 1, min( 100, absint( $in['limit'] ) ) ) : 50,
 			'view'            => $view,
-			'tag'             => $tag,
-			'exclude_own_org' => $exclude,
-			'show_cancelled'  => $cancelled,
+			'tag'             => isset( $in['tag'] ) ? sanitize_key( $in['tag'] ) : '',
+			'exclude_own_org' => ! empty( $in['exclude_own_org'] ) && '0' !== (string) $in['exclude_own_org'] ? 1 : 0,
+			'show_cancelled'  => ! empty( $in['show_cancelled'] ) && '0' !== (string) $in['show_cancelled'] ? 1 : 0,
 		);
+	}
+
+	/**
+	 * Feeds [dansal_nearby] once the browser has geolocated the visitor
+	 * (see #99): the widget re-rendered around the visitor's coordinates.
+	 */
+	public function rest_nearby( WP_REST_Request $request ) {
+		$atts = $this->nearby_atts( $request->get_params() );
+		if ( null === $atts ) {
+			return new WP_Error( 'wpd_missing_coordinates', __( 'Missing coordinates.', 'wp-dansal' ), array( 'status' => 400 ) );
+		}
+		return rest_ensure_response( array( 'html' => $this->render_nearby_from_coords( $atts ) ) );
+	}
+
+	/**
+	 * Legacy admin-ajax twin of rest_nearby(), kept for pages cached before
+	 * the REST route existed (see register_rest_routes()).
+	 */
+	public function ajax_nearby() {
+		check_ajax_referer( 'wpd_nearby' );
+
+		$atts = $this->nearby_atts( wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified by check_ajax_referer() above; every value is cast/sanitized in nearby_atts().
+		if ( null === $atts ) {
+			wp_send_json_error( array( 'message' => 'Missing coordinates' ) );
+		}
 
 		wp_send_json_success( array( 'html' => $this->render_nearby_from_coords( $atts ) ) );
 	}
@@ -233,8 +365,8 @@ class WPD_Frontend {
 		$configured = $this->settings->get_tile_url_template();
 
 		// If no custom tile URL is configured, always point the browser at our
-		// own ajax_tile() below rather than talking to dansal (or OSM)
-		// directly (#109, #118, #120). ajax_tile()/WPD_Api_Client::fetch_tile()
+		// own REST route (rest_tile()) rather than talking to dansal (or OSM)
+		// directly (#109, #118, #120). rest_tile()/WPD_Api_Client::fetch_tile()
 		// already handle every case server-side, in priority order: the
 		// publisher API key (Authorization: Bearer — the only auth path
 		// dansal's proxy accepts for a real key, and one a plain
@@ -244,10 +376,11 @@ class WPD_Frontend {
 		// fetch as the last resort when dansal is unreachable or unconfigured
 		// entirely. Every one of those stays same-origin to the browser, so
 		// this is safe to default to unconditionally — no site CSP needs to
-		// allow a third-party image host for any of them.
+		// allow a third-party image host for any of them. The {z}/{x}/{y}
+		// placeholders are Leaflet's and must reach the browser unescaped, so
+		// rest_url()'s plain string is used as-is.
 		if ( '' === $configured ) {
-			$ajax_url = admin_url( 'admin-ajax.php' );
-			$default  = $ajax_url . ( false === strpos( $ajax_url, '?' ) ? '?' : '&' ) . 'action=wpd_tile&z={z}&x={x}&y={y}';
+			$default = rest_url( 'wpd/v1/tiles/{z}/{x}/{y}' );
 		} else {
 			$default = $configured;
 		}
@@ -302,49 +435,30 @@ class WPD_Frontend {
 	}
 
 	/**
-	 * Tile-proxy AJAX endpoint (#118). Fronts dansal's tile proxy so the
-	 * publisher API key never reaches the browser — see tile_config() above
-	 * for why, and WPD_Api_Client::fetch_tile() for the authenticated call.
-	 * No nonce: like any other static image URL this is a plain, idempotent
-	 * GET a Leaflet tile request can't attach one to anyway, and the
-	 * credential this protects never leaves the server regardless.
+	 * Tile bytes for z/x/y: the local disk cache, else dansal's tile proxy
+	 * (WPD_Api_Client::fetch_tile()), else — last resort — OSM straight from
+	 * this server. A stale cached copy is preferred over a broken tile.
+	 *
+	 * @return string|false Raw image bytes, or false if no source worked.
 	 */
-	public function ajax_tile() {
-		$z = isset( $_GET['z'] ) ? absint( $_GET['z'] ) : -1;
-		$x = isset( $_GET['x'] ) ? absint( $_GET['x'] ) : -1;
-		$y = isset( $_GET['y'] ) ? absint( $_GET['y'] ) : -1;
-
-		// Valid OSM tile coords: 0 <= x,y < 2^z. Reject anything else instead
-		// of forwarding it to dansal or OSM.
-		$max_index = ( $z >= 0 && $z <= 22 ) ? ( 1 << $z ) - 1 : -1;
-		if ( $z < 0 || $z > 22 || $x < 0 || $x > $max_index || $y < 0 || $y > $max_index ) {
-			status_header( 400 );
-			exit;
-		}
-
+	private function resolve_tile( $z, $x, $y ) {
 		$cache_file = $this->tile_cache_path( $z, $x, $y );
 		if ( $cache_file && file_exists( $cache_file ) && ( time() - filemtime( $cache_file ) ) < WEEK_IN_SECONDS ) {
 			$cached = file_get_contents( $cache_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_get_contents -- local cache file under uploads/, not a remote URL.
 			if ( false !== $cached && '' !== $cached ) {
-				$this->send_tile( $cached );
+				return $cached;
 			}
 		}
 
 		$image = $this->api->fetch_tile( $z, $x, $y );
 		if ( is_wp_error( $image ) || '' === $image ) {
-			// Serve a stale cached copy rather than a broken map tile if we have one.
 			if ( $cache_file && file_exists( $cache_file ) ) {
 				$stale = file_get_contents( $cache_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_get_contents -- local cache file under uploads/, not a remote URL.
 				if ( false !== $stale && '' !== $stale ) {
-					$this->send_tile( $stale );
+					return $stale;
 				}
 			}
-			$fallback = $this->fetch_tile_from_osm( $z, $x, $y );
-			if ( false !== $fallback ) {
-				$this->send_tile( $fallback );
-			}
-			status_header( 502 );
-			exit;
+			return $this->fetch_tile_from_osm( $z, $x, $y );
 		}
 
 		if ( $cache_file ) {
@@ -352,14 +466,92 @@ class WPD_Frontend {
 			file_put_contents( $cache_file, $image ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- local cache file under uploads/, not writing to a remote URL.
 		}
 
-		$this->send_tile( $image );
+		return $image;
 	}
 
 	/**
-	 * Output raw tile bytes with image headers and stop. Browser-cacheable
-	 * for a day — tiles are effectively static per z/x/y.
+	 * Valid OSM tile coordinates: zoom 0–22 and 0 <= x,y < 2^z. Anything else
+	 * is rejected instead of being forwarded to dansal or OSM.
 	 */
-	private function send_tile( $image ) {
+	private static function valid_tile_coords( $z, $x, $y ) {
+		if ( $z < 0 || $z > 22 ) {
+			return false;
+		}
+		$max_index = ( 1 << $z ) - 1;
+		return $x >= 0 && $x <= $max_index && $y >= 0 && $y <= $max_index;
+	}
+
+	/**
+	 * Map tiles, proxied through the site itself (#118): the publisher API
+	 * key stays on the server (see tile_config() and
+	 * WPD_Api_Client::fetch_tile()). Public and idempotent — the same tiles
+	 * every visitor's map requests anyway — so no nonce or auth; the response
+	 * is a raw PNG, emitted by serve_tile_raw().
+	 */
+	public function rest_tile( WP_REST_Request $request ) {
+		$z = absint( $request['z'] );
+		$x = absint( $request['x'] );
+		$y = absint( $request['y'] );
+		if ( ! self::valid_tile_coords( $z, $x, $y ) ) {
+			return new WP_Error( 'wpd_bad_tile', __( 'Invalid tile coordinates.', 'wp-dansal' ), array( 'status' => 400 ) );
+		}
+
+		$image = $this->resolve_tile( $z, $x, $y );
+		if ( false === $image ) {
+			return new WP_Error( 'wpd_tile_unavailable', __( 'Tile unavailable.', 'wp-dansal' ), array( 'status' => 502 ) );
+		}
+
+		$response = new WP_REST_Response( $image, 200 );
+		$response->header( 'Content-Type', 'image/png' );
+		// Tiles are effectively static per z/x/y.
+		$response->header( 'Cache-Control', 'public, max-age=' . DAY_IN_SECONDS );
+		return $response;
+	}
+
+	/**
+	 * The REST server JSON-encodes whatever a route returns; a tile is raw
+	 * bytes, so write it out ourselves (headers were already sent from the
+	 * response) and tell the server it was served.
+	 *
+	 * @param bool             $served  Whether the request was already served.
+	 * @param WP_HTTP_Response $result  Result to send.
+	 * @param WP_REST_Request  $request Request.
+	 */
+	public function serve_tile_raw( $served, $result, $request ) {
+		if ( $served || 0 !== strpos( $request->get_route(), '/wpd/v1/tiles/' ) ) {
+			return $served;
+		}
+		$image = $result instanceof WP_REST_Response && 200 === $result->get_status() ? $result->get_data() : null;
+		if ( ! is_string( $image ) ) {
+			return $served; // An error response: let the server render it as JSON.
+		}
+		echo $image; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- binary image bytes, not markup.
+		return true;
+	}
+
+	/**
+	 * Legacy admin-ajax twin of rest_tile(), kept for pages cached before the
+	 * REST route existed (their data-wpd-tiles still point here).
+	 */
+	public function ajax_tile() {
+		// Public, idempotent image request; nothing here changes state.
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended
+		$z = isset( $_GET['z'] ) ? absint( $_GET['z'] ) : -1;
+		$x = isset( $_GET['x'] ) ? absint( $_GET['x'] ) : -1;
+		$y = isset( $_GET['y'] ) ? absint( $_GET['y'] ) : -1;
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		if ( ! self::valid_tile_coords( $z, $x, $y ) ) {
+			status_header( 400 );
+			exit;
+		}
+
+		$image = $this->resolve_tile( $z, $x, $y );
+		if ( false === $image ) {
+			status_header( 502 );
+			exit;
+		}
+
 		header( 'Content-Type: image/png' );
 		header( 'Cache-Control: public, max-age=' . DAY_IN_SECONDS );
 		echo $image; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- binary image bytes, not markup.

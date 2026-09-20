@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.15.0
+Stable tag: 0.15.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.15.1 =
+* The plugin's own front-end endpoints (mini-calendar month arrows, `[dansal_nearby]` refresh, map tiles) now run on the REST API (`/wp-json/wpd/v1/…`) instead of `admin-ajax.php`. They only render data that is already public on your pages, so they need no nonce — pages served from a full-page cache no longer break once the nonce baked into their HTML expires, tiles get clean cacheable URLs, and hosts/WAFs that block `admin-ajax.php` for visitors are no longer a problem. The old `admin-ajax` actions stay registered so pages cached before the upgrade keep working. Refs #123.
 
 = 0.15.0 =
 * Adopted dansal's room model (closes #121). Dansal now treats a room as an ordinary location with a parent building, and an event's location as either the building or one of its rooms — there is no separate `room_id` anymore. Fixes: the room picker, *Add room* / *Remove* and event sync no longer hit the removed `/rooms` endpoints (they 404'd); an event dansal has moved to a room (or to any location outside your org's list) is now fetched on demand instead of losing its location — previously *Accept dansal update* blanked the stored location link and the next save then cleared the location on dansal too. Rooms are imported as their own locations (shown under *Room of* in the location list, editable with floor, capacity, area and notes), the event form is now *building → room*, and events show "Building — Room". A room's inherited address and coordinates are never pushed back to dansal. Existing events with a pre-upgrade room are migrated automatically in the background from dansal's own record of the event's location.

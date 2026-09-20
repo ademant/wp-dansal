@@ -18,17 +18,30 @@
 			return;
 		}
 		e.preventDefault();
-		var url = wpdMiniCal.ajaxurl +
-			'?action=wpd_mini_calendar' +
-			'&_wpnonce=' + encodeURIComponent( wpdMiniCal.nonce ) +
-			'&month=' + encodeURIComponent( month ) +
-			'&year=' + encodeURIComponent( year );
+		var url;
+		if ( wpdMiniCal.restUrl ) {
+			// Public REST route: no nonce, so a full-page-cached page keeps
+			// working long after a nonce in its HTML would have expired.
+			url = wpdMiniCal.restUrl +
+				( wpdMiniCal.restUrl.indexOf( '?' ) === -1 ? '?' : '&' ) +
+				'month=' + encodeURIComponent( month ) +
+				'&year=' + encodeURIComponent( year );
+		} else {
+			// Cached page from before the REST route existed.
+			url = wpdMiniCal.ajaxurl +
+				'?action=wpd_mini_calendar' +
+				'&_wpnonce=' + encodeURIComponent( wpdMiniCal.nonce ) +
+				'&month=' + encodeURIComponent( month ) +
+				'&year=' + encodeURIComponent( year );
+		}
 		fetch( url, { credentials: 'same-origin' } )
 			.then( function ( r ) { return r.json(); } )
 			.then( function ( data ) {
-				if ( data && data.success && data.data && data.data.html ) {
+				// REST answers {html}; the legacy admin-ajax twin {success, data: {html}}.
+				var html = data && ( data.html || ( data.success && data.data && data.data.html ) );
+				if ( html ) {
 					var tmp = document.createElement( 'div' );
-					tmp.innerHTML = data.data.html;
+					tmp.innerHTML = html;
 					var fresh = tmp.querySelector( '.wpd-mini-calendar' );
 					if ( fresh ) {
 						wrap.replaceWith( fresh );

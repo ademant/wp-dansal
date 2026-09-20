@@ -8,8 +8,12 @@
 			return;
 		}
 		var body = new URLSearchParams();
-		body.set( 'action', 'wpd_nearby' );
-		body.set( '_wpnonce', wpdNearby.nonce );
+		var useRest = !! wpdNearby.restUrl;
+		if ( ! useRest ) {
+			// Cached page from before the REST route existed.
+			body.set( 'action', 'wpd_nearby' );
+			body.set( '_wpnonce', wpdNearby.nonce );
+		}
 		body.set( 'lat', coords.latitude );
 		body.set( 'lon', coords.longitude );
 		body.set( 'radius_km', wrap.getAttribute( 'data-wpd-radius' ) || '50' );
@@ -19,13 +23,16 @@
 		body.set( 'exclude_own_org', wrap.getAttribute( 'data-wpd-exclude-own' ) || '0' );
 		body.set( 'show_cancelled', wrap.getAttribute( 'data-wpd-show-cancelled' ) || '0' );
 
-		fetch( wpdNearby.ajaxurl, { method: 'POST', body: body, credentials: 'same-origin' } )
+		// POST (not GET) so the visitor's coordinates stay out of access logs.
+		fetch( useRest ? wpdNearby.restUrl : wpdNearby.ajaxurl, { method: 'POST', body: body, credentials: 'same-origin' } )
 			.then( function ( r ) { return r.json(); } )
 			.then( function ( data ) {
-				if ( data && data.success && data.data && typeof data.data.html === 'string' ) {
+				// REST answers {html}; the legacy admin-ajax twin {success, data: {html}}.
+				var html = data && ( typeof data.html === 'string' ? data.html : ( data.success && data.data && data.data.html ) );
+				if ( typeof html === 'string' ) {
 					// Server fragment is emitted by render_nearby_from_coords and
 					// contains only esc_*-escaped output; safe to swap.
-					wrap.innerHTML = data.data.html;
+					wrap.innerHTML = html;
 					if ( typeof window.wpdInitMaps === 'function' ) {
 						window.wpdInitMaps();
 					}
