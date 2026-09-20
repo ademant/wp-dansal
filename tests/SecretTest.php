@@ -6,6 +6,19 @@
 
 class SecretTest extends WP_UnitTestCase {
 
+	/**
+	 * The pre-0.16 format keys off AUTH_KEY/AUTH_SALT, so the legacy-format
+	 * tests need a harness config that defines them like a real wp-config.php
+	 * does (CI's does; see .github/workflows/ci.yml). They can't be defined
+	 * from inside a test: wp_salt() has already cached which salt constants
+	 * exist by then.
+	 */
+	private function require_salts() {
+		if ( ! defined( 'AUTH_KEY' ) || ! defined( 'AUTH_SALT' ) ) {
+			$this->markTestSkipped( 'wp-tests-config.php does not define AUTH_KEY/AUTH_SALT.' );
+		}
+	}
+
 	public function tear_down(): void {
 		delete_option( 'wpd_settings' );
 		parent::tear_down();
@@ -13,6 +26,7 @@ class SecretTest extends WP_UnitTestCase {
 
 	/** A blob exactly as pre-0.16 versions wrote it. */
 	private function legacy_blob( $plaintext ) {
+		$this->require_salts();
 		$key    = substr( hash( 'sha256', AUTH_KEY . AUTH_SALT, true ), 0, 32 );
 		$iv     = str_repeat( 'i', 16 );
 		$cipher = openssl_encrypt( $plaintext, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv );
