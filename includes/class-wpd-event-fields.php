@@ -25,8 +25,10 @@ class WPD_Event_Fields {
 	 */
 	public static function overlay_keys() {
 		return array(
+			// A single choice: the building, or one of its rooms (a room is a
+			// location of its own in dansal, #121). The event form shows two
+			// selects but collapses them into this one value on save.
 			'_wpd_location_post_id',
-			'_wpd_room_id',
 			'_wpd_tags',
 			'_wpd_dance_ids',
 			'_wpd_booking_url',
@@ -36,7 +38,7 @@ class WPD_Event_Fields {
 			// Array of {label, amount} maps, used only when pricing_type is
 			// "multiple" — dansal's own multi-tier pricing table. WP's
 			// get_post_meta()/update_post_meta() (de)serialize the array
-			// value transparently, same as the existing _wpd_rooms_cache.
+			// value transparently, same as any other array meta.
 			'_wpd_pricing_tiers',
 			// Array of timetable entry maps (start_time/end_time/title/
 			// entry_type plus description/room/location_id/musician_id
@@ -130,10 +132,26 @@ class WPD_Event_Fields {
 
 	/**
 	 * Location + Room rows.
+	 *
+	 * Dansal has one venue reference per event, pointing at a building or one
+	 * of its rooms (a room is a child location, #121). Two selects make that
+	 * easy to pick — building first, then optionally one of its rooms — and
+	 * sanitize_field_group() folds them back into the single
+	 * `_wpd_location_post_id` value.
 	 */
 	public function render_location_room_fields( array $values, $name_prefix ) {
 		list( $v, $name ) = $this->field_accessors( $values, $name_prefix );
 		$location_posts    = $this->get_location_posts();
+
+		// The stored value may be a room; split it into the two selects.
+		$selected       = (int) $v( '_wpd_location_post_id' );
+		$selected_room  = 0;
+		$selected_build = $selected;
+		if ( $selected && WPD_CPT_Location::is_room( $selected ) ) {
+			$selected_room  = $selected;
+			$selected_build = WPD_CPT_Location::parent_post_id( $selected );
+		}
+		$rooms = $selected_build ? WPD_CPT_Location::room_posts( $selected_build ) : array();
 		?>
 		<tr>
 			<th><label><?php esc_html_e( 'Location', 'wp-dansal' ); ?></label></th>
@@ -141,7 +159,7 @@ class WPD_Event_Fields {
 				<select name="<?php echo esc_attr( $name( '_wpd_location_post_id' ) ); ?>" class="wpd-location-select">
 					<option value=""><?php esc_html_e( '— select a synced location —', 'wp-dansal' ); ?></option>
 					<?php foreach ( $location_posts as $loc ) : ?>
-						<option value="<?php echo esc_attr( $loc->ID ); ?>" <?php selected( $v( '_wpd_location_post_id' ), $loc->ID ); ?>><?php echo esc_html( $loc->post_title ); ?></option>
+						<option value="<?php echo esc_attr( $loc->ID ); ?>" <?php selected( $selected_build, $loc->ID ); ?>><?php echo esc_html( $loc->post_title ); ?></option>
 					<?php endforeach; ?>
 				</select>
 				<p class="description"><?php esc_html_e( 'Only locations already synced to dansal (see Dance Locations) can be attached to an event.', 'wp-dansal' ); ?></p>
@@ -150,16 +168,10 @@ class WPD_Event_Fields {
 		<tr class="wpd-room-row">
 			<th><label><?php esc_html_e( 'Room', 'wp-dansal' ); ?></label></th>
 			<td>
-				<?php
-				$current_location_post = (int) $v( '_wpd_location_post_id' );
-				$rooms_cache           = $current_location_post ? get_post_meta( $current_location_post, '_wpd_rooms_cache', true ) : array();
-				$rooms_cache           = is_array( $rooms_cache ) ? $rooms_cache : array();
-				$current_room          = (int) $v( '_wpd_room_id' );
-				?>
-				<select name="<?php echo esc_attr( $name( '_wpd_room_id' ) ); ?>" class="wpd-room-select">
+				<select name="<?php echo esc_attr( $name( '_wpd_room_post_id' ) ); ?>" class="wpd-room-select">
 					<option value="0"><?php esc_html_e( '— no specific room —', 'wp-dansal' ); ?></option>
-					<?php foreach ( $rooms_cache as $room ) : ?>
-						<option value="<?php echo esc_attr( $room['id'] ); ?>" <?php selected( $current_room, $room['id'] ); ?>><?php echo esc_html( $room['name'] ); ?></option>
+					<?php foreach ( $rooms as $room ) : ?>
+						<option value="<?php echo esc_attr( $room->ID ); ?>" <?php selected( $selected_room, $room->ID ); ?>><?php echo esc_html( $room->post_title ); ?></option>
 					<?php endforeach; ?>
 				</select>
 				<p class="description"><?php esc_html_e( 'Optional — pick a specific named room within the venue. Rooms are managed on the location edit screen.', 'wp-dansal' ); ?></p>
@@ -570,9 +582,13 @@ class WPD_Event_Fields {
 		$dances               = array_values( array_filter( $dances ) );
 		$out['_wpd_dance_ids'] = implode( ',', $dances );
 
-		$out['_wpd_room_id'] = isset( $input['_wpd_room_id'] ) ? (string) absint( $input['_wpd_room_id'] ) : '';
-		if ( '0' === $out['_wpd_room_id'] ) {
-			$out['_wpd_room_id'] = '';
+		// Fold the room select into the single venue value (#121): a chosen
+		// room replaces the building — but only if it really belongs to the
+		// chosen building, so a stale room from a previously selected venue
+		// can't ride along after the building was changed.
+		$room_post_id = isset( $input['_wpd_room_post_id'] ) ? absint( $input['_wpd_room_post_id'] ) : 0;
+		if ( $room_post_id && '' !== $out['_wpd_location_post_id'] && WPD_CPT_Location::parent_post_id( $room_post_id ) === (int) $out['_wpd_location_post_id'] ) {
+			$out['_wpd_location_post_id'] = (string) $room_post_id;
 		}
 
 		return $out;
@@ -584,6 +600,14 @@ class WPD_Event_Fields {
 				'post_type'      => WPD_CPT_Location::POST_TYPE,
 				'posts_per_page' => -1,
 				'meta_key'       => WPD_CPT_Location::META_DANSAL_ID,
+				// Buildings only: rooms are picked in the second select, once a
+				// building is chosen.
+				'meta_query'     => array(
+					array(
+						'key'     => WPD_CPT_Location::META_PARENT_DANSAL_ID,
+						'compare' => 'NOT EXISTS',
+					),
+				),
 				'orderby'        => 'title',
 				'order'          => 'ASC',
 			)

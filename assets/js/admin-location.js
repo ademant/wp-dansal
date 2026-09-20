@@ -224,9 +224,14 @@
 					var $btn = $( '<button type="button" class="button-link wpd-room-remove" />' )
 						.text( wpdLocation.i18n.removeRoom )
 						.attr( 'data-room-id', room.id );
+					// A room is a location of its own (#121), so its name links to
+					// that location's edit screen (floor, capacity, notes, ...).
+					var $name = room.edit_url
+						? $( '<a />' ).attr( 'href', room.edit_url ).text( room.name )
+						: $( '<span />' ).text( room.name );
 					$ul.append(
 						$( '<li />' )
-							.append( $( '<span />' ).text( room.name ) )
+							.append( $name )
 							.append( ' — ' )
 							.append( $btn )
 					);

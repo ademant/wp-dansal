@@ -127,7 +127,17 @@ while ( have_posts() ) :
 			?>
 
 			<?php
-			$wpd_room_name = $loc_post_id ? get_post_meta( $wpd_post_id, '_wpd_room_name', true ) : '';
+			// The event's venue is a building or one of its rooms (#121); a room
+			// is a location post whose parent is the building.
+			$wpd_room_name  = '';
+			$wpd_venue_id   = (int) $loc_post_id;
+			if ( $wpd_venue_id && WPD_CPT_Location::is_room( $wpd_venue_id ) ) {
+				$wpd_building_id = WPD_CPT_Location::parent_post_id( $wpd_venue_id );
+				if ( $wpd_building_id ) {
+					$wpd_room_name = get_the_title( $wpd_venue_id );
+					$wpd_venue_id  = $wpd_building_id;
+				}
+			}
 			$wpd_ev_lat    = $loc_post_id ? get_post_meta( $loc_post_id, '_wpd_latitude', true ) : '';
 			$wpd_ev_lng    = $loc_post_id ? get_post_meta( $loc_post_id, '_wpd_longitude', true ) : '';
 			$wpd_has_map   = '' !== $wpd_ev_lat && '' !== $wpd_ev_lng;
@@ -143,7 +153,7 @@ while ( have_posts() ) :
 							<tr>
 								<th><?php esc_html_e( 'Where:', 'wp-dansal' ); ?></th>
 								<td>
-									<a href="<?php echo esc_url( get_permalink( $loc_post_id ) ); ?>"><?php echo esc_html( get_the_title( $loc_post_id ) ); ?></a>
+									<a href="<?php echo esc_url( get_permalink( $wpd_venue_id ) ); ?>"><?php echo esc_html( get_the_title( $wpd_venue_id ) ); ?></a>
 									<?php if ( $wpd_room_name ) : ?>
 										<span class="wpd-room-name"> — <?php echo esc_html( $wpd_room_name ); ?></span>
 									<?php endif; ?>

@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.14.6
+Stable tag: 0.15.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,6 +17,7 @@ WP Dansal turns WordPress into an editing frontend for the [dansal](https://gith
 **Features**
 
 * Dance Locations and Dance Events CPTs edited from the normal WordPress admin.
+* Locations can have rooms (dansal models a room as a location inside a building); events are held in a building or one of its rooms, picked building → room on the event screen.
 * Creating a location searches OpenStreetMap (Nominatim) for the address, then checks dansal for an existing location (by OSM id, then by proximity) before creating a duplicate. The same search widget, plus a small draggable-marker map and a reverse-geocode action, is also available when editing an already-synced location.
 * Event and location edit screens group their fields into collapsible sections so editors aren't scrolling past fields they rarely touch.
 * Saving an event or location syncs it to dansal (create on first save, update thereafter), using a publisher API key scoped to one organization.
@@ -70,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.15.0 =
+* Adopted dansal's room model (closes #121). Dansal now treats a room as an ordinary location with a parent building, and an event's location as either the building or one of its rooms — there is no separate `room_id` anymore. Fixes: the room picker, *Add room* / *Remove* and event sync no longer hit the removed `/rooms` endpoints (they 404'd); an event dansal has moved to a room (or to any location outside your org's list) is now fetched on demand instead of losing its location — previously *Accept dansal update* blanked the stored location link and the next save then cleared the location on dansal too. Rooms are imported as their own locations (shown under *Room of* in the location list, editable with floor, capacity, area and notes), the event form is now *building → room*, and events show "Building — Room". A room's inherited address and coordinates are never pushed back to dansal. Existing events with a pre-upgrade room are migrated automatically in the background from dansal's own record of the event's location.
 
 = 0.14.6 =
 * Tile proxy fixes (closes #122): tiles and the public tile token are now requested from the *Dansal Web URL* (falling back to the base URL when unset) since `dansal_web`, not the API host, serves `/tiles/*` — previously a split API/web deployment got 404s. A rejected API key no longer sinks the same request to a raw-OSM fetch; it falls through to dansal's public tile token. A rotated public tile token is now dropped and re-fetched once on a 401 instead of staying broken for up to 24 hours. Uninstall now also removes the cached tile-token transient.

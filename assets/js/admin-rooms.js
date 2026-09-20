@@ -1,7 +1,7 @@
 /* global document, wpdRooms */
 /**
- * Room picker follows the location: on change, ask the server for the new
- * location's rooms and rebuild the room <select>. The server-side render
+ * Room picker follows the building: on change, ask the server for the new
+ * building's rooms and rebuild the room <select>. The server-side render
  * seeded whatever room was selected at page load; anything after that is
  * JS-driven.
  *
@@ -46,7 +46,10 @@
 					}
 					resp.data.rooms.forEach( function ( room ) {
 						var option = document.createElement( 'option' );
-						option.value = room.id;
+						// The value is the room's *local post* ID: a room is a
+						// location of its own (#121) and the server folds this
+						// select into the event's single venue on save.
+						option.value = room.post_id;
 						option.textContent = room.name;
 						roomSel.appendChild( option );
 					} );

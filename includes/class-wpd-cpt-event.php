@@ -22,6 +22,8 @@ class WPD_CPT_Event {
 	const META_LAST_SYNCED_LOCATION   = '_wpd_last_synced_location_dansal_id';
 	const META_LAST_SYNCED_IMAGE      = '_wpd_last_synced_image_attachment_id';
 	const POST_TYPE                   = 'dansal_event';
+	/** One-shot marker: every event's pre-#121 _wpd_room_id/_wpd_room_name has been resolved. */
+	const OPTION_ROOMS_MIGRATED       = 'wpd_rooms_model_migrated';
 
 	/** @var WPD_Api_Client */
 	private $api;
@@ -45,6 +47,7 @@ class WPD_CPT_Event {
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
+		add_action( 'admin_init', array( $this, 'maybe_migrate_legacy_rooms' ), 30 );
 		add_action( 'admin_notices', array( $this, 'render_pending_pull_notice' ) );
 		WPD_Admin_Action::register( 'wpd_event_pull_accept', 'edit_posts', array( $this, 'handle_pull_accept' ) );
 		WPD_Admin_Action::register( 'wpd_event_pull_ignore', 'edit_posts', array( $this, 'handle_pull_ignore' ) );
@@ -190,7 +193,7 @@ class WPD_CPT_Event {
 				break;
 			case 'wpd_location':
 				$loc_id = get_post_meta( $post_id, '_wpd_location_post_id', true );
-				echo $loc_id ? esc_html( get_the_title( $loc_id ) ) : '';
+				echo $loc_id ? esc_html( WPD_CPT_Location::label( $loc_id ) ) : '';
 				break;
 			case 'wpd_dansal_id':
 				$id = get_post_meta( $post_id, self::META_DANSAL_ID, true );
@@ -962,11 +965,10 @@ class WPD_CPT_Event {
 			'tags'               => array_values( array_filter( explode( ',', $get( '_wpd_tags' ) ) ) ),
 			'organization_id'    => $this->settings->get_org_id(),
 			'location_id'        => $location_dansal_id ? $location_dansal_id : null,
-			// Room is a nullable sub-scope of the venue; clearing to null in a
-			// PATCH body is fine here because dansal treats a *int room_id
-			// consistently with the create/write path (unlike location_id,
-			// see the DELETE .../location dance in sync_to_dansal).
-			'room_id'            => (int) $get( '_wpd_room_id' ) ? (int) $get( '_wpd_room_id' ) : null,
+			// No separate room field: dansal models a room as a child location and
+			// an event's location_id points at whichever level was chosen — the
+			// building or one of its rooms (API.md → Locations, #121). The local
+			// _wpd_location_post_id already is that single choice.
 			'pricing'            => $pricing,
 			'musicians'          => array_values( array_filter( array_map( 'absint', explode( ',', $get( '_wpd_musician_ids' ) ) ) ) ),
 			'instructors'        => array_values( array_filter( array_map( 'absint', explode( ',', $get( '_wpd_instructor_ids' ) ) ) ) ),
@@ -1032,13 +1034,6 @@ class WPD_CPT_Event {
 					return null !== $v;
 				}
 			);
-			// room_id is the one *int field dansal explicitly treats as
-			// clearable via merge-patch null (API.md → Events: "clearing it
-			// to null is unambiguous in a merge-patch"), so re-add it if the
-			// user cleared it — array_filter stripped the null a moment ago.
-			if ( array_key_exists( 'room_id', $payload ) && null === $payload['room_id'] ) {
-				$patch['room_id'] = null;
-			}
 			$result = $this->api->patch( "/api/v1/events/{$dansal_id}", $patch );
 			if ( is_wp_error( $result ) ) {
 				/* translators: 1: dansal event ID, 2: underlying error message. */
@@ -1497,6 +1492,137 @@ class WPD_CPT_Event {
 		exit;
 	}
 
+	/**
+	 * Links a pulled event to its venue.
+	 *
+	 * dansal's location_id may be a room, or any location outside this org's
+	 * list, so it often has no local post yet — it's then fetched and
+	 * imported on demand. If it still can't be resolved (dansal unreachable),
+	 * the existing local link and its baseline are left alone: blanking them
+	 * would make the next WP save read "location cleared" and issue
+	 * DELETE /events/{id}/location, erasing the venue on dansal too (#121).
+	 * Only a location_id of 0 — dansal itself saying "no venue" — clears it.
+	 *
+	 * @return bool False if dansal named a location that couldn't be imported
+	 *              (nothing was changed); true otherwise.
+	 */
+	private function apply_pulled_location( $post_id, array $event ) {
+		$location_id = isset( $event['location_id'] ) ? (int) $event['location_id'] : 0;
+
+		if ( $location_id <= 0 ) {
+			update_post_meta( $post_id, '_wpd_location_post_id', '' );
+			// Baseline for detecting a user-driven "clear location" on the next
+			// push — see sync_to_dansal() for the DELETE .../location call.
+			update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, 0 );
+			return true;
+		}
+
+		$location_post_id = wpd_plugin()->cpt_location->ensure_local_post( $location_id );
+		if ( ! $location_post_id ) {
+			/* translators: 1: event title, 2: dansal location ID. */
+			$this->store_notice( sprintf( __( 'Event "%1$s": dansal location #%2$d could not be imported, so the previous local location was kept.', 'wp-dansal' ), get_the_title( $post_id ), $location_id ), 'error' );
+			return false;
+		}
+
+		update_post_meta( $post_id, '_wpd_location_post_id', $location_post_id );
+		update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, $location_id );
+		return true;
+	}
+
+	/**
+	 * One-shot upgrade from the pre-#121 room model, in small batches on
+	 * admin page loads (it needs dansal round-trips, so it can't run on every
+	 * request or in one go).
+	 *
+	 * Events used to carry a separate room_id + room_name. Dansal converted
+	 * its rooms into child locations with *new* ids (`INSERT INTO locations …
+	 * SELECT … FROM rooms`) and re-pointed each event's location_id at its
+	 * room — so the old room id must NOT be read as a location id. Instead
+	 * each event's venue is re-read from dansal; only when that isn't possible
+	 * (event not on dansal anymore) is the stored room *name* matched against
+	 * the building's rooms.
+	 */
+	public function maybe_migrate_legacy_rooms() {
+		if ( get_option( self::OPTION_ROOMS_MIGRATED ) || wp_doing_ajax() || wp_doing_cron() || ! current_user_can( 'edit_posts' ) ) {
+			return;
+		}
+		if ( ! $this->settings->is_configured() || get_transient( 'wpd_rooms_migration_backoff' ) ) {
+			return;
+		}
+
+		$ids = get_posts(
+			array(
+				'post_type'      => self::POST_TYPE,
+				'post_status'    => 'any',
+				'posts_per_page' => 10,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+				'meta_query'     => array(
+					array(
+						'key'     => '_wpd_room_id',
+						'value'   => '',
+						'compare' => '!=',
+					),
+				),
+			)
+		);
+		if ( ! $ids ) {
+			update_option( self::OPTION_ROOMS_MIGRATED, 1 );
+			return;
+		}
+
+		foreach ( $ids as $post_id ) {
+			if ( ! $this->migrate_legacy_room( (int) $post_id ) ) {
+				// dansal (or the network) failed for this event; don't retry on
+				// every admin page load.
+				set_transient( 'wpd_rooms_migration_backoff', 1, 10 * MINUTE_IN_SECONDS );
+				return;
+			}
+		}
+	}
+
+	/**
+	 * @return bool True when the event no longer carries legacy room meta;
+	 *              false when it must be retried later (transient failure).
+	 */
+	private function migrate_legacy_room( $post_id ) {
+		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
+		$room_name = trim( (string) get_post_meta( $post_id, '_wpd_room_name', true ) );
+
+		if ( $dansal_id ) {
+			$event = $this->api->get( "/api/v1/events/{$dansal_id}" );
+			if ( ! is_wp_error( $event ) && is_array( $event ) && ! empty( $event['id'] ) ) {
+				if ( ! $this->apply_pulled_location( $post_id, $event ) ) {
+					return false;
+				}
+				$this->drop_legacy_room_meta( $post_id );
+				return true;
+			}
+			// Anything but "this event is gone" is worth a retry.
+			if ( ! is_wp_error( $event ) || 'wpd_http_404' !== $event->get_error_code() ) {
+				return false;
+			}
+		}
+
+		// Local-only event (or gone from dansal): match the room by name.
+		$building = (int) get_post_meta( $post_id, '_wpd_location_post_id', true );
+		if ( $room_name && $building && ! WPD_CPT_Location::is_room( $building ) ) {
+			foreach ( wpd_plugin()->cpt_location->fetch_rooms_for_post( $building ) as $room ) {
+				if ( 0 === strcasecmp( trim( $room['name'] ), $room_name ) ) {
+					update_post_meta( $post_id, '_wpd_location_post_id', $room['post_id'] );
+					break;
+				}
+			}
+		}
+		$this->drop_legacy_room_meta( $post_id );
+		return true;
+	}
+
+	private function drop_legacy_room_meta( $post_id ) {
+		delete_post_meta( $post_id, '_wpd_room_id' );
+		delete_post_meta( $post_id, '_wpd_room_name' );
+	}
+
 	private function write_event_post( $post_id, array $event ) {
 		$title       = isset( $event['title'] ) ? $event['title'] : '';
 		// dansal writers cross a trust boundary WordPress doesn't know
@@ -1529,15 +1655,11 @@ class WPD_CPT_Event {
 		update_post_meta( $post_id, '_wpd_start_time', $this->from_rfc3339( isset( $event['start_time'] ) ? $event['start_time'] : '' ) );
 		update_post_meta( $post_id, '_wpd_end_time', $this->from_rfc3339( isset( $event['end_time'] ) ? $event['end_time'] : '' ) );
 
-		$location_id      = isset( $event['location_id'] ) ? (int) $event['location_id'] : 0;
-		$location_post_id = $location_id ? WPD_CPT_Location::find_post_id_by_dansal_id( $location_id ) : 0;
-		update_post_meta( $post_id, '_wpd_location_post_id', $location_post_id ? $location_post_id : '' );
-		// Baseline for detecting a user-driven "clear location" on the next
-		// push — see sync_to_dansal() for the DELETE .../location call.
-		update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, $location_id );
-
-		update_post_meta( $post_id, '_wpd_room_id', isset( $event['room_id'] ) ? (int) $event['room_id'] : '' );
-		update_post_meta( $post_id, '_wpd_room_name', isset( $event['room_name'] ) ? (string) $event['room_name'] : '' );
+		$this->apply_pulled_location( $post_id, $event );
+		// Pre-#121 per-event room fields; dansal no longer has them (the venue
+		// is location_id alone), so a pulled event never carries them anymore.
+		delete_post_meta( $post_id, '_wpd_room_id' );
+		delete_post_meta( $post_id, '_wpd_room_name' );
 
 		$tags = isset( $event['tags'] ) && is_array( $event['tags'] ) ? array_map( 'sanitize_key', $event['tags'] ) : array();
 		update_post_meta( $post_id, '_wpd_tags', $tags ? ',' . implode( ',', $tags ) . ',' : '' );

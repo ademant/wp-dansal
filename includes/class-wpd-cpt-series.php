@@ -510,7 +510,9 @@ class WPD_CPT_Series {
 		}
 
 		$location_dansal_id = isset( $series['default_location_id'] ) ? (int) $series['default_location_id'] : 0;
-		$location_post_id   = $location_dansal_id ? WPD_CPT_Location::find_post_id_by_dansal_id( $location_dansal_id ) : 0;
+		// The default venue may be a room (#121), which the org-wide location pull
+		// doesn't list — import it on demand rather than dropping the link.
+		$location_post_id   = $location_dansal_id ? wpd_plugin()->cpt_location->ensure_local_post( $location_dansal_id ) : 0;
 		update_post_meta( $post_id, '_wpd_location_post_id', $location_post_id ? $location_post_id : '' );
 		update_post_meta( $post_id, '_wpd_series_start_time_of_day', isset( $series['default_start_time'] ) ? $series['default_start_time'] : '' );
 		update_post_meta( $post_id, '_wpd_series_end_time_of_day', isset( $series['default_end_time'] ) ? $series['default_end_time'] : '' );

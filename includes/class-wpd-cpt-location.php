@@ -21,7 +21,15 @@ class WPD_CPT_Location {
 
 	const META_DANSAL_ID      = '_wpd_dansal_id';
 	const META_LAST_SYNCED_AT = '_wpd_last_synced_at';
-	const POST_TYPE           = 'dansal_location';
+	/**
+	 * Dansal id of a room's building. Present only on rooms — dansal models a
+	 * room as an ordinary location with `parent_id` set (API.md → Locations →
+	 * "Rooms are child locations", #121). Stored as the dansal id, not a WP
+	 * post id, so it doesn't depend on which of the two posts was imported
+	 * first.
+	 */
+	const META_PARENT_DANSAL_ID = '_wpd_parent_dansal_id';
+	const POST_TYPE             = 'dansal_location';
 
 	/** @var WPD_Api_Client */
 	private $api;
@@ -29,6 +37,14 @@ class WPD_CPT_Location {
 	private $nominatim;
 	/** @var WPD_Settings */
 	private $settings;
+	/**
+	 * Dansal ids ensure_local_post() already failed to fetch during this
+	 * request, so one unreachable/deleted location doesn't cost a request per
+	 * event that references it.
+	 *
+	 * @var array<int,true>
+	 */
+	private $unresolvable = array();
 
 	public function __construct( WPD_Api_Client $api, WPD_Nominatim $nominatim, WPD_Settings $settings ) {
 		$this->api       = $api;
@@ -74,6 +90,7 @@ class WPD_CPT_Location {
 	public function columns( $columns ) {
 		$columns['wpd_dansal_id'] = __( 'Dansal ID', 'wp-dansal' );
 		$columns['wpd_town']      = __( 'Town', 'wp-dansal' );
+		$columns['wpd_building']  = __( 'Room of', 'wp-dansal' );
 		return $columns;
 	}
 
@@ -83,6 +100,9 @@ class WPD_CPT_Location {
 			echo $id ? esc_html( $id ) : esc_html__( 'not synced', 'wp-dansal' );
 		} elseif ( 'wpd_town' === $column ) {
 			echo esc_html( get_post_meta( $post_id, '_wpd_town', true ) );
+		} elseif ( 'wpd_building' === $column ) {
+			$parent = self::parent_post_id( $post_id );
+			echo $parent ? esc_html( get_the_title( $parent ) ) : '';
 		}
 	}
 
@@ -95,8 +115,96 @@ class WPD_CPT_Location {
 		return '' === $v ? $default_value : $v;
 	}
 
+	/**
+	 * Meta box for a room (a child location, #121): the fields dansal lets a
+	 * room own, with the building's address shown read-only since it is
+	 * inherited, not stored on the room.
+	 */
+	private function render_room_meta_box( $post ) {
+		$dansal_id   = get_post_meta( $post->ID, self::META_DANSAL_ID, true );
+		$parent_post = self::parent_post_id( $post->ID );
+		if ( $dansal_id ) {
+			printf( '<p><strong>%s%s</strong></p>', esc_html__( 'Synced with dansal location #', 'wp-dansal' ), esc_html( $dansal_id ) );
+		}
+		?>
+		<div id="wpd-location-editor" data-post-id="<?php echo esc_attr( $post->ID ); ?>" data-room="1">
+			<p>
+				<?php esc_html_e( 'This is a room. Its address and coordinates are inherited from its building and can only be changed there.', 'wp-dansal' ); ?>
+				<?php if ( $parent_post ) : ?>
+					<br />
+					<strong><?php esc_html_e( 'Building:', 'wp-dansal' ); ?></strong>
+					<a href="<?php echo esc_url( (string) get_edit_post_link( $parent_post, 'raw' ) ); ?>"><?php echo esc_html( get_the_title( $parent_post ) ); ?></a>
+					<?php
+					$address = trim( implode( ', ', array_filter( array( $this->field( $post->ID, '_wpd_address' ), trim( $this->field( $post->ID, '_wpd_zipcode' ) . ' ' . $this->field( $post->ID, '_wpd_town' ) ) ) ) ) );
+					if ( '' !== $address ) {
+						echo ' — ' . esc_html( $address );
+					}
+					?>
+				<?php endif; ?>
+			</p>
+			<table class="form-table">
+				<tr>
+					<th><label for="wpd_floor_condition"><?php esc_html_e( 'Floor condition', 'wp-dansal' ); ?></label></th>
+					<td>
+						<select id="wpd_floor_condition" name="wpd_floor_condition">
+							<option value=""><?php esc_html_e( '— not set —', 'wp-dansal' ); ?></option>
+							<?php $current_floor = $this->field( $post->ID, '_wpd_floor_condition' ); ?>
+							<?php foreach ( WPD_Vocab::options( 'floor_condition' ) as $slug => $label ) : ?>
+								<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current_floor, $slug ); ?>><?php echo esc_html( $label ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<label style="margin-left:1em;display:inline-block;">
+							<input type="checkbox" name="wpd_no_street_shoes" value="1" <?php checked( $this->field( $post->ID, '_wpd_no_street_shoes' ), '1' ); ?> />
+							<?php esc_html_e( 'No street shoes', 'wp-dansal' ); ?>
+						</label>
+					</td>
+				</tr>
+				<tr>
+					<th><?php esc_html_e( 'Amenities', 'wp-dansal' ); ?></th>
+					<td>
+						<?php
+						foreach ( array(
+							'wheelchair' => __( 'Wheelchair accessible', 'wp-dansal' ),
+							'bar'        => __( 'Bar', 'wp-dansal' ),
+							'kitchen'    => __( 'Kitchen', 'wp-dansal' ),
+						) as $key => $label ) :
+							?>
+							<label style="display:inline-block;margin-right:1em;">
+								<input type="checkbox" name="wpd_attr_<?php echo esc_attr( $key ); ?>" value="1" <?php checked( $this->field( $post->ID, '_wpd_attr_' . $key ), '1' ); ?> />
+								<?php echo esc_html( $label ); ?>
+							</label>
+						<?php endforeach; ?>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="wpd_capacity"><?php esc_html_e( 'Capacity', 'wp-dansal' ); ?></label></th>
+					<td>
+						<input type="number" min="0" id="wpd_capacity" name="wpd_capacity" class="small-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_capacity' ) ); ?>" />
+						<span class="description"><?php esc_html_e( 'people (informational)', 'wp-dansal' ); ?></span>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="wpd_size_sqm"><?php esc_html_e( 'Floor area', 'wp-dansal' ); ?></label></th>
+					<td>
+						<input type="number" min="0" id="wpd_size_sqm" name="wpd_size_sqm" class="small-text" value="<?php echo esc_attr( $this->field( $post->ID, '_wpd_size_sqm' ) ); ?>" />
+						<span class="description"><?php esc_html_e( 'm² (informational)', 'wp-dansal' ); ?></span>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="wpd_notes_md"><?php esc_html_e( 'Notes (Markdown)', 'wp-dansal' ); ?></label></th>
+					<td><textarea id="wpd_notes_md" name="wpd_notes_md" rows="4" class="large-text"><?php echo esc_textarea( $this->field( $post->ID, '_wpd_notes_md' ) ); ?></textarea></td>
+				</tr>
+			</table>
+		</div>
+		<?php
+	}
+
 	public function render_meta_box( $post ) {
 		wp_nonce_field( 'wpd_location_save', 'wpd_location_nonce' );
+		if ( self::is_room( $post->ID ) ) {
+			$this->render_room_meta_box( $post );
+			return;
+		}
 		$dansal_id = get_post_meta( $post->ID, self::META_DANSAL_ID, true );
 		$osm_id    = get_post_meta( $post->ID, '_wpd_osm_id', true );
 		$has_coords = '' !== $this->field( $post->ID, '_wpd_latitude' ) && '' !== $this->field( $post->ID, '_wpd_longitude' );
@@ -241,7 +349,7 @@ class WPD_CPT_Location {
 			<?php if ( $dansal_id ) : ?>
 				<details class="wpd-fieldset">
 					<summary><?php esc_html_e( 'Rooms', 'wp-dansal' ); ?></summary>
-					<p class="description"><?php esc_html_e( 'Named sub-areas of this venue (e.g. "Grand Hall", "Studio 2"). Events can be assigned to a specific room.', 'wp-dansal' ); ?></p>
+					<p class="description"><?php esc_html_e( 'Named sub-areas of this venue (e.g. "Grand Hall", "Studio 2"). A room is a location of its own (with its own page); it uses this venue\'s address and coordinates. Events can be assigned to a specific room.', 'wp-dansal' ); ?></p>
 					<div id="wpd-rooms" data-post-id="<?php echo esc_attr( $post->ID ); ?>"></div>
 					<p>
 						<input type="text" id="wpd-room-new-name" class="regular-text" placeholder="<?php esc_attr_e( 'e.g. Grand Hall', 'wp-dansal' ); ?>" />
@@ -254,36 +362,98 @@ class WPD_CPT_Location {
 	}
 
 	/**
-	 * Rooms live server-side (dansal is the source of truth) but we snapshot
-	 * the list into post meta on every pull-sync so the event picker can
-	 * render without a round-trip. Callers that need a fresh list (metabox,
-	 * "location changed" AJAX in the event editor) should fetch it here.
+	 * The locally imported rooms of a building, shaped for the admin JS.
 	 *
-	 * @return array List of {id, name} rooms; empty on error.
+	 * @param int $building_post_id WP post ID of the building.
+	 * @return array[] List of {id (dansal id), post_id, name, edit_url}.
+	 */
+	private function local_rooms( $building_post_id ) {
+		$out = array();
+		foreach ( self::room_posts( $building_post_id ) as $room ) {
+			$out[] = array(
+				'id'       => (int) get_post_meta( $room->ID, self::META_DANSAL_ID, true ),
+				'post_id'  => (int) $room->ID,
+				'name'     => (string) $room->post_title,
+				'edit_url' => (string) get_edit_post_link( $room->ID, 'raw' ),
+			);
+		}
+		return $out;
+	}
+
+	/**
+	 * A building's rooms. Dansal is the source of truth (`GET /locations/{id}/children`,
+	 * API.md → Locations); every room it returns is imported as a local
+	 * dansal_location post so the event form's room picker — and events
+	 * themselves — can point at it (#121). When dansal can't be reached, falls
+	 * back to whatever rooms are already imported locally.
+	 *
+	 * @param int $post_id WP post ID of the building.
+	 * @return array[] List of {id (dansal id), post_id, name, edit_url}; empty for an unsynced location.
 	 */
 	public function fetch_rooms_for_post( $post_id ) {
 		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
 		if ( ! $dansal_id ) {
 			return array();
 		}
-		$rooms = $this->api->get_public( "/api/v1/locations/{$dansal_id}/rooms" );
-		if ( is_wp_error( $rooms ) || ! is_array( $rooms ) ) {
-			// Fall back to the cached list from the last successful sync so
-			// the picker keeps working while dansal is briefly unreachable.
-			$cached = get_post_meta( $post_id, '_wpd_rooms_cache', true );
-			return is_array( $cached ) ? $cached : array();
-		}
-		$out = array();
-		foreach ( $rooms as $room ) {
-			if ( is_array( $room ) && isset( $room['id'], $room['name'] ) ) {
-				$out[] = array(
-					'id'   => (int) $room['id'],
-					'name' => (string) $room['name'],
-				);
+
+		$children = $this->api->get_public( "/api/v1/locations/{$dansal_id}/children" );
+		if ( ! is_wp_error( $children ) && is_array( $children ) ) {
+			$seen = array();
+			foreach ( $children as $child ) {
+				if ( is_array( $child ) && ! empty( $child['id'] ) ) {
+					$this->pull_one_location( $child );
+					$seen[] = (int) $child['id'];
+				}
 			}
+			$this->prune_rooms( $dansal_id, $seen );
 		}
-		update_post_meta( $post_id, '_wpd_rooms_cache', $out );
-		return $out;
+
+		return $this->local_rooms( $post_id );
+	}
+
+	/**
+	 * Drop local room posts whose room no longer exists on dansal. Only called
+	 * with an authoritative `/children` answer. A room that events still point
+	 * at is kept: silently unlinking an event from its venue would be worse
+	 * than showing a stale room until the event itself is re-pulled.
+	 */
+	private function prune_rooms( $parent_dansal_id, array $seen_dansal_ids ) {
+		$rooms = get_posts(
+			array(
+				'post_type'      => self::POST_TYPE,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'meta_key'       => self::META_PARENT_DANSAL_ID,
+				'meta_value'     => (int) $parent_dansal_id,
+			)
+		);
+		foreach ( $rooms as $room ) {
+			$room_dansal_id = (int) get_post_meta( $room->ID, self::META_DANSAL_ID, true );
+			if ( ! $room_dansal_id || in_array( $room_dansal_id, $seen_dansal_ids, true ) ) {
+				continue;
+			}
+			if ( $this->events_at_location( $room->ID ) ) {
+				continue;
+			}
+			wp_delete_post( $room->ID, true );
+		}
+	}
+
+	/**
+	 * @return int[] IDs of local events whose venue is this location post.
+	 */
+	private function events_at_location( $location_post_id ) {
+		return get_posts(
+			array(
+				'post_type'      => WPD_CPT_Event::POST_TYPE,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+				'meta_key'       => '_wpd_location_post_id',
+				'meta_value'     => (int) $location_post_id,
+			)
+		);
 	}
 
 	public function ajax_list_rooms() {
@@ -312,10 +482,18 @@ class WPD_CPT_Location {
 		if ( ! $dansal_id ) {
 			wp_send_json_error( array( 'message' => __( 'Location is not synced yet — save it first.', 'wp-dansal' ) ) );
 		}
-		$result = $this->api->post( "/api/v1/locations/{$dansal_id}/rooms", array( 'name' => $name ) );
+		if ( self::is_room( $post_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'A room cannot have rooms of its own.', 'wp-dansal' ) ) );
+		}
+		// A room is a child location (API.md → Locations); address and
+		// coordinates are inherited from the building server-side, so only the
+		// name is sent.
+		$result = $this->api->post( "/api/v1/locations/{$dansal_id}/children", array( 'name' => $name ) );
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		}
+		// Re-reading the list (rather than importing the POST response) picks
+		// the new room up with its inherited address/coordinates filled in.
 		wp_send_json_success( array( 'rooms' => $this->fetch_rooms_for_post( $post_id ) ) );
 	}
 
@@ -333,10 +511,24 @@ class WPD_CPT_Location {
 		if ( ! $dansal_id ) {
 			wp_send_json_error( array( 'message' => __( 'Location is not synced yet.', 'wp-dansal' ) ) );
 		}
-		$result = $this->api->delete( "/api/v1/locations/{$dansal_id}/rooms/{$room_id}" );
+		// Only ever delete a room of *this* building — room_id comes from the
+		// browser, and a room is just a location, so the API itself would
+		// happily delete any location id it is given.
+		$room_post_id = self::find_post_id_by_dansal_id( $room_id );
+		if ( ! $room_post_id || self::parent_dansal_id( $room_post_id ) !== $dansal_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid input.', 'wp-dansal' ) ) );
+		}
+		// A room is deleted through its own location id; events still using it
+		// are moved to the building (`reassign_to`, honored for admin keys —
+		// otherwise dansal answers 409 and we show its message).
+		$result = $this->api->delete( "/api/v1/locations/{$room_id}?reassign_to={$dansal_id}" );
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		}
+		foreach ( $this->events_at_location( $room_post_id ) as $event_id ) {
+			update_post_meta( $event_id, '_wpd_location_post_id', $post_id );
+		}
+		wp_delete_post( $room_post_id, true );
 		wp_send_json_success( array( 'rooms' => $this->fetch_rooms_for_post( $post_id ) ) );
 	}
 
@@ -425,6 +617,18 @@ class WPD_CPT_Location {
 			}
 		}
 
+		// Rooms inherit their building's coordinates, so a proximity lookup
+		// returns them alongside the building — they are never a duplicate of a
+		// *new* building (#121).
+		$matches = array_values(
+			array_filter(
+				$matches,
+				static function ( $m ) {
+					return is_array( $m ) && empty( $m['parent_id'] );
+				}
+			)
+		);
+
 		wp_send_json_success( array( 'matches' => $matches ) );
 	}
 
@@ -451,6 +655,17 @@ class WPD_CPT_Location {
 			return;
 		}
 		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+
+		// A room only edits what dansal lets a room own — its address and
+		// coordinates are inherited from the building (API.md → Locations), so
+		// the address inputs aren't even rendered and must not be blanked here.
+		if ( self::is_room( $post_id ) ) {
+			$this->save_room_fields( $post_id );
+			if ( $this->settings->is_configured() ) {
+				$this->sync_to_dansal( $post_id );
+			}
 			return;
 		}
 
@@ -495,6 +710,61 @@ class WPD_CPT_Location {
 		$this->sync_to_dansal( $post_id, $use_existing_id );
 	}
 
+	/**
+	 * Saves the form fields a room has (see render_room_meta_box()).
+	 *
+	 * Only called from save(), after its nonce + capability checks.
+	 */
+	// phpcs:disable WordPress.Security.NonceVerification.Missing -- verified in save() before this is reached.
+	private function save_room_fields( $post_id ) {
+		$notes = isset( $_POST['wpd_notes_md'] ) ? sanitize_textarea_field( wp_unslash( $_POST['wpd_notes_md'] ) ) : '';
+		update_post_meta( $post_id, '_wpd_notes_md', $notes );
+
+		$floor = isset( $_POST['wpd_floor_condition'] ) ? wp_unslash( $_POST['wpd_floor_condition'] ) : '';
+		update_post_meta( $post_id, '_wpd_floor_condition', WPD_Vocab::sanitize( 'floor_condition', $floor ) );
+		update_post_meta( $post_id, '_wpd_no_street_shoes', ! empty( $_POST['wpd_no_street_shoes'] ) ? '1' : '' );
+		foreach ( array( 'wheelchair', 'bar', 'kitchen' ) as $attr ) {
+			update_post_meta( $post_id, '_wpd_attr_' . $attr, ! empty( $_POST[ 'wpd_attr_' . $attr ] ) ? '1' : '' );
+		}
+		foreach ( array(
+			'_wpd_capacity' => 'wpd_capacity',
+			'_wpd_size_sqm' => 'wpd_size_sqm',
+		) as $meta_key => $post_key ) {
+			$raw = isset( $_POST[ $post_key ] ) ? absint( wp_unslash( $_POST[ $post_key ] ) ) : 0;
+			update_post_meta( $post_id, $meta_key, $raw ? $raw : '' );
+		}
+	}
+	// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+	/**
+	 * PATCH body for a room. Deliberately has no address/zipcode/town/country/
+	 * coordinates/OSM fields: dansal treats those as inherited from the
+	 * building and read-only on a child, and the copies stored on the local
+	 * room post are just that inheritance (#121) — pushing them back would
+	 * freeze a stale copy of the building's address onto the room.
+	 */
+	private function build_room_payload( $post_id, $title ) {
+		$get      = function ( $key ) use ( $post_id ) {
+			return get_post_meta( $post_id, $key, true );
+		};
+		$capacity = $get( '_wpd_capacity' );
+		$size     = $get( '_wpd_size_sqm' );
+
+		return array(
+			'location'        => $title,
+			'notes_md'        => $get( '_wpd_notes_md' ),
+			'floor_condition' => $get( '_wpd_floor_condition' ),
+			'no_street_shoes' => '1' === $get( '_wpd_no_street_shoes' ),
+			'attributes'      => array(
+				'wheelchair' => '1' === $get( '_wpd_attr_wheelchair' ),
+				'bar'        => '1' === $get( '_wpd_attr_bar' ),
+				'kitchen'    => '1' === $get( '_wpd_attr_kitchen' ),
+			),
+			'capacity'        => '' !== $capacity ? (int) $capacity : null,
+			'size_sqm'        => '' !== $size ? (int) $size : null,
+		);
+	}
+
 	private function build_payload( $post_id, $title ) {
 		$get = function ( $key ) use ( $post_id ) {
 			return get_post_meta( $post_id, $key, true );
@@ -530,7 +800,14 @@ class WPD_CPT_Location {
 		$title     = get_the_title( $post_id );
 		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
 		$org_id    = $this->settings->get_org_id();
-		$payload   = $this->build_payload( $post_id, $title );
+		$is_room   = self::is_room( $post_id );
+		$payload   = $is_room ? $this->build_room_payload( $post_id, $title ) : $this->build_payload( $post_id, $title );
+
+		// Rooms only ever come from dansal (created via POST .../children), so
+		// there is nothing to create or assign for one that has no dansal id.
+		if ( $is_room && ! $dansal_id ) {
+			return;
+		}
 
 		if ( ! $dansal_id && $use_existing_id ) {
 			$assign = $this->api->post( "/api/v1/locations/{$use_existing_id}/assign-org", array( 'organization_id' => $org_id ) );
@@ -680,6 +957,7 @@ class WPD_CPT_Location {
 		}
 
 		$this->write_location_post( $post_id, $loc );
+		$this->pull_related_locations( $loc );
 	}
 
 	/**
@@ -700,12 +978,127 @@ class WPD_CPT_Location {
 	}
 
 	/**
+	 * Dansal id of the building this room belongs to, or 0 for a building.
+	 */
+	public static function parent_dansal_id( $post_id ) {
+		return (int) get_post_meta( $post_id, self::META_PARENT_DANSAL_ID, true );
+	}
+
+	public static function is_room( $post_id ) {
+		return self::parent_dansal_id( $post_id ) > 0;
+	}
+
+	/**
+	 * @return int WP post ID of a room's building, or 0 if $post_id isn't a
+	 *             room or its building hasn't been imported yet.
+	 */
+	public static function parent_post_id( $post_id ) {
+		$parent = self::parent_dansal_id( $post_id );
+		return $parent ? self::find_post_id_by_dansal_id( $parent ) : 0;
+	}
+
+	/**
+	 * Locally imported rooms of a building.
+	 *
+	 * @param int $building_post_id WP post ID of the building.
+	 * @return WP_Post[]
+	 */
+	public static function room_posts( $building_post_id ) {
+		$dansal_id = (int) get_post_meta( $building_post_id, self::META_DANSAL_ID, true );
+		if ( ! $dansal_id ) {
+			return array();
+		}
+		return get_posts(
+			array(
+				'post_type'      => self::POST_TYPE,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'meta_key'       => self::META_PARENT_DANSAL_ID,
+				'meta_value'     => $dansal_id,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+			)
+		);
+	}
+
+	/**
+	 * Display name of a location: a room reads "Building — Room", a building
+	 * is just its title. Events point at whichever level was chosen (#121), so
+	 * anything that prints an event's venue should go through this.
+	 */
+	public static function label( $post_id ) {
+		$title  = get_the_title( $post_id );
+		$parent = self::parent_post_id( $post_id );
+		return $parent ? sprintf( '%1$s — %2$s', get_the_title( $parent ), $title ) : $title;
+	}
+
+	/**
+	 * Local post for a dansal location, fetching and importing it on demand
+	 * when it isn't there yet. Needed because an event's location can be a
+	 * room (or any location outside this org's list) that the org-wide pull
+	 * never imported — see write_event_post() (#121).
+	 *
+	 * @param int $dansal_id Dansal location id (building or room).
+	 * @return int WP post ID, or 0 when dansal couldn't be reached / has no such location.
+	 */
+	public function ensure_local_post( $dansal_id ) {
+		$dansal_id = (int) $dansal_id;
+		if ( $dansal_id <= 0 ) {
+			return 0;
+		}
+		$post_id = self::find_post_id_by_dansal_id( $dansal_id );
+		if ( $post_id ) {
+			return $post_id;
+		}
+		if ( isset( $this->unresolvable[ $dansal_id ] ) ) {
+			return 0;
+		}
+
+		$loc = $this->api->get_public( "/api/v1/locations/{$dansal_id}" );
+		if ( is_wp_error( $loc ) || ! is_array( $loc ) || empty( $loc['id'] ) ) {
+			$this->unresolvable[ $dansal_id ] = true;
+			return 0;
+		}
+
+		$this->pull_one_location( $loc );
+		return self::find_post_id_by_dansal_id( $dansal_id );
+	}
+
+	/**
 	 * @return string|null 'created', 'updated', or null if skipped/unchanged.
 	 */
 	private function pull_one_location( array $loc ) {
 		if ( empty( $loc['id'] ) ) {
 			return null;
 		}
+		$status = $this->pull_location_row( $loc );
+		$this->pull_related_locations( $loc );
+		return $status;
+	}
+
+	/**
+	 * A room's building, and a building's rooms, are locations too (#121):
+	 * pull whichever side of the relationship this payload names so the
+	 * building → room picker has something to offer and an event that points
+	 * at a room can always resolve its venue.
+	 */
+	private function pull_related_locations( array $loc ) {
+		if ( ! empty( $loc['parent_id'] ) ) {
+			$this->ensure_local_post( (int) $loc['parent_id'] );
+		}
+		if ( ! empty( $loc['children'] ) && is_array( $loc['children'] ) ) {
+			foreach ( $loc['children'] as $child ) {
+				if ( is_array( $child ) ) {
+					$this->pull_one_location( $child );
+				}
+			}
+		}
+	}
+
+	/**
+	 * @return string|null 'created', 'updated', or null if skipped/unchanged.
+	 */
+	private function pull_location_row( array $loc ) {
 		$dansal_id  = (int) $loc['id'];
 		$updated_at = isset( $loc['updated_at'] ) ? (int) $loc['updated_at'] : 0;
 
@@ -839,21 +1232,18 @@ class WPD_CPT_Location {
 			update_post_meta( $post_id, '_wpd_attr_' . $attr, ! empty( $attrs[ $attr ] ) ? '1' : '' );
 		}
 
-		// dansal now embeds a location's rooms (API.md → Locations → Rooms).
-		// Snapshot them so the event picker can render without a round-trip;
-		// authoritative list stays server-side.
-		$rooms_cache = array();
-		if ( isset( $loc['rooms'] ) && is_array( $loc['rooms'] ) ) {
-			foreach ( $loc['rooms'] as $room ) {
-				if ( is_array( $room ) && isset( $room['id'], $room['name'] ) ) {
-					$rooms_cache[] = array(
-						'id'   => (int) $room['id'],
-						'name' => (string) $room['name'],
-					);
-				}
-			}
+		// Rooms are child locations (#121): only a room carries parent_id. A
+		// building keeps no marker at all, so "is this a room?" stays a plain
+		// meta-exists check and queries can use NOT EXISTS for buildings.
+		if ( ! empty( $loc['parent_id'] ) ) {
+			update_post_meta( $post_id, self::META_PARENT_DANSAL_ID, (int) $loc['parent_id'] );
+		} else {
+			delete_post_meta( $post_id, self::META_PARENT_DANSAL_ID );
 		}
-		update_post_meta( $post_id, '_wpd_rooms_cache', $rooms_cache );
+		update_post_meta( $post_id, '_wpd_capacity', isset( $loc['capacity'] ) && null !== $loc['capacity'] ? (int) $loc['capacity'] : '' );
+		update_post_meta( $post_id, '_wpd_size_sqm', isset( $loc['size_sqm'] ) && null !== $loc['size_sqm'] ? (int) $loc['size_sqm'] : '' );
+		// Legacy snapshot of the pre-#121 /rooms list; nothing reads it anymore.
+		delete_post_meta( $post_id, '_wpd_rooms_cache' );
 
 		update_post_meta( $post_id, self::META_DANSAL_ID, (int) $loc['id'] );
 		update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );

@@ -855,7 +855,7 @@ class WPD_Frontend {
 				$by_location[ $loc_id ] = array(
 					'lat'    => (float) $lat,
 					'lng'    => (float) $lng,
-					'title'  => get_the_title( $loc_id ),
+					'title'  => WPD_CPT_Location::label( $loc_id ),
 					'url'    => get_permalink( $loc_id ),
 					'events' => array(),
 				);
@@ -946,7 +946,7 @@ class WPD_Frontend {
 				<a class="wpd-event-simple-title" href="<?php echo esc_url( get_permalink( $eid ) ); ?>"><?php echo esc_html( get_the_title( $eid ) ); ?></a>
 				<?php if ( $loc_id ) : ?>
 					<span class="wpd-event-simple-at"> @ </span>
-					<a class="wpd-event-simple-venue" href="<?php echo esc_url( get_permalink( $loc_id ) ); ?>"><?php echo esc_html( get_the_title( $loc_id ) ); ?></a>
+					<a class="wpd-event-simple-venue" href="<?php echo esc_url( get_permalink( $loc_id ) ); ?>"><?php echo esc_html( WPD_CPT_Location::label( $loc_id ) ); ?></a>
 				<?php endif; ?>
 				<?php if ( $cancelled ) : ?>
 					<span class="wpd-event-simple-cancelled"> (<?php esc_html_e( 'Cancelled', 'wp-dansal' ); ?>)</span>
@@ -1506,7 +1506,7 @@ class WPD_Frontend {
 				<p class="wpd-cancelled-badge"><?php esc_html_e( 'Cancelled', 'wp-dansal' ); ?></p>
 			<?php endif; ?>
 			<?php if ( $loc_id ) : ?>
-				<p class="wpd-event-location"><a href="<?php echo esc_url( get_permalink( $loc_id ) ); ?>"><?php echo esc_html( get_the_title( $loc_id ) ); ?></a></p>
+				<p class="wpd-event-location"><a href="<?php echo esc_url( get_permalink( $loc_id ) ); ?>"><?php echo esc_html( WPD_CPT_Location::label( $loc_id ) ); ?></a></p>
 			<?php endif; ?>
 		</article>
 		<?php
@@ -1877,6 +1877,13 @@ class WPD_Frontend {
 		}
 
 		$meta_query = array( 'relation' => 'AND' );
+		// The directory/map lists venues, not their rooms (#121): a room shares
+		// its building's address and coordinates, so it would only stack a
+		// duplicate pin on the building's own.
+		$meta_query[] = array(
+			'key'     => WPD_CPT_Location::META_PARENT_DANSAL_ID,
+			'compare' => 'NOT EXISTS',
+		);
 		if ( '' !== $atts['country'] ) {
 			$meta_query[] = array(
 				'key'     => '_wpd_country',
@@ -1904,6 +1911,11 @@ class WPD_Frontend {
 			$location_ids = array();
 			foreach ( $event_ids as $eid ) {
 				$lid = (int) get_post_meta( $eid, '_wpd_location_post_id', true );
+				// An event held in a room counts for its building, which is what
+				// the directory lists.
+				if ( $lid && WPD_CPT_Location::is_room( $lid ) ) {
+					$lid = WPD_CPT_Location::parent_post_id( $lid );
+				}
 				if ( $lid ) {
 					$location_ids[ $lid ] = true;
 				}
