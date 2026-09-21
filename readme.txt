@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.16.2
+Stable tag: 0.16.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.16.3 =
+* Event page: the "Add to calendar (.ics)" link now has breathing room below the booking button instead of touching it.
 
 = 0.16.2 =
 * Regenerated the translation template (`wp-dansal.pot`) so the new blocks, room screens and notices can be translated (closes #123). Not part of this release and tracked separately: the PHP/WordPress minimum and structural refactor (#124), block-editor/REST exposure of the post types (#125), and the Interactivity API / dropping jQuery from the admin JS (#126).

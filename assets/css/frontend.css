@@ -201,6 +201,14 @@
 	margin-top: 1em;
 }
 
+/* The "Add to calendar (.ics)" link follows the booking button directly and
+   most themes give <p> no top margin, so the two touched. Space it off the
+   button only in that case, so events without a booking button keep their
+   current layout. */
+.wpd-single-event .wpd-booking-cta + .wpd-ical-link {
+	margin-top: 1.5em;
+}
+
 .wpd-single-location .wpd-single-map {
 	min-height: 320px;
 	margin: 1em 0;
