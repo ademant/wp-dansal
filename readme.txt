@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.16.3
+Stable tag: 0.16.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.16.4 =
+* A building's page (and any `[dansal_events location="…"]` list for a building) now also shows the events held in its rooms. Events link to the room they take place in, so the building's "Upcoming events here" list used to come up empty even though its rooms had events. A room's own page still lists only that room's events.
 
 = 0.16.3 =
 * Event page: the "Add to calendar (.ics)" link now has breathing room below the booking button instead of touching it.

@@ -1022,6 +1022,24 @@ class WPD_CPT_Location {
 	}
 
 	/**
+	 * Location post IDs whose events belong on this location's page: the
+	 * location itself plus, for a building, every imported room. Events point
+	 * at whichever level was chosen (#121), so listing a building's events by
+	 * an exact match on its own ID would hide everything held in its rooms.
+	 * A room (or a building without rooms) just yields itself.
+	 *
+	 * @param int $post_id WP post ID of a location.
+	 * @return int[]
+	 */
+	public static function venue_post_ids( $post_id ) {
+		$ids = array( (int) $post_id );
+		foreach ( self::room_posts( $post_id ) as $room ) {
+			$ids[] = (int) $room->ID;
+		}
+		return $ids;
+	}
+
+	/**
 	 * Display name of a location: a room reads "Building — Room", a building
 	 * is just its title. Events point at whichever level was chosen (#121), so
 	 * anything that prints an event's venue should go through this.

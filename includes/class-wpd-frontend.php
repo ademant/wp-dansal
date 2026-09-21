@@ -717,9 +717,13 @@ class WPD_Frontend {
 		// visibility check needed here; no separate meta flag to match.
 		$meta_query = array( 'relation' => 'AND' );
 		if ( ! empty( $atts['location'] ) ) {
+			// A building's listing (e.g. the "Upcoming events here" list on its
+			// page) also covers events held in its rooms, which link to the
+			// room's own location post (#121).
 			$meta_query[] = array(
-				'key' => '_wpd_location_post_id',
-				'value' => absint( $atts['location'] ),
+				'key'     => '_wpd_location_post_id',
+				'value'   => WPD_CPT_Location::venue_post_ids( absint( $atts['location'] ) ),
+				'compare' => 'IN',
 			);
 		}
 		if ( ! empty( $atts['tag'] ) ) {
