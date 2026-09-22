@@ -3,8 +3,8 @@ Contributors: ademant
 Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.1
-Requires PHP: 7.4
-Stable tag: 0.16.4
+Requires PHP: 8.1
+Stable tag: 0.17.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,10 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.17.0 =
+* Minimum PHP is now 8.1 (previously 7.4, which reached end-of-life in November 2022 and no longer receives security patches). Sites still on 7.4 or 8.0 should upgrade their host's PHP before installing this release; WordPress core itself has recommended 8.1+ for a while (closes #127).
+* Added an `Update URI: https://github.com/ademant/wp-dansal` header so WordPress never consults wordpress.org for updates to this plugin — a defensive measure against a future wordpress.org slug collision silently rerouting installs to someone else's code. Distribution stays via GitHub Releases; an opt-in in-WP updater is planned separately (closes #128).
 
 = 0.16.4 =
 * A building's page (and any `[dansal_events location="…"]` list for a building) now also shows the events held in its rooms. Events link to the room they take place in, so the building's "Upcoming events here" list used to come up empty even though its rooms had events. A room's own page still lists only that room's events.
