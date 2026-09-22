@@ -701,7 +701,7 @@ class WPD_CPT_Event {
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
 		wp_enqueue_script( 'wpd-admin-event', WPD_PLUGIN_URL . 'assets/js/admin-event.js', array( 'jquery', 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-event.js' ), true );
 		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
-		wp_enqueue_script( 'wpd-admin-rooms', WPD_PLUGIN_URL . 'assets/js/admin-rooms.js', array(), wpd_asset_ver( 'assets/js/admin-rooms.js' ), true );
+		wp_enqueue_script( 'wpd-admin-rooms', WPD_PLUGIN_URL . 'assets/js/admin-rooms.js', array( 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-rooms.js' ), true );
 		WPD_Datetime_Hint::enqueue();
 		wp_localize_script(
             'wpd-admin-event',

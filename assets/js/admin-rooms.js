@@ -35,16 +35,15 @@
 				return;
 			}
 
-			var url = wpdRooms.ajaxUrl + '?action=wpd_list_rooms&_wpnonce=' + encodeURIComponent( wpdRooms.nonce ) + '&post_id=' + encodeURIComponent( postId );
-			fetch( url, { credentials: 'same-origin' } )
-				.then( function ( response ) {
-					return response.json();
-				} )
-				.then( function ( resp ) {
-					if ( ! resp.success || ! resp.data || ! resp.data.rooms ) {
+			// Uses wp.apiFetch so X-WP-Nonce is set automatically. The room
+			// picker lives on both the event and series edit screens, whose
+			// enqueue callers include wp-api-fetch as a dep for wpd-admin-rooms.
+			wp.apiFetch( { path: '/wpd/v1/locations/' + encodeURIComponent( postId ) + '/rooms' } )
+				.then( function ( data ) {
+					if ( ! data || ! data.rooms ) {
 						return;
 					}
-					resp.data.rooms.forEach( function ( room ) {
+					data.rooms.forEach( function ( room ) {
 						var option = document.createElement( 'option' );
 						// The value is the room's *local post* ID: a room is a
 						// location of its own (#121) and the server folds this
@@ -53,7 +52,8 @@
 						option.textContent = room.name;
 						roomSel.appendChild( option );
 					} );
-				} );
+				} )
+				.catch( function () { /* transient error leaves the room list empty */ } );
 		} );
 	} );
 } )();
