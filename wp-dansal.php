@@ -3,7 +3,7 @@
  * Plugin Name: WP Dansal
  * Plugin URI: https://github.com/ademant/wp-dansal
  * Description: Manage dance events and locations in WordPress, backed by a dansal server (https://github.com/ademant/dansal) as the storage/publishing backend.
- * Version: 0.17.0
+ * Version: 0.18.0
  * Author: ademant
  * License: GPL-2.0-or-later
  * Text Domain: wp-dansal
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPD_VERSION', '0.17.0' );
+define( 'WPD_VERSION', '0.18.0' );
 define( 'WPD_PLUGIN_FILE', __FILE__ );
 define( 'WPD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -207,6 +207,49 @@ function wpd_plugin() {
 	return WPD_Plugin::instance();
 }
 wpd_plugin();
+wpd_maybe_init_update_checker();
+
+/**
+ * Opt-in GitHub-Releases-driven self-update (#129). Off by default; the admin
+ * enables it in Settings → Dansal. When enabled, WordPress's own Plugins →
+ * Updates screen offers each new tagged release from ademant/wp-dansal for
+ * one-click install. When disabled, no background polling of GitHub happens
+ * at all — the update checker library is never instantiated — and the
+ * Update URI header (see plugin file header) blocks the w.org fallback,
+ * so WP consults nobody about this plugin.
+ *
+ * The library (yahnis-elsts/plugin-update-checker) is a runtime composer
+ * dep bundled into the release zip. In a dev checkout without composer
+ * install having run, vendor/ is absent — silently bail so the plugin
+ * loads without the updater rather than fatal-erroring.
+ */
+function wpd_maybe_init_update_checker() {
+	$opts = get_option( 'wpd_settings', array() );
+	if ( empty( $opts['github_updates_enabled'] ) ) {
+		return;
+	}
+	$loader = WPD_PLUGIN_DIR . 'vendor/yahnis-elsts/plugin-update-checker/plugin-update-checker.php';
+	if ( ! is_readable( $loader ) ) {
+		return;
+	}
+	require_once $loader;
+	if ( ! class_exists( '\YahnisElsts\PluginUpdateChecker\v5\PucFactory' ) ) {
+		return;
+	}
+	$checker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+		'https://github.com/ademant/wp-dansal/',
+		WPD_PLUGIN_FILE,
+		'wp-dansal'
+	);
+	// Tags, not branches — a release is the unit of update, not every
+	// commit on main. CI's build-zip job attaches wp-dansal.zip and
+	// wp-dansal-<version>.zip to each vX.Y.Z release, so enable release
+	// assets rather than letting PUC clone the tarball itself.
+	$vcs = $checker->getVcsApi();
+	if ( $vcs && method_exists( $vcs, 'enableReleaseAssets' ) ) {
+		$vcs->enableReleaseAssets();
+	}
+}
 
 /**
  * Activation: defer the rewrite-rules flush to the next real 'init' (see

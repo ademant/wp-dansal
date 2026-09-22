@@ -93,6 +93,13 @@ class WPD_Settings {
 			'home_lon'      => '',
 			'home_address'  => '',
 			'home_seeded'   => false,
+			// Opt-in self-update from GitHub Releases (#129). Off by default —
+			// a fresh install must not enable this on its own. When true, the
+			// bundled plugin-update-checker library polls
+			// github.com/ademant/wp-dansal for new tagged releases and offers
+			// them under Plugins → Updates. When false, the library is never
+			// instantiated (see wpd_maybe_init_update_checker() in wp-dansal.php).
+			'github_updates_enabled' => false,
 		);
 	}
 
@@ -520,6 +527,12 @@ class WPD_Settings {
 		$out['home_address'] = isset( $input['home_address'] ) ? sanitize_text_field( wp_unslash( $input['home_address'] ) ) : ( isset( $existing['home_address'] ) ? $existing['home_address'] : '' );
 		$out['home_seeded'] = array_key_exists( 'home_seeded', $input ) ? (bool) $input['home_seeded'] : (bool) $existing['home_seeded'];
 
+		// Opt-in self-update (#129). Absent from POST means unchecked (the
+		// browser doesn't submit an unchecked checkbox), which is why we
+		// treat "field missing" as "off" rather than "keep existing" — the
+		// admin form is the source of truth here.
+		$out['github_updates_enabled'] = ! empty( $input['github_updates_enabled'] );
+
 		// A different dansal server may ship different vocabularies.
 		if ( $out['base_url'] !== $existing['base_url'] ) {
 			WPD_Vocab::flush();
@@ -658,6 +671,27 @@ class WPD_Settings {
 						$event_defaults = is_array( $o['event_defaults'] ) ? $o['event_defaults'] : array();
 						wpd_plugin()->event_fields->render_field_group( $event_defaults, self::OPTION . '[event_defaults]' );
 						?>
+					</table>
+				</details>
+
+				<details style="margin: 1em 0;">
+					<summary style="font-weight: 600; cursor: pointer; font-size: 1.3em;"><?php esc_html_e( 'Automated updates', 'wp-dansal' ); ?></summary>
+					<p class="description">
+						<?php esc_html_e( 'wp-dansal is distributed via GitHub Releases, not the wordpress.org plugin directory. WordPress will not check for updates to this plugin unless you enable it here.', 'wp-dansal' ); ?>
+					</p>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><?php esc_html_e( 'GitHub Releases', 'wp-dansal' ); ?></th>
+							<td>
+								<label>
+									<input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[github_updates_enabled]" value="1" <?php checked( ! empty( $o['github_updates_enabled'] ) ); ?> />
+									<?php esc_html_e( 'Check github.com/ademant/wp-dansal for new releases and offer them under Plugins → Updates.', 'wp-dansal' ); ?>
+								</label>
+								<p class="description">
+									<?php esc_html_e( 'Off by default. Turn on to have WordPress poll GitHub daily for new tagged releases; installing an offered update still requires you to click Update on the Plugins screen — nothing is installed silently. Turning this off again fully stops the update check (no background polling).', 'wp-dansal' ); ?>
+								</p>
+							</td>
+						</tr>
 					</table>
 				</details>
 

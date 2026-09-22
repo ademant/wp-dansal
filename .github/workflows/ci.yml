@@ -193,6 +193,20 @@ jobs:
             exit 1
           fi
 
+      # Install runtime composer deps only (skip dev deps like phpcs/phpunit)
+      # so the release zip carries the plugin-update-checker library (opt-in
+      # self-update, #129) without a full 100MB vendor tree. Uses the same
+      # composer setup as the phpcs/phpunit jobs above.
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install runtime composer deps
+        run: composer install --no-interaction --no-progress --prefer-dist --no-dev --optimize-autoloader
+
       - name: Build zip
         run: make zip
 
