@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.18.0
+Stable tag: 0.19.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.19.0 =
+* First slice of the admin admin-ajax → REST migration (#130): the Nominatim search / reverse-geocode helpers used by the location edit screen now go through `GET /wp-json/wpd/v1/nominatim/search` and `/reverse`. The old `wpd_nominatim_search` and `wpd_nominatim_reverse` admin-ajax endpoints are kept live as bridges for one release so any custom JS still calling them keeps working; they will be removed in the next release. No user-visible behaviour change — this is groundwork for future block-editor integrations and to align with WordPress core's guidance to use REST for new plugin code.
 
 = 0.18.0 =
 * Opt-in self-update from GitHub Releases (**off by default**). Enable it under **Settings → Dansal → Automated updates → Check github.com/ademant/wp-dansal for new releases** and WordPress will poll GitHub daily for new tagged releases and offer them under **Plugins → Updates**, just like a wordpress.org-hosted plugin — installing an offered update still requires you to click Update, nothing is installed silently. Turning the option off again fully stops the update check; combined with the `Update URI` header added in 0.17.0, WordPress then consults nobody about this plugin. Built on the `yahnis-elsts/plugin-update-checker` library, which ships in the release zip as a runtime composer dep (closes #129).

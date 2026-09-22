@@ -540,7 +540,7 @@ class WPD_CPT_Location {
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
 		wp_enqueue_style( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.css', array(), '1.9.4' );
 		wp_enqueue_script( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.js', array(), '1.9.4', true );
-		wp_enqueue_script( 'wpd-admin-location', WPD_PLUGIN_URL . 'assets/js/admin-location.js', array( 'jquery', 'wpd-leaflet' ), wpd_asset_ver( 'assets/js/admin-location.js' ), true );
+		wp_enqueue_script( 'wpd-admin-location', WPD_PLUGIN_URL . 'assets/js/admin-location.js', array( 'jquery', 'wpd-leaflet', 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-location.js' ), true );
 		wp_localize_script(
             'wpd-admin-location',
             'wpdLocation',

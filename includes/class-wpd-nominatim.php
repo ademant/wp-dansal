@@ -7,9 +7,15 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Search-only wrapper around OpenStreetMap's Nominatim, used to turn a
  * free-text venue search into coordinates + osm_id/osm_type when creating a
  * dansal location. Public JS never talks to Nominatim directly; requests go
- * through this AJAX proxy so we can set the User-Agent Nominatim's usage
- * policy requires (https://operations.osmfoundation.org/policies/nominatim/)
- * and keep API traffic server-side.
+ * through this proxy so we can set the User-Agent Nominatim's usage policy
+ * requires (https://operations.osmfoundation.org/policies/nominatim/) and
+ * keep API traffic server-side.
+ *
+ * The current transport is REST (`GET /wp-json/wpd/v1/nominatim/search` and
+ * `/reverse`, registered on `rest_api_init`); the older `wp_ajax_*` handlers
+ * (`wpd_nominatim_search`, `wpd_nominatim_reverse`) remain live as a bridge
+ * for one release so any custom JS still hitting admin-ajax.php keeps
+ * working, and will be removed in the release after this one (#130).
  */
 class WPD_Nominatim {
 
@@ -17,10 +23,105 @@ class WPD_Nominatim {
 	const REVERSE_ENDPOINT = 'https://nominatim.openstreetmap.org/reverse';
 
 	public function __construct() {
+		// Legacy admin-ajax endpoints (#130): kept live as bridges to the
+		// REST routes below for one release, so any custom JS still calling
+		// them via admin-ajax.php keeps working during transition. Slated
+		// for removal — see class-level docblock.
 		add_action( 'wp_ajax_wpd_nominatim_search', array( $this, 'ajax_search' ) );
 		add_action( 'wp_ajax_wpd_nominatim_reverse', array( $this, 'ajax_reverse' ) );
+		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 	}
 
+	/**
+	 * Registers the REST counterparts of the two admin-ajax endpoints
+	 * (#130). Both are `edit_posts`-gated, so `permission_callback` uses
+	 * `current_user_can`; the caller must include the standard `X-WP-Nonce`
+	 * header (wp.apiFetch does this automatically for logged-in admin
+	 * requests). The response shape is the raw payload — the AJAX bridge
+	 * still wraps it in `{success, data}` for legacy JS callers.
+	 */
+	public function register_rest_routes() {
+		register_rest_route(
+			'wpd/v1',
+			'/nominatim/search',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'rest_search' ),
+				'permission_callback' => static function () {
+					return current_user_can( 'edit_posts' );
+				},
+				'args'                => array(
+					'q' => array(
+						'type'              => 'string',
+						'required'          => true,
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => static function ( $v ) {
+							return is_string( $v ) && strlen( trim( $v ) ) >= 3;
+						},
+					),
+				),
+			)
+		);
+		register_rest_route(
+			'wpd/v1',
+			'/nominatim/reverse',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'rest_reverse' ),
+				'permission_callback' => static function () {
+					return current_user_can( 'edit_posts' );
+				},
+				'args'                => array(
+					'lat' => array(
+						'type'     => 'number',
+						'required' => true,
+					),
+					'lng' => array(
+						'type'     => 'number',
+						'required' => true,
+					),
+				),
+			)
+		);
+	}
+
+	/**
+	 * REST: text query → list of normalized places. Wraps search() for
+	 * error → WP_Error translation; the raw list is returned directly, no
+	 * {success, data} envelope (that's the AJAX bridge's convention, not
+	 * REST's).
+	 */
+	public function rest_search( WP_REST_Request $request ) {
+		$results = $this->search( $request->get_param( 'q' ) );
+		if ( is_wp_error( $results ) ) {
+			return new WP_Error(
+				$results->get_error_code(),
+				$results->get_error_message(),
+				array( 'status' => 502 )
+			);
+		}
+		return rest_ensure_response( $results );
+	}
+
+	/**
+	 * REST: lat/lng → a single normalized place.
+	 */
+	public function rest_reverse( WP_REST_Request $request ) {
+		$place = $this->reverse( (float) $request->get_param( 'lat' ), (float) $request->get_param( 'lng' ) );
+		if ( is_wp_error( $place ) ) {
+			return new WP_Error(
+				$place->get_error_code(),
+				$place->get_error_message(),
+				array( 'status' => 502 )
+			);
+		}
+		return rest_ensure_response( $place );
+	}
+
+	/**
+	 * Legacy admin-ajax bridge, superseded by GET /wp-json/wpd/v1/nominatim/search
+	 * (#130). Removed in the release after the one that adds this deprecation.
+	 */
 	public function ajax_search() {
 		check_ajax_referer( 'wpd_nominatim_search' );
 		if ( ! current_user_can( 'edit_posts' ) ) {
@@ -41,9 +142,8 @@ class WPD_Nominatim {
 	}
 
 	/**
-	 * AJAX: lat/lng → a single normalized place, same shape as one entry from
-	 * search(). Shares the 'wpd_nominatim_search' nonce action — it's the same
-	 * edit_posts-gated, read-only Nominatim lookup, just a different endpoint.
+	 * Legacy admin-ajax bridge, superseded by GET /wp-json/wpd/v1/nominatim/reverse
+	 * (#130). Removed in the release after the one that adds this deprecation.
 	 */
 	public function ajax_reverse() {
 		check_ajax_referer( 'wpd_nominatim_search' );
