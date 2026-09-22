@@ -34,24 +34,23 @@
 		var $chip = $link.closest( '.wpd-chip' );
 		var $picker = $link.closest( '.wpd-entity-picker' );
 		$link.prop( 'aria-busy', true );
-		$.post( wpdEvent.ajaxUrl, {
-			action: 'wpd_promote_entity',
-			_wpnonce: wpdEvent.nonce,
-			type: $picker.data( 'type' ),
-			id: $chip.data( 'id' ),
-		} ).done( function ( resp ) {
-			if ( resp && resp.success && resp.data.edit_url ) {
+		wp.apiFetch( {
+			path: '/wpd/v1/entities/' + encodeURIComponent( $chip.data( 'id' ) ) + '/promote',
+			method: 'POST',
+			data: { type: $picker.data( 'type' ) },
+		} ).then( function ( data ) {
+			if ( data && data.edit_url ) {
 				var $edit = $( '<a class="wpd-chip-edit" target="_blank" rel="noopener" />' )
-					.attr( 'href', resp.data.edit_url )
+					.attr( 'href', data.edit_url )
 					.attr( 'title', wpdEvent.i18n.editLocal )
 					.html( '&#8599;' );
 				$link.replaceWith( $edit );
 			} else {
-				window.alert( ( resp && resp.data && resp.data.message ) || wpdEvent.i18n.promoteFailed );
+				window.alert( wpdEvent.i18n.promoteFailed );
 				$link.prop( 'aria-busy', false );
 			}
-		} ).fail( function () {
-			window.alert( wpdEvent.i18n.promoteFailed );
+		} ).catch( function ( err ) {
+			window.alert( ( err && err.message ) || wpdEvent.i18n.promoteFailed );
 			$link.prop( 'aria-busy', false );
 		} );
 	} );
@@ -77,22 +76,17 @@
 				return;
 			}
 			$btn.prop( 'disabled', true );
-			$.post( wpdEvent.ajaxUrl, {
-				action: 'wpd_create_entity',
-				_wpnonce: wpdEvent.nonce,
-				type: type,
-				name: name,
-			} ).done( function ( resp ) {
-				if ( ! resp || ! resp.success ) {
-					var msg = resp && resp.data && resp.data.message ? resp.data.message : wpdEvent.i18n.createFailed;
-					$btn.prop( 'disabled', false ).removeClass( 'is-confirming' ).text( msg );
-					return;
-				}
-				addChip( $picker, resp.data.id, resp.data.name );
+			wp.apiFetch( {
+				path: '/wpd/v1/entities',
+				method: 'POST',
+				data: { type: type, name: name },
+			} ).then( function ( data ) {
+				addChip( $picker, data.id, data.name );
 				$input.val( '' );
 				$results.empty();
-			} ).fail( function () {
-				$btn.prop( 'disabled', false ).removeClass( 'is-confirming' ).text( wpdEvent.i18n.createFailed );
+			} ).catch( function ( err ) {
+				var msg = ( err && err.message ) || wpdEvent.i18n.createFailed;
+				$btn.prop( 'disabled', false ).removeClass( 'is-confirming' ).text( msg );
 			} );
 		} );
 		$li.append( $btn );
@@ -112,16 +106,13 @@
 			return;
 		}
 		$input.data( 'wpdTimeout', setTimeout( function () {
-			$.getJSON( wpdEvent.ajaxUrl, {
-				action: 'wpd_search_entity',
-				_wpnonce: wpdEvent.nonce,
-				type: type,
-				q: q,
-			} ).done( function ( resp ) {
+			wp.apiFetch( {
+				path: '/wpd/v1/entities/search?type=' + encodeURIComponent( type ) + '&q=' + encodeURIComponent( q ),
+			} ).then( function ( data ) {
 				$results.empty();
 				var $list = $( '<ul class="wpd-nominatim-list" />' );
-				if ( resp.success && resp.data.length ) {
-					resp.data.forEach( function ( item ) {
+				if ( Array.isArray( data ) && data.length ) {
+					data.forEach( function ( item ) {
 						var $li = $( '<li/>' );
 						var $btn = $( '<button type="button" class="button-link" />' ).text( item.name );
 						$btn.on( 'click', function () {
@@ -135,6 +126,9 @@
 				}
 				$list.append( renderCreateRow( $picker, $input, $results, type, q ) );
 				$results.append( $list );
+			} ).catch( function () {
+				// Swallow — search errors just leave the current results in place.
+				// The create-row keeps the user unblocked either way.
 			} );
 		}, 300 ) );
 	} );

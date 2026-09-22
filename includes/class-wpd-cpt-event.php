@@ -41,9 +41,13 @@ class WPD_CPT_Event {
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
 		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
+		// Legacy admin-ajax bridges kept for one release; the JS below uses
+		// the REST routes registered on rest_api_init (#130). Slated for
+		// removal in the release after this one.
 		add_action( 'wp_ajax_wpd_search_entity', array( $this, 'ajax_search_entity' ) );
 		add_action( 'wp_ajax_wpd_create_entity', array( $this, 'ajax_create_entity' ) );
 		add_action( 'wp_ajax_wpd_promote_entity', array( $this, 'ajax_promote_entity' ) );
+		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
@@ -695,7 +699,7 @@ class WPD_CPT_Event {
 			return;
 		}
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
-		wp_enqueue_script( 'wpd-admin-event', WPD_PLUGIN_URL . 'assets/js/admin-event.js', array( 'jquery' ), wpd_asset_ver( 'assets/js/admin-event.js' ), true );
+		wp_enqueue_script( 'wpd-admin-event', WPD_PLUGIN_URL . 'assets/js/admin-event.js', array( 'jquery', 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-event.js' ), true );
 		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
 		wp_enqueue_script( 'wpd-admin-rooms', WPD_PLUGIN_URL . 'assets/js/admin-rooms.js', array(), wpd_asset_ver( 'assets/js/admin-rooms.js' ), true );
 		WPD_Datetime_Hint::enqueue();
@@ -734,6 +738,10 @@ class WPD_CPT_Event {
         );
 	}
 
+	/**
+	 * Legacy admin-ajax bridge, superseded by GET /wp-json/wpd/v1/entities/search
+	 * (#130). Removed in the release after the one that adds this deprecation.
+	 */
 	public function ajax_search_entity() {
 		check_ajax_referer( 'wpd_search_entity' );
 		if ( ! current_user_can( 'edit_posts' ) ) {
@@ -768,12 +776,8 @@ class WPD_CPT_Event {
 	}
 
 	/**
-	 * Create a new musician/instructor in dansal from a user-typed name that
-	 * the search endpoint returned no match for. Same nonce + capability
-	 * gate as ajax_search_entity so the two share a trust boundary. Uses
-	 * the authenticated api client (POST requires publisher auth) rather
-	 * than get_public; returned id + name is echoed back so the JS can
-	 * add the chip without another round-trip.
+	 * Legacy admin-ajax bridge, superseded by POST /wp-json/wpd/v1/entities
+	 * (#130). Removed in the release after the one that adds this deprecation.
 	 */
 	public function ajax_create_entity() {
 		check_ajax_referer( 'wpd_search_entity' );
@@ -806,10 +810,9 @@ class WPD_CPT_Event {
 	}
 
 	/**
-	 * Promote a dansal-side musician/instructor to a local WP post so an
-	 * admin can edit its fields. Fetches the current dansal record and hands
-	 * it to the matching CPT's upsert_from_dansal(). Returns the WP edit URL
-	 * so the JS can offer a "Edit locally" link.
+	 * Legacy admin-ajax bridge, superseded by
+	 * POST /wp-json/wpd/v1/entities/{id}/promote (#130). Removed in the
+	 * release after the one that adds this deprecation.
 	 */
 	public function ajax_promote_entity() {
 		check_ajax_referer( 'wpd_search_entity' );
@@ -836,6 +839,179 @@ class WPD_CPT_Event {
 		}
 
 		wp_send_json_success(
+			array(
+				'post_id'  => (int) $post_id,
+				'edit_url' => get_edit_post_link( $post_id, 'raw' ),
+			)
+		);
+	}
+
+	/**
+	 * REST counterparts of the three entity-picker admin-ajax endpoints
+	 * (#130). All three are edit_posts-gated; wp.apiFetch attaches
+	 * X-WP-Nonce automatically for logged-in admin requests. `type` is a
+	 * closed enum ('musician' | 'instructor') and validated at the args
+	 * layer so the handler bodies can trust it.
+	 */
+	public function register_rest_routes() {
+		$edit_posts = static function () {
+			return current_user_can( 'edit_posts' );
+		};
+		$type_arg   = array(
+			'type'     => 'string',
+			'required' => true,
+			'enum'     => array( 'musician', 'instructor' ),
+		);
+
+		register_rest_route(
+			'wpd/v1',
+			'/entities/search',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'rest_search_entity' ),
+				'permission_callback' => $edit_posts,
+				'args'                => array(
+					'type' => $type_arg,
+					'q'    => array(
+						'type'              => 'string',
+						'required'          => true,
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => static function ( $v ) {
+							return is_string( $v ) && strlen( trim( $v ) ) >= 2;
+						},
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			'wpd/v1',
+			'/entities',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'rest_create_entity' ),
+				'permission_callback' => $edit_posts,
+				'args'                => array(
+					'type' => $type_arg,
+					'name' => array(
+						'type'              => 'string',
+						'required'          => true,
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => static function ( $v ) {
+							return is_string( $v ) && '' !== trim( $v );
+						},
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			'wpd/v1',
+			'/entities/(?P<id>\d+)/promote',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'rest_promote_entity' ),
+				'permission_callback' => $edit_posts,
+				'args'                => array(
+					'type' => $type_arg,
+					'id'   => array(
+						'type'     => 'integer',
+						'required' => true,
+					),
+				),
+			)
+		);
+	}
+
+	/**
+	 * REST: text query → list of `{id, name}` matches from dansal, plus
+	 * a "create new" affordance rendered client-side when the query didn't
+	 * match anything. Reads via the public (unauthenticated) API — search
+	 * over musicians/instructors is public data on dansal.
+	 */
+	public function rest_search_entity( WP_REST_Request $request ) {
+		$type     = $request->get_param( 'type' );
+		$q        = $request->get_param( 'q' );
+		$path     = 'musician' === $type ? '/api/v1/musicians' : '/api/v1/instructors';
+		$name_key = 'musician' === $type ? 'bandname' : 'name';
+
+		$result = $this->api->get_public( $path, array( 'name' => $q ) );
+		if ( is_wp_error( $result ) ) {
+			return new WP_Error( $result->get_error_code(), $result->get_error_message(), array( 'status' => 502 ) );
+		}
+
+		$out = array();
+		foreach ( ( is_array( $result ) ? $result : array() ) as $item ) {
+			if ( isset( $item['id'], $item[ $name_key ] ) ) {
+				$out[] = array(
+					'id'   => (int) $item['id'],
+					'name' => (string) $item[ $name_key ],
+				);
+			}
+		}
+		return rest_ensure_response( $out );
+	}
+
+	/**
+	 * REST: create a new musician/instructor in dansal from a user-typed
+	 * name and echo back `{id, name}`. Uses the authenticated API client
+	 * (POST needs publisher auth), unlike search which is public.
+	 */
+	public function rest_create_entity( WP_REST_Request $request ) {
+		$type     = $request->get_param( 'type' );
+		$name     = trim( (string) $request->get_param( 'name' ) );
+		$path     = 'musician' === $type ? '/api/v1/musicians' : '/api/v1/instructors';
+		$name_key = 'musician' === $type ? 'bandname' : 'name';
+
+		$result = $this->api->post( $path, array( $name_key => $name ) );
+		if ( is_wp_error( $result ) ) {
+			return new WP_Error( $result->get_error_code(), $result->get_error_message(), array( 'status' => 502 ) );
+		}
+		if ( ! is_array( $result ) || ! isset( $result['id'], $result[ $name_key ] ) ) {
+			return new WP_Error(
+				'wpd_entity_bad_response',
+				__( 'Unexpected response from dansal.', 'wp-dansal' ),
+				array( 'status' => 502 )
+			);
+		}
+		return rest_ensure_response(
+			array(
+				'id'   => (int) $result['id'],
+				'name' => (string) $result[ $name_key ],
+			)
+		);
+	}
+
+	/**
+	 * REST: promote a dansal musician/instructor to a local WP post so an
+	 * admin can edit it. Fetches the dansal record, hands it to the matching
+	 * CPT's upsert_from_dansal(), and returns the local edit URL.
+	 */
+	public function rest_promote_entity( WP_REST_Request $request ) {
+		$type = $request->get_param( 'type' );
+		$id   = (int) $request->get_param( 'id' );
+		if ( $id <= 0 ) {
+			return new WP_Error( 'wpd_entity_bad_id', __( 'Invalid input.', 'wp-dansal' ), array( 'status' => 400 ) );
+		}
+		$path   = 'musician' === $type ? '/api/v1/musicians' : '/api/v1/instructors';
+		$entity = $this->api->get_public( $path . '/' . $id );
+		if ( is_wp_error( $entity ) || ! is_array( $entity ) || empty( $entity['id'] ) ) {
+			return new WP_Error(
+				'wpd_entity_fetch_failed',
+				__( 'Could not fetch entity from dansal.', 'wp-dansal' ),
+				array( 'status' => 502 )
+			);
+		}
+		$cpt     = 'musician' === $type ? wpd_plugin()->cpt_musician : wpd_plugin()->cpt_instructor;
+		$post_id = $cpt->upsert_from_dansal( $entity );
+		if ( ! $post_id ) {
+			return new WP_Error(
+				'wpd_entity_promote_failed',
+				__( 'Failed to create local copy.', 'wp-dansal' ),
+				array( 'status' => 500 )
+			);
+		}
+		return rest_ensure_response(
 			array(
 				'post_id'  => (int) $post_id,
 				'edit_url' => get_edit_post_link( $post_id, 'raw' ),
