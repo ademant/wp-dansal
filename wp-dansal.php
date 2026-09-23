@@ -3,7 +3,7 @@
  * Plugin Name: WP Dansal
  * Plugin URI: https://github.com/ademant/wp-dansal
  * Description: Manage dance events and locations in WordPress, backed by a dansal server (https://github.com/ademant/dansal) as the storage/publishing backend.
- * Version: 0.29.0
+ * Version: 0.30.0
  * Author: ademant
  * License: GPL-2.0-or-later
  * Text Domain: wp-dansal
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPD_VERSION', '0.29.0' );
+define( 'WPD_VERSION', '0.30.0' );
 define( 'WPD_PLUGIN_FILE', __FILE__ );
 define( 'WPD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -135,16 +135,30 @@ final class WPD_Plugin {
 		// single DB query after the one-time purge.
 		add_action( 'init', 'wpd_maybe_purge_has_flags', 20 );
 		add_action( 'wpd_apikey_renew_check', array( $this, 'cron_renew_apikey' ) );
+		add_action( 'wpd_pull_sync_tick', array( $this, 'cron_pull_sync' ) );
 		add_action( 'admin_notices', array( $this, 'admin_notice_apikey_dead' ) );
 	}
 
 	/**
 	 * Catches upgrades from an older version installed before the renewal
 	 * cron existed — activation hook only runs on activate/reactivate.
+	 * Also covers #140's pull-sync tick, added later than the renewal one.
 	 */
 	public function ensure_cron_scheduled() {
 		if ( ! wp_next_scheduled( 'wpd_apikey_renew_check' ) ) {
 			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'wpd_apikey_renew_check' );
+		}
+		if ( ! wp_next_scheduled( 'wpd_pull_sync_tick' ) ) {
+			// Interval filterable so admins on real system-cron setups
+			// can dial it tighter than hourly. Any string in the standard
+			// `cron_schedules` list is accepted; falls back to `hourly`
+			// if the filtered value isn't registered.
+			$interval  = (string) apply_filters( 'wpd_pull_sync_interval', 'hourly' );
+			$schedules = wp_get_schedules();
+			if ( ! isset( $schedules[ $interval ] ) ) {
+				$interval = 'hourly';
+			}
+			wp_schedule_event( time() + 5 * MINUTE_IN_SECONDS, $interval, 'wpd_pull_sync_tick' );
 		}
 	}
 
@@ -153,6 +167,25 @@ final class WPD_Plugin {
 	 * expiry is within the lead-time window (default 7 days) — never
 	 * touches a key we already know has no expiry or is dead.
 	 */
+	/**
+	 * #140: hourly WP-Cron tick that runs the same pull-sync the admin
+	 * list screens fire on view. Reuses the existing 30s transient
+	 * locks and #136's conditional-GET ETag storage, so a quiet org is
+	 * one 304 per tick and the cron cannot fight an in-progress admin
+	 * view. Only useful with real system cron on a low-traffic site:
+	 * WP-Cron itself only fires on page visits, so a completely
+	 * visitor-less site still stalls indefinitely — that's a WP-core-
+	 * wide issue solved out-of-plugin by `DISABLE_WP_CRON` + a real
+	 * cron pinging /wp-cron.php.
+	 */
+	public function cron_pull_sync() {
+		if ( ! $this->settings->is_configured() ) {
+			return;
+		}
+		$this->cpt_event->run_pull_sync();
+		$this->cpt_location->run_pull_sync();
+	}
+
 	public function cron_renew_apikey() {
 		if ( ! $this->settings->is_configured() ) {
 			return;
@@ -285,5 +318,6 @@ register_activation_hook( __FILE__, 'wpd_activate' );
 function wpd_deactivate() {
 	flush_rewrite_rules();
 	wp_clear_scheduled_hook( 'wpd_apikey_renew_check' );
+	wp_clear_scheduled_hook( 'wpd_pull_sync_tick' );
 }
 register_deactivation_hook( __FILE__, 'wpd_deactivate' );

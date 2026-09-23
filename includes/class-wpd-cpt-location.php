@@ -1008,6 +1008,16 @@ class WPD_CPT_Location {
 		if ( self::POST_TYPE !== $typenow || ! $this->settings->is_configured() ) {
 			return;
 		}
+		$this->run_pull_sync();
+	}
+
+	/**
+	 * See WPD_CPT_Event::run_pull_sync() (#140) — same rationale.
+	 */
+	public function run_pull_sync() {
+		if ( ! $this->settings->is_configured() ) {
+			return;
+		}
 		// Short cooldown so repeatedly reloading the list screen doesn't
 		// hammer the dansal API.
 		if ( get_transient( 'wpd_location_pull_lock' ) ) {

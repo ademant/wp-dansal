@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.3
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.29.0
+Stable tag: 0.30.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.30.0 =
+* WP-Cron baseline pull-sync: a new `wpd_pull_sync_tick` cron event runs the same pull-sync the admin event/location list screens fire on view, so a dansal-side change is mirrored to WP even when no admin has opened those screens. Interval is hourly by default and filterable via `wpd_pull_sync_interval` (any string from WP's `cron_schedules`, e.g. `twicedaily`, `daily`; falls back to `hourly` for an unregistered value). Reuses the existing 30-second transient locks and 0.29.0's conditional-GET short-circuit, so a quiet org is one `304 Not Modified` per tick and cannot race an in-progress admin view. Note: WP-Cron itself only fires on page visits, so a completely visitor-less site still stalls indefinitely — that's a WP-core-wide issue solved out-of-plugin by `DISABLE_WP_CRON` + a real system cron pinging `/wp-cron.php` (closes #140).
 
 = 0.29.0 =
 * Publish/cancel go through dansal's dedicated `POST /api/v1/events/{id}/publish` and `/cancel` endpoints on the becoming-true transition instead of the plain PATCH boolean, so dansal applies the associated side effects — clearing `suggester_email`/`email_verified` on publish, canonical `touchEvent` on cancel — that a bare PATCH `is_published`/`is_cancelled` skipped. Unpublish and un-cancel stay on PATCH (dansal has no reverse endpoint). Legacy events treat missing last-synced-state as "was false"; worst case one idempotent extra POST per already-published event on next save (closes #134).

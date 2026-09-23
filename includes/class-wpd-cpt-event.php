@@ -1448,6 +1448,19 @@ class WPD_CPT_Event {
 		if ( self::POST_TYPE !== $typenow || ! $this->settings->is_configured() ) {
 			return;
 		}
+		$this->run_pull_sync();
+	}
+
+	/**
+	 * The actual pull-sync body, extracted so #140's WP-Cron tick can
+	 * call it without the typenow guard maybe_pull_sync() uses to keep
+	 * admin-view triggers scoped to the events list screen. Same 30s
+	 * transient lock, same conditional-GET short-circuit.
+	 */
+	public function run_pull_sync() {
+		if ( ! $this->settings->is_configured() ) {
+			return;
+		}
 		if ( get_transient( 'wpd_event_pull_lock' ) ) {
 			return;
 		}
