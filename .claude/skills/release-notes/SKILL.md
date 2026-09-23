@@ -12,6 +12,7 @@ Every wp-dansal version already ships its changelog inside `readme.txt` (WordPre
 - Right after `git push origin v<version>` — the closing step of the "push and tag" flow (see this repo's `CLAUDE.md`, "Version-log workflow").
 - When the user asks for release notes for a specific tag by name.
 - When a tag's release exists but its body is out of date (e.g. `readme.txt` was corrected after tagging) — rerunning updates the body in place.
+- **After the CI `build-zip` job has finished on a tag push.** That job uses `softprops/action-gh-release@v2` with `generate_release_notes: true`, which can overwrite this skill's changelog-based body with commit-based auto-notes on the release GitHub-side create/edit. If the release body ever looks like GitHub's auto-generated "What's Changed" list instead of the readme changelog, rerun this skill to restore it (idempotent — same URL, body replaced in place).
 
 Do **not** run this on tags that don't correspond to a `readme.txt` changelog entry (early plugin tags before the changelog convention landed). The skill will refuse and say so.
 
@@ -38,7 +39,13 @@ If omitted, the skill uses the newest tag matching `v[0-9]*.[0-9]*.[0-9]*` in th
    ' readme.txt | sed -e '/./,$!d' -e :a -e '/^$/{$d;N;ba' -e '}'
    ```
 
-3. **Append a compare link.** Add a trailing `**Full Changelog**: https://github.com/ademant/wp-dansal/compare/<prev>...<tag>` line, where `<prev>` is the previous `v*` tag by sort order (`git tag --list --sort=-v:refname 'v[0-9]*.[0-9]*.[0-9]*' | grep -A1 -F "<tag>" | tail -1`). If there is no earlier tag (i.e. the first release), omit the line.
+3. **Append a compare link.** Add a trailing `**Full Changelog**: https://github.com/ademant/wp-dansal/compare/<prev>...<tag>` line, where `<prev>` is the tag immediately below `<tag>` in a descending semver sort. A working awk pattern that handles the edge cases (`<tag>` is the oldest → no prev → omit the line; `<tag>` isn't in the tag list → same):
+
+   ```bash
+   PREV=$(git tag --list --sort=-v:refname 'v[0-9]*.[0-9]*.[0-9]*' \
+     | awk -v t="$TAG" '$0 == t { seen=1; next } seen { print; exit }')
+   [ -n "$PREV" ] && printf '\n**Full Changelog**: https://github.com/ademant/wp-dansal/compare/%s...%s\n' "$PREV" "$TAG" >> "$BODY"
+   ```
 
 4. **Publish or update.** Check whether the release already exists: `gh release view <tag> --json tagName 2>/dev/null`. If it does, run `gh release edit <tag> --notes-file <tmpfile>` (never `--notes "$(cat …)"` — the body may contain backticks/dollar signs that shell-expand). If it doesn't, run `gh release create <tag> --title "<tag>" --notes-file <tmpfile>`.
 
