@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.3
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.26.0
+Stable tag: 0.27.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.27.0 =
+* Second slice of #125: a read-safe subset of post meta is now registered for REST on four of the five CPTs. Query Loop / Post Template blocks (and any REST client) can now read: event start/end time, booking URL, workshop difficulty, tags, dance IDs, pricing type/amount/currency, is_cancelled, musician/instructor display names, and the location FK on `/wp/v2/events`; address / zipcode / town / country(_code) / latitude / longitude on `/wp/v2/locations`; country / MusicBrainz ID / description on `/wp/v2/musicians`; description on `/wp/v2/instructors`. Every registered meta refuses writes (`auth_callback => __return_false`) so nothing is REST-writable in this slice — block-editor-driven meta writes come in slice C alongside a save-handler refactor. Internal sync state (`_wpd_dansal_id`, `_wpd_last_synced_*`, `_wpd_pending_*`, `_wpd_series_token`, timetable, pricing tiers, contact PII, amenity flags) is deliberately NOT registered, so it stays invisible to REST. `dansal_series` (which is `public: false`) also skips meta registration in this slice.
 
 = 0.26.0 =
 * First slice of #125 (block-editor / REST support for the plugin's CPTs): the five custom post types — `dansal_event`, `dansal_location`, `dansal_series`, `dansal_musician`, `dansal_instructor` — now set `show_in_rest: true` with dedicated `rest_base` values (`events`, `locations`, `series`, `musicians`, `instructors`). Consequence: editors get the block editor as the default editing mode, the existing classic meta boxes render in the block editor's "Meta boxes" panel below (WP fires the legacy meta-box save request alongside the REST save, so the `$_POST`-based save handlers and dansal sync flow keep working unchanged), and block-theme templates + Query Loop / Post Template blocks can now list events/locations/etc. No post meta is registered for REST yet — internal `_wpd_*` sync-state meta (dansal IDs, last-synced timestamps, pending-pull markers, series tokens) stays invisible to REST because WordPress only exposes meta keys explicitly opted in via `register_post_meta(..., show_in_rest: true)`. Slice B (register a read-safe subset of meta so Query Loop cards show real event data) and slice C (writable REST meta + a Gutenberg sidebar panel) follow in later releases.

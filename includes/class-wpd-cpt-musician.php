@@ -28,6 +28,17 @@ class WPD_CPT_Musician extends WPD_CPT_Person {
 				'rest_base'    => 'musicians',
 			)
 		);
+		$readonly = array(
+			'auth_callback' => '__return_false',
+			'show_in_rest'  => true,
+			'single'        => true,
+			'type'          => 'string',
+		);
+		// #125 slice B: read-safe musician meta. Country / MusicBrainz ID /
+		// description are the same three public fields shown on the frontend.
+		foreach ( array( '_wpd_country', '_wpd_mbid', '_wpd_description' ) as $key ) {
+			register_post_meta( self::POST_TYPE, $key, $readonly );
+		}
 	}
 
 	protected function primary_field() {

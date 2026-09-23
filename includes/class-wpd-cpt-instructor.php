@@ -28,6 +28,20 @@ class WPD_CPT_Instructor extends WPD_CPT_Person {
 				'rest_base'    => 'instructors',
 			)
 		);
+		// #125 slice B: read-safe instructor meta. The instructor CPT only
+		// carries a `_wpd_description` overlay locally (dansal's `bio`);
+		// register it for REST so a Query Loop instructor card can render
+		// the same text shown on the frontend page. Writes refused.
+		register_post_meta(
+			self::POST_TYPE,
+			'_wpd_description',
+			array(
+				'auth_callback' => '__return_false',
+				'show_in_rest'  => true,
+				'single'        => true,
+				'type'          => 'string',
+			)
+		);
 	}
 
 	protected function primary_field() {

@@ -172,6 +172,54 @@ class WPD_CPT_Event {
 		// featured-image support onto other post types the theme hasn't
 		// opted into itself (#101).
 		add_theme_support( 'post-thumbnails', array( self::POST_TYPE ) );
+
+		$this->register_rest_meta();
+	}
+
+	/**
+	 * #125 slice B: expose a read-safe subset of the event's post meta on
+	 * the /wp/v2/events REST resource, so Query Loop / Post Template blocks
+	 * can render the fields a public event card actually needs (datetimes,
+	 * pricing basics, location FK, tags, musician/instructor names). Every
+	 * key here is either already surfaced on the public single-event page
+	 * or on the frontend shortcodes — nothing new leaks. Writes are refused
+	 * (`auth_callback => __return_false`); block-editor-driven meta writes
+	 * come in slice C alongside a save-handler refactor. Internal sync
+	 * state (`_wpd_dansal_id`, `_wpd_last_synced_*`, `_wpd_pending_*`,
+	 * `_wpd_room_post_id`) is deliberately NOT registered here — REST only
+	 * exposes meta keys explicitly opted in, so those stay invisible.
+	 */
+	private function register_rest_meta() {
+		$readonly = array(
+			'auth_callback' => '__return_false',
+			'show_in_rest'  => true,
+			'single'        => true,
+		);
+		foreach (
+			array(
+				'_wpd_start_time',
+				'_wpd_end_time',
+				'_wpd_booking_url',
+				'_wpd_workshop_difficulty',
+				'_wpd_tags',
+				'_wpd_dance_ids',
+				'_wpd_pricing_type',
+				'_wpd_pricing_amount',
+				'_wpd_pricing_currency',
+				'_wpd_is_cancelled',
+				'_wpd_musician_names',
+				'_wpd_instructor_names',
+			) as $key
+		) {
+			register_post_meta( self::POST_TYPE, $key, $readonly + array( 'type' => 'string' ) );
+		}
+		// FK to the local location post — an integer, useful for template
+		// code that wants to hop from an event to its venue.
+		register_post_meta(
+			self::POST_TYPE,
+			'_wpd_location_post_id',
+			$readonly + array( 'type' => 'integer' )
+		);
 	}
 
 	public function columns( $columns ) {

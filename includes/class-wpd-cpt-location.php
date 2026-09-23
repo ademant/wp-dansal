@@ -83,6 +83,34 @@ class WPD_CPT_Location {
 				'rest_base'    => 'locations',
             )
         );
+		$this->register_rest_meta();
+	}
+
+	/**
+	 * #125 slice B: read-safe location meta on /wp/v2/locations. Address
+	 * fields and coordinates only — no OSM ids or dansal-side IDs (both are
+	 * internal-sync state, per WPD_CPT_Location::META_DANSAL_ID). Writes
+	 * refused, matching the event-side pattern.
+	 */
+	private function register_rest_meta() {
+		$readonly = array(
+			'auth_callback' => '__return_false',
+			'show_in_rest'  => true,
+			'single'        => true,
+		);
+		foreach (
+			array(
+				'_wpd_address',
+				'_wpd_zipcode',
+				'_wpd_town',
+				'_wpd_country',
+				'_wpd_country_code',
+				'_wpd_latitude',
+				'_wpd_longitude',
+			) as $key
+		) {
+			register_post_meta( self::POST_TYPE, $key, $readonly + array( 'type' => 'string' ) );
+		}
 	}
 
 	public function columns( $columns ) {
