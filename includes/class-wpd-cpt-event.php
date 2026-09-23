@@ -21,6 +21,17 @@ class WPD_CPT_Event {
 	const META_LAST_SYNCED_AT         = '_wpd_last_synced_at';
 	const META_LAST_SYNCED_LOCATION   = '_wpd_last_synced_location_dansal_id';
 	const META_LAST_SYNCED_IMAGE      = '_wpd_last_synced_image_attachment_id';
+	// #134: last-synced is_published / is_cancelled so we can detect a
+	// becoming-true transition and route it through dansal's dedicated
+	// lifecycle endpoints (which carry side effects PATCH skips) instead
+	// of the plain boolean in the PATCH body.
+	const META_LAST_SYNCED_PUBLISHED  = '_wpd_last_synced_is_published';
+	const META_LAST_SYNCED_CANCELLED  = '_wpd_last_synced_is_cancelled';
+	// #135: dansal-side changed_at we last observed (unix ts). Used to
+	// send `If-Match: W/"<changed_at>"` on PATCH so a concurrent
+	// dansal-web edit surfaces as a 412 and routes into the existing
+	// pending-pull accept/ignore flow instead of silently clobbering.
+	const META_LAST_PULLED_CHANGED_AT = '_wpd_last_pulled_changed_at';
 	const POST_TYPE                   = 'dansal_event';
 	/** One-shot marker: every event's pre-#121 _wpd_room_id/_wpd_room_name has been resolved. */
 	const OPTION_ROOMS_MIGRATED       = 'wpd_rooms_model_migrated';
@@ -1200,6 +1211,39 @@ class WPD_CPT_Event {
 			$current_location = ! empty( $payload['location_id'] ) ? (int) $payload['location_id'] : 0;
 			$prior_location   = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, true );
 
+			// #134: publish/cancel transitions go through their own POST
+			// endpoints so dansal applies the associated side effects
+			// (clearing suggester_email/email_verified on publish, canonical
+			// touchEvent on cancel) — a plain PATCH boolean would skip
+			// those and leave the event in a subtly wrong state. Only the
+			// becoming-true transition is routed here; going false stays
+			// on the PATCH body because dansal has no unpublish/uncancel
+			// endpoint. Legacy events (last-synced meta empty) treat that
+			// as "was false" — worst case an idempotent extra POST to
+			// dansal for an already-published event.
+			$prior_published = '1' === (string) get_post_meta( $post_id, self::META_LAST_SYNCED_PUBLISHED, true );
+			$prior_cancelled = '1' === (string) get_post_meta( $post_id, self::META_LAST_SYNCED_CANCELLED, true );
+			$curr_published  = ! empty( $payload['is_published'] );
+			$curr_cancelled  = ! empty( $payload['is_cancelled'] );
+			if ( ! $prior_published && $curr_published ) {
+				$res = $this->api->post( "/api/v1/events/{$dansal_id}/publish", array() );
+				if ( is_wp_error( $res ) ) {
+					/* translators: 1: dansal event ID, 2: underlying error message. */
+					$this->store_notice( sprintf( __( 'Failed to publish dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $res->get_error_message() ), 'error' );
+					return;
+				}
+				unset( $payload['is_published'] );
+			}
+			if ( ! $prior_cancelled && $curr_cancelled ) {
+				$res = $this->api->post( "/api/v1/events/{$dansal_id}/cancel", array() );
+				if ( is_wp_error( $res ) ) {
+					/* translators: 1: dansal event ID, 2: underlying error message. */
+					$this->store_notice( sprintf( __( 'Failed to cancel dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $res->get_error_message() ), 'error' );
+					return;
+				}
+				unset( $payload['is_cancelled'] );
+			}
+
 			// Clearing a nullable *int reference (location_id, organization_id)
 			// via PATCH is not possible: merge-patch can't distinguish "field
 			// omitted" from "explicitly null" for a plain scalar, and dansal's
@@ -1230,7 +1274,31 @@ class WPD_CPT_Event {
 					return null !== $v;
 				}
 			);
-			$result = $this->api->patch( "/api/v1/events/{$dansal_id}", $patch );
+			// #135: optimistic concurrency. Send the weak ETag over the
+			// last-pulled changed_at so a concurrent dansal-side edit
+			// surfaces as 412 instead of last-write-wins. Omitted when
+			// we have never pulled this event (fresh push after CREATE).
+			$if_match_headers = array();
+			$last_pulled      = (int) get_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, true );
+			if ( $last_pulled > 0 ) {
+				$if_match_headers['If-Match'] = 'W/"' . $last_pulled . '"';
+			}
+			$result = $this->api->patch( "/api/v1/events/{$dansal_id}", $patch, $if_match_headers );
+			if ( is_wp_error( $result ) && 'wpd_http_412' === $result->get_error_code() ) {
+				// #135: dansal-side is newer than what we last pulled.
+				// Route into the existing pending-pull flow: fetch the
+				// current version and stash it so the admin sees the
+				// Accept/Ignore notice with the incoming changes side by
+				// side with what they just tried to save.
+				$current = $this->api->get( "/api/v1/events/{$dansal_id}" );
+				if ( ! is_wp_error( $current ) && is_array( $current ) && ! empty( $current['id'] ) ) {
+					$incoming_ts = ! empty( $current['changed_at'] ) ? (int) strtotime( (string) $current['changed_at'] ) : time();
+					$this->stash_pending_pull( $post_id, $current, $incoming_ts );
+				}
+				/* translators: %d: dansal event ID. */
+				$this->store_notice( sprintf( __( 'Dansal event #%d changed since your last sync — your edit was not applied. Review the pending update on the events list.', 'wp-dansal' ), $dansal_id ), 'error' );
+				return;
+			}
 			if ( is_wp_error( $result ) ) {
 				/* translators: 1: dansal event ID, 2: underlying error message. */
 				$this->store_notice( sprintf( __( 'Failed to update dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $result->get_error_message() ), 'error' );
@@ -1241,6 +1309,16 @@ class WPD_CPT_Event {
 				// back on top of itself.
 				update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
 				update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, $current_location );
+				update_post_meta( $post_id, self::META_LAST_SYNCED_PUBLISHED, $curr_published ? '1' : '' );
+				update_post_meta( $post_id, self::META_LAST_SYNCED_CANCELLED, $curr_cancelled ? '1' : '' );
+				// #135: advance the stored changed_at from the PATCH
+				// response so the *next* PATCH's If-Match uses the new
+				// value; clear on missing shape rather than sending a
+				// stale ETag that would 412 the next legitimate save.
+				$new_changed_at = ( is_array( $result ) && ! empty( $result['changed_at'] ) )
+					? (int) strtotime( (string) $result['changed_at'] )
+					: 0;
+				update_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, $new_changed_at );
 				$this->push_timetable( $post_id, $dansal_id );
 				$this->push_image( $post_id, $dansal_id );
 			}
@@ -1262,6 +1340,10 @@ class WPD_CPT_Event {
 			update_post_meta( $post_id, self::META_DANSAL_ID, $new_id );
 			update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
 			update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, ! empty( $payload['location_id'] ) ? (int) $payload['location_id'] : 0 );
+			update_post_meta( $post_id, self::META_LAST_SYNCED_PUBLISHED, ! empty( $payload['is_published'] ) ? '1' : '' );
+			update_post_meta( $post_id, self::META_LAST_SYNCED_CANCELLED, ! empty( $payload['is_cancelled'] ) ? '1' : '' );
+			$new_changed_at = ! empty( $result[0]['changed_at'] ) ? (int) strtotime( (string) $result[0]['changed_at'] ) : 0;
+			update_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, $new_changed_at );
 			/* translators: %d: newly created dansal event ID. */
 			$this->store_notice( sprintf( __( 'Created dansal event #%d.', 'wp-dansal' ), $new_id ), 'success' );
 			$this->push_timetable( $post_id, $new_id );
@@ -1371,9 +1453,28 @@ class WPD_CPT_Event {
 		}
 		set_transient( 'wpd_event_pull_lock', 1, 30 );
 
-		$result = $this->api->get_all_pages( '/api/v1/events', array( 'organization_id' => $this->settings->get_org_id() ) );
+		// #136: conditional GET. Store the list ETag from the last full
+		// pull so a subsequent tab-open short-circuits into a 304 (no
+		// diff loop, no per-event pull_one_event work) when dansal has
+		// nothing new — the common case.
+		$etag_key   = 'wpd_events_pull_etag';
+		$last_etag  = (string) get_option( $etag_key, '' );
+		$new_etag   = null;
+		$result     = $this->api->get_all_pages(
+			'/api/v1/events',
+			array( 'organization_id' => $this->settings->get_org_id() ) ,
+			'' !== $last_etag ? $last_etag : null,
+			$new_etag
+		);
+		if ( null === $result ) {
+			// 304 Not Modified — nothing to do; keep the stored ETag.
+			return;
+		}
 		if ( is_wp_error( $result ) ) {
 			return;
+		}
+		if ( '' !== (string) $new_etag ) {
+			update_option( $etag_key, (string) $new_etag, false );
 		}
 
 		$created = 0;
@@ -1934,6 +2035,10 @@ class WPD_CPT_Event {
 
 		update_post_meta( $post_id, self::META_DANSAL_ID, (int) $event['id'] );
 		update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
+		// #135: record the dansal-side changed_at unix ts so the next
+		// PATCH from us can send it as an If-Match precondition.
+		$changed_at = ! empty( $event['changed_at'] ) ? strtotime( (string) $event['changed_at'] ) : 0;
+		update_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, $changed_at ? (int) $changed_at : 0 );
 	}
 
 	private function store_notice( $message, $type ) {

@@ -74,4 +74,4 @@ To regenerate the POT with the latest strings: `make pot` (requires [wp-cli](htt
       return 'https://tiles.example.com/{z}/{x}/{y}.png';
   } );
   ```
-- dansal's `API.md` documents `PATCH /api/v1/events/{id}` for updates, but the server currently only registers `PUT /api/v1/events/{id}` — this plugin calls `PUT`. Worth reconciling in dansal's docs/routes at some point.
+- Event updates use dansal's `PATCH /api/v1/events/{id}` (RFC 7396 merge-patch) — the plugin sends `Content-Type: application/merge-patch+json` and only the changed fields. `PUT` is available for full-replace but not used by this plugin.

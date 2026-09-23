@@ -957,6 +957,28 @@ class WPD_CPT_Location {
 
 		$result = $this->api->post( '/api/v1/locations', $create_payload );
 		if ( is_wp_error( $result ) ) {
+			// #138: dansal returns 409 with `existing_id` in the body when a
+			// duplicate slips past our pre-checks (racy OSM/proximity
+			// lookups). Auto-recover the way dansal's own admin UI does:
+			// assign the org to the pre-existing location and link the WP
+			// post to it, instead of leaving a generic error notice that
+			// requires a manual multi-click cleanup.
+			$data        = $result->get_error_data();
+			$body        = is_array( $data ) && isset( $data['body'] ) && is_array( $data['body'] ) ? $data['body'] : array();
+			$existing_id = ! empty( $body['existing_id'] ) ? (int) $body['existing_id'] : 0;
+			if ( 'wpd_http_409' === $result->get_error_code() && $existing_id > 0 ) {
+				$assign = $this->api->post( "/api/v1/locations/{$existing_id}/assign-org", array( 'organization_id' => $org_id ) );
+				if ( is_wp_error( $assign ) ) {
+					/* translators: 1: dansal location ID, 2: underlying error message. */
+					$this->store_notice( sprintf( __( 'Duplicate of dansal location #%1$d, but assigning your organization to it failed: %2$s', 'wp-dansal' ), $existing_id, $assign->get_error_message() ), 'error' );
+					return;
+				}
+				update_post_meta( $post_id, self::META_DANSAL_ID, $existing_id );
+				update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
+				/* translators: %d: pre-existing dansal location ID. */
+				$this->store_notice( sprintf( __( 'Linked to existing dansal location #%d (a duplicate was detected).', 'wp-dansal' ), $existing_id ), 'success' );
+				return;
+			}
 			/* translators: %s: underlying error message. */
 			$this->store_notice( sprintf( __( 'Failed to create dansal location: %s', 'wp-dansal' ), $result->get_error_message() ), 'error' );
 			return;
@@ -993,9 +1015,24 @@ class WPD_CPT_Location {
 		}
 		set_transient( 'wpd_location_pull_lock', 1, 30 );
 
-		$result = $this->api->get_all_pages( '/api/v1/locations', array( 'org_id' => $this->settings->get_org_id() ) );
+		// #136: conditional GET short-circuit — see WPD_CPT_Event::maybe_pull_sync().
+		$etag_key  = 'wpd_locations_pull_etag';
+		$last_etag = (string) get_option( $etag_key, '' );
+		$new_etag  = null;
+		$result    = $this->api->get_all_pages(
+			'/api/v1/locations',
+			array( 'org_id' => $this->settings->get_org_id() ),
+			'' !== $last_etag ? $last_etag : null,
+			$new_etag
+		);
+		if ( null === $result ) {
+			return;
+		}
 		if ( is_wp_error( $result ) ) {
 			return;
+		}
+		if ( '' !== (string) $new_etag ) {
+			update_option( $etag_key, (string) $new_etag, false );
 		}
 
 		$created = 0;

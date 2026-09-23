@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.3
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.28.0
+Stable tag: 0.29.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,13 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.29.0 =
+* Publish/cancel go through dansal's dedicated `POST /api/v1/events/{id}/publish` and `/cancel` endpoints on the becoming-true transition instead of the plain PATCH boolean, so dansal applies the associated side effects — clearing `suggester_email`/`email_verified` on publish, canonical `touchEvent` on cancel — that a bare PATCH `is_published`/`is_cancelled` skipped. Unpublish and un-cancel stay on PATCH (dansal has no reverse endpoint). Legacy events treat missing last-synced-state as "was false"; worst case one idempotent extra POST per already-published event on next save (closes #134).
+* Optimistic concurrency on push: the plugin now sends `If-Match: W/"<last-pulled changed_at>"` on `PATCH /api/v1/events/{id}`. When a concurrent dansal-web edit landed since the plugin's last pull, dansal returns `412 Precondition Failed`, and the plugin fetches the current version and routes it into the existing pending-pull Accept/Ignore notice instead of silently overwriting the concurrent edit. The stored changed_at is refreshed from every successful PATCH response so subsequent saves stay protected without needing an intervening pull (closes #135).
+* Pull sync is materially cheaper: `limit=1000` (was 500) halves the round-trips on the event and location list endpoints; the walker stops when the server-supplied `X-Total-Count` says we've read every row instead of only on a short page; and the walker records the response `ETag` and sends `If-None-Match` on the next tab-open — dansal answering `304 Not Modified` short-circuits the entire pull loop, so a quiet org is a single conditional GET per open of the events/locations list screens. Multi-org fan-out remains for now; that half needs a dansal-side change to accept repeated `organization_id` (closes #136).
+* When creating a location that racy pre-checks (OSM id + proximity) failed to detect as a duplicate, dansal returns `409 Conflict` with `existing_id` — the plugin now auto-recovers by assigning the org to that pre-existing location via `POST /api/v1/locations/{id}/assign-org` and linking the WP post to it, matching dansal's own admin conflict flow. Previously this fell through to a generic error notice that required a manual multi-click cleanup (closes #138).
+* Updated the plugin README to note that event updates use dansal's `PATCH /api/v1/events/{id}` (RFC 7396 merge-patch) — the stale claim that dansal only registered `PUT` and that the plugin sent `PUT` predated both sides of that flip (closes #139).
 
 = 0.28.0 =
 * Third slice of #125: the REST-registered post meta from 0.27.0 is now REST-writable too. The `auth_callback` on every registered meta key changed from `__return_false` to `current_user_can( 'edit_post', $object_id )` — the same check the classic $_POST-driven save handlers already enforce. A REST client (or a future block-editor sidebar) can now `POST /wp/v2/events/{id}` with a `meta` block to update start_time, tags, pricing, etc.; the change is pushed through to the dansal API via a new `rest_after_insert_{post_type}` hook on each CPT. A per-request dedup guard (`WPD_CPT_Event::$synced_this_request` and siblings) collapses the two save-post firings the block editor produces (REST write + meta-box fallback POST) into a single dansal push per save. No Gutenberg sidebar UI yet — the classic meta boxes still render in the block editor's "Meta boxes" panel and remain the canonical editing surface for now; a proper sidebar (slice D) follows once the fields are chosen for de-duplication against the meta boxes so the two can't overwrite each other's values.

@@ -183,13 +183,13 @@ class WPD_Api_Client {
 	 * @param array  $query  Query string params.
 	 * @return array|WP_Error Decoded JSON body on success.
 	 */
-	public function request( $method, $path, $body = null, $query = array() ) {
+	public function request( $method, $path, $body = null, $query = array(), $extra_headers = array() ) {
 		$token = $this->get_session_token();
 		if ( is_wp_error( $token ) ) {
 			return $token;
 		}
 
-		$result = $this->do_request( $method, $path, $body, $query, $token );
+		$result = $this->do_request( $method, $path, $body, $query, $token, $extra_headers );
 
 		// Token may have just expired/been invalidated (e.g. IP change) — re-exchange once and retry.
 		if ( is_wp_error( $result ) && 'wpd_http_401' === $result->get_error_code() ) {
@@ -197,7 +197,7 @@ class WPD_Api_Client {
 			if ( is_wp_error( $token ) ) {
 				return $token;
 			}
-			$result = $this->do_request( $method, $path, $body, $query, $token );
+			$result = $this->do_request( $method, $path, $body, $query, $token, $extra_headers );
 			// If we still get a 401, mark the stored publisher API key dead so
 			// the admin reconnect notice surfaces immediately instead of
 			// continuing to retry silently.
@@ -215,7 +215,7 @@ class WPD_Api_Client {
 		return $result;
 	}
 
-	private function do_request( $method, $path, $body, $query, $token ) {
+	private function do_request( $method, $path, $body, $query, $token, $extra_headers = array() ) {
 		$url = $this->settings->get_base_url() . $path;
 		if ( ! empty( $query ) ) {
 			$url = add_query_arg( array_map( 'rawurlencode', $query ), $url );
@@ -224,9 +224,12 @@ class WPD_Api_Client {
 		$args = array(
 			'method'  => $method,
 			'timeout' => self::timeout( $path ),
-			'headers' => array(
-				'Authorization' => 'Bearer ' . $token,
-				'Accept'        => 'application/json',
+			'headers' => array_merge(
+				array(
+					'Authorization' => 'Bearer ' . $token,
+					'Accept'        => 'application/json',
+				),
+				is_array( $extra_headers ) ? $extra_headers : array()
 			),
 		);
 
@@ -343,39 +346,71 @@ class WPD_Api_Client {
 	}
 
 	/**
-	 * Walk every page of a list endpoint. API.md L706 documents `limit`
-	 * (default 100, max 1000) + `offset` + `X-Total-Count`. We use a
-	 * short-response stop condition instead of the header so we don't need
-	 * to plumb headers through handle_response(). Hard-capped at 5000 rows
-	 * (`wpd_full_sync_cap` filter) so a runaway org can never stall an admin
-	 * page load.
+	 * Walk every page of a list endpoint. dansal's list endpoints
+	 * document `limit` (default 100, max 1000), `offset`, `X-Total-Count`,
+	 * and a strong `ETag` on the response. Hard-capped at 5000 rows
+	 * (`wpd_full_sync_cap` filter) so a runaway org can never stall an
+	 * admin page load.
 	 *
-	 * @return array|WP_Error Concatenated row list, or the first WP_Error hit.
+	 * #136:
+	 *  - `limit=1000` (was 500) halves the round-trips.
+	 *  - Stop-condition uses `X-Total-Count` when the server sends it,
+	 *    with the short-page fallback for older servers.
+	 *  - When the caller supplies `$if_none_match` (last-seen ETag),
+	 *    the first request sends `If-None-Match`. A `304 Not Modified`
+	 *    short-circuits the walk and returns `null` — signalling "no
+	 *    change since last pull" so the caller can skip the diff loop.
+	 *
+	 * @param string       $path
+	 * @param array        $query
+	 * @param string|null  $if_none_match Optional weak/strong ETag from a
+	 *                                    previous fetch.
+	 * @return array|null|WP_Error Row list, `null` on 304, or the first
+	 *                             WP_Error hit. When a caller passes
+	 *                             `$out_etag` (by-reference), the server's
+	 *                             response ETag is written to it.
 	 */
-	public function get_all_pages( $path, $query = array() ) {
-		$limit  = 500;
+	public function get_all_pages( $path, $query = array(), $if_none_match = null, &$out_etag = null ) {
+		$limit  = 1000;
 		$cap    = (int) apply_filters( 'wpd_full_sync_cap', 5000, $path );
 		$offset = 0;
 		$out    = array();
+		$total  = null;
+		$out_etag = null;
 		while ( true ) {
-			$page = $this->get(
-                $path,
-                array_merge(
-                    $query,
-                    array(
-						'limit' => $limit,
-						'offset' => $offset,
-                    )
-                )
-            );
-			if ( is_wp_error( $page ) ) {
-				return $page;
+			$headers = array();
+			if ( 0 === $offset && null !== $if_none_match && '' !== $if_none_match ) {
+				$headers['If-None-Match'] = $if_none_match;
 			}
-			if ( ! is_array( $page ) || empty( $page ) ) {
+			$response = $this->request_raw( 'GET', $path, null, array_merge( $query, array( 'limit' => $limit, 'offset' => $offset ) ), $headers );
+			if ( is_wp_error( $response ) ) {
+				return $response;
+			}
+			$status = (int) $response['status'];
+			if ( 304 === $status && 0 === $offset ) {
+				// dansal confirmed the caller's ETag; nothing to do.
+				return null;
+			}
+			$page = is_array( $response['body'] ) ? $response['body'] : array();
+			if ( 0 === $offset ) {
+				$out_etag = $response['headers']['etag'] ?? '';
+				$total_hdr = $response['headers']['x-total-count'] ?? '';
+				if ( '' !== $total_hdr && ctype_digit( (string) $total_hdr ) ) {
+					$total = (int) $total_hdr;
+				}
+			}
+			if ( empty( $page ) ) {
 				break;
 			}
 			$out = array_merge( $out, $page );
-			if ( count( $page ) < $limit || count( $out ) >= $cap ) {
+			$got = count( $out );
+			// Stop when the server told us how many rows there are, or
+			// when the current page is short (older servers without
+			// X-Total-Count), or when we hit the runaway cap.
+			if ( null !== $total && $got >= $total ) {
+				break;
+			}
+			if ( count( $page ) < $limit || $got >= $cap ) {
 				break;
 			}
 			$offset += $limit;
@@ -383,16 +418,98 @@ class WPD_Api_Client {
 		return $out;
 	}
 
+	/**
+	 * Internal counterpart of request() that keeps response headers and
+	 * status code available to the caller — get_all_pages() needs
+	 * `X-Total-Count` and `ETag`, and #135's If-Match/412 handling wants
+	 * the raw 412 status without header stripping. Handles the same
+	 * session-token refresh dance as request().
+	 *
+	 * @return array{status:int,headers:array<string,string>,body:mixed}|WP_Error
+	 */
+	private function request_raw( $method, $path, $body, $query, $headers = array() ) {
+		$token = $this->get_session_token();
+		if ( is_wp_error( $token ) ) {
+			return $token;
+		}
+		$response = $this->do_request_raw( $method, $path, $body, $query, $token, $headers );
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		if ( 401 === $response['status'] ) {
+			$token = $this->get_session_token( true );
+			if ( is_wp_error( $token ) ) {
+				return $token;
+			}
+			$response = $this->do_request_raw( $method, $path, $body, $query, $token, $headers );
+			if ( is_wp_error( $response ) ) {
+				return $response;
+			}
+		}
+		return $response;
+	}
+
+	/**
+	 * Low-level counterpart of do_request(): performs the HTTP call and
+	 * returns `{status, headers, body}` without translating non-2xx into
+	 * WP_Error (except for transport errors). Callers decide how to
+	 * interpret 304/412/etc.
+	 */
+	private function do_request_raw( $method, $path, $body, $query, $token, $headers = array() ) {
+		$url = $this->settings->get_base_url() . $path;
+		if ( ! empty( $query ) ) {
+			$url = add_query_arg( array_map( 'rawurlencode', $query ), $url );
+		}
+		$args = array(
+			'method'  => $method,
+			'timeout' => self::timeout( $path ),
+			'headers' => array_merge(
+				array(
+					'Authorization' => 'Bearer ' . $token,
+					'Accept'        => 'application/json',
+				),
+				is_array( $headers ) ? $headers : array()
+			),
+		);
+		if ( null !== $body ) {
+			$args['headers']['Content-Type'] = ( 'PATCH' === $method ) ? 'application/merge-patch+json' : 'application/json';
+			$args['body']                    = wp_json_encode( $body );
+		}
+		$response = wp_remote_request( $url, $args );
+		$response = $this->maybe_retry_after( $response, $url, $args );
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$raw_headers = wp_remote_retrieve_headers( $response );
+		$flat        = array();
+		if ( is_object( $raw_headers ) && method_exists( $raw_headers, 'getAll' ) ) {
+			foreach ( $raw_headers->getAll() as $k => $v ) {
+				$flat[ strtolower( $k ) ] = is_array( $v ) ? implode( ', ', $v ) : (string) $v;
+			}
+		} elseif ( is_array( $raw_headers ) ) {
+			foreach ( $raw_headers as $k => $v ) {
+				$flat[ strtolower( $k ) ] = is_array( $v ) ? implode( ', ', $v ) : (string) $v;
+			}
+		}
+		$raw  = wp_remote_retrieve_body( $response );
+		$body = '' !== $raw ? json_decode( $raw, true ) : null;
+		return array(
+			'status'  => (int) wp_remote_retrieve_response_code( $response ),
+			'headers' => $flat,
+			'body'    => $body,
+		);
+	}
+
 	public function post( $path, $body ) {
 		return $this->request( 'POST', $path, $body );
 	}
 
-	public function patch( $path, $body ) {
-		return $this->request( 'PATCH', $path, $body );
+	public function patch( $path, $body, $extra_headers = array() ) {
+		return $this->request( 'PATCH', $path, $body, array(), $extra_headers );
 	}
 
-	public function put( $path, $body ) {
-		return $this->request( 'PUT', $path, $body );
+	public function put( $path, $body, $extra_headers = array() ) {
+		return $this->request( 'PUT', $path, $body, array(), $extra_headers );
 	}
 
 	public function delete( $path ) {
