@@ -11,11 +11,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * requires (https://operations.osmfoundation.org/policies/nominatim/) and
  * keep API traffic server-side.
  *
- * The current transport is REST (`GET /wp-json/wpd/v1/nominatim/search` and
- * `/reverse`, registered on `rest_api_init`); the older `wp_ajax_*` handlers
- * (`wpd_nominatim_search`, `wpd_nominatim_reverse`) remain live as a bridge
- * for one release so any custom JS still hitting admin-ajax.php keeps
- * working, and will be removed in the release after this one (#130).
+ * Transport is REST — `GET /wp-json/wpd/v1/nominatim/search` and
+ * `/reverse`, registered on `rest_api_init`.
  */
 class WPD_Nominatim {
 
@@ -23,22 +20,14 @@ class WPD_Nominatim {
 	const REVERSE_ENDPOINT = 'https://nominatim.openstreetmap.org/reverse';
 
 	public function __construct() {
-		// Legacy admin-ajax endpoints (#130): kept live as bridges to the
-		// REST routes below for one release, so any custom JS still calling
-		// them via admin-ajax.php keeps working during transition. Slated
-		// for removal — see class-level docblock.
-		add_action( 'wp_ajax_wpd_nominatim_search', array( $this, 'ajax_search' ) );
-		add_action( 'wp_ajax_wpd_nominatim_reverse', array( $this, 'ajax_reverse' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 	}
 
 	/**
-	 * Registers the REST counterparts of the two admin-ajax endpoints
-	 * (#130). Both are `edit_posts`-gated, so `permission_callback` uses
-	 * `current_user_can`; the caller must include the standard `X-WP-Nonce`
-	 * header (wp.apiFetch does this automatically for logged-in admin
-	 * requests). The response shape is the raw payload — the AJAX bridge
-	 * still wraps it in `{success, data}` for legacy JS callers.
+	 * Both routes are `edit_posts`-gated via `permission_callback`; callers
+	 * must include the standard `X-WP-Nonce` header (wp.apiFetch does this
+	 * automatically for logged-in admin requests). The response shape is
+	 * the raw payload.
 	 */
 	public function register_rest_routes() {
 		register_rest_route(
@@ -116,53 +105,6 @@ class WPD_Nominatim {
 			);
 		}
 		return rest_ensure_response( $place );
-	}
-
-	/**
-	 * Legacy admin-ajax bridge, superseded by GET /wp-json/wpd/v1/nominatim/search
-	 * (#130). Removed in the release after the one that adds this deprecation.
-	 */
-	public function ajax_search() {
-		check_ajax_referer( 'wpd_nominatim_search' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-
-		$q = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
-		if ( strlen( $q ) < 3 ) {
-			wp_send_json_error( array( 'message' => __( 'Search term too short.', 'wp-dansal' ) ) );
-		}
-
-		$results = $this->search( $q );
-		if ( is_wp_error( $results ) ) {
-			wp_send_json_error( array( 'message' => $results->get_error_message() ) );
-		}
-
-		wp_send_json_success( $results );
-	}
-
-	/**
-	 * Legacy admin-ajax bridge, superseded by GET /wp-json/wpd/v1/nominatim/reverse
-	 * (#130). Removed in the release after the one that adds this deprecation.
-	 */
-	public function ajax_reverse() {
-		check_ajax_referer( 'wpd_nominatim_search' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-
-		$lat = isset( $_GET['lat'] ) && is_numeric( $_GET['lat'] ) ? (float) $_GET['lat'] : null;
-		$lng = isset( $_GET['lng'] ) && is_numeric( $_GET['lng'] ) ? (float) $_GET['lng'] : null;
-		if ( null === $lat || null === $lng ) {
-			wp_send_json_error( array( 'message' => __( 'Missing coordinates.', 'wp-dansal' ) ) );
-		}
-
-		$place = $this->reverse( $lat, $lng );
-		if ( is_wp_error( $place ) ) {
-			wp_send_json_error( array( 'message' => $place->get_error_message() ) );
-		}
-
-		wp_send_json_success( $place );
 	}
 
 	/**

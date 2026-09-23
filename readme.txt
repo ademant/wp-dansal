@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.22.0
+Stable tag: 0.23.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.23.0 =
+* Cleanup after the admin admin-ajax → REST migration (#130): removed the deprecated `wpd_nominatim_search` / `wpd_nominatim_reverse`, `wpd_search_entity` / `wpd_create_entity` / `wpd_promote_entity`, `wpd_check_location_duplicate` / `wpd_list_rooms` / `wpd_add_room` / `wpd_delete_room`, and `wpd_test_connection` / `wpd_connect_link` / `wpd_disconnect` admin-ajax endpoints that were kept live as bridges for one release. Any custom JS or third-party integration still calling them via admin-ajax.php will now get a WordPress "0" response — switch to the corresponding `/wp-json/wpd/v1/…` REST route (see the previous four release notes for the full mapping). Localized JS globals `wpdEvent.ajaxUrl` / `wpdEvent.nonce`, `wpdRooms.ajaxUrl` / `wpdRooms.nonce`, and `wpdLocation.ajaxUrl` / `wpdLocation.nonceSearch` / `wpdLocation.nonceDuplicate` / `wpdLocation.nonceRooms` are also gone for the same reason. This completes the migration; no admin JS in the plugin talks to `admin-ajax.php` any more (frontend endpoints `wpd_mini_calendar` / `wpd_nearby` / `wpd_tile` are unaffected).
 
 = 0.22.0 =
 * Final slice of the admin admin-ajax → REST migration (#130): the Settings → Dansal page's Test Connection button, Connect via Link redemption, and Disconnect now go through `POST /wp-json/wpd/v1/connection/test`, `POST /wp-json/wpd/v1/connection/link`, and `DELETE /wp-json/wpd/v1/connection`. The settings page's home-address search also switches to the REST Nominatim route added in 0.19.0 (it was still on admin-ajax by oversight). The old `wpd_test_connection` / `wpd_connect_link` / `wpd_disconnect` admin-ajax endpoints stay live as bridges for one release and will be removed in the next release; that will complete the migration of every admin JS caller from admin-ajax to REST (closes #130).

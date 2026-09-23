@@ -240,9 +240,7 @@ class WPD_CPT_Series {
             'wpd-admin-rooms',
             'wpdRooms',
             array(
-				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'wpd_rooms' ),
-				'i18n'    => array(
+				'i18n' => array(
 					'noRoom' => __( '— no specific room —', 'wp-dansal' ),
 				),
             )

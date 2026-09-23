@@ -20,12 +20,6 @@ class WPD_Settings {
 		add_action( 'init', array( $this, 'maybe_upgrade_key_encryption' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
-		// Legacy admin-ajax bridges kept for one release; the inline scripts
-		// in render_page() use the REST routes registered on rest_api_init
-		// (#130 slice 4/4). Slated for removal in the release after this one.
-		add_action( 'wp_ajax_wpd_test_connection', array( $this, 'ajax_test_connection' ) );
-		add_action( 'wp_ajax_wpd_connect_link', array( $this, 'ajax_connect_link' ) );
-		add_action( 'wp_ajax_wpd_disconnect', array( $this, 'ajax_disconnect' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 	}
 
@@ -462,9 +456,9 @@ class WPD_Settings {
 
 		// Only overwrite the API key if a new real value was actually typed in.
 		// The settings form re-renders the masked placeholder '***', never the
-		// real key. Programmatic update_option() calls (e.g. ajax_connect_link)
-		// also pass '***' + a fresh api_key_encrypted — treat those the same as
-		// an unchanged field so we don't accidentally re-encrypt the placeholder.
+		// real key. Programmatic update_option() calls also pass '***' + a
+		// fresh api_key_encrypted — treat those the same as an unchanged field
+		// so we don't accidentally re-encrypt the placeholder.
 		if ( ! empty( $input['api_key'] ) && '***' !== $input['api_key'] ) {
 			$plaintext = sanitize_text_field( $input['api_key'] );
 			$encrypted = $this->encrypt_api_key( $plaintext );
@@ -478,9 +472,9 @@ class WPD_Settings {
 			}
 		} else {
 			// Preserve incoming api_key_encrypted when explicitly set by a
-			// programmatic call (e.g. ajax_connect_link just stored the real
-			// encrypted key there). Fall back to the current DB value when the
-			// field is absent (normal settings-form submissions don't include it).
+			// programmatic call that just stored the real encrypted key
+			// there. Fall back to the current DB value when the field is
+			// absent (normal settings-form submissions don't include it).
 			$out['api_key'] = ! empty( $input['api_key'] ) ? $input['api_key'] : $existing['api_key'];
 			$out['api_key_encrypted'] = ! empty( $input['api_key_encrypted'] )
 				? $input['api_key_encrypted']
@@ -507,10 +501,10 @@ class WPD_Settings {
 		}
 
 		// A new real plaintext key typed in the admin form resets renewal state.
-		// Programmatic callers (ajax_connect_link, record_apikey_renewed,
-		// mark_apikey_no_expiry, mark_apikey_dead) pass '***' as the api_key
-		// and supply their own lifecycle values in $input — honour those verbatim
-		// rather than resetting, so renew expiry / no-expiry / dead flags survive.
+		// Programmatic callers (record_apikey_renewed, mark_apikey_no_expiry,
+		// mark_apikey_dead) pass '***' as the api_key and supply their own
+		// lifecycle values in $input — honour those verbatim rather than
+		// resetting, so renew expiry / no-expiry / dead flags survive.
 		$real_plaintext_typed = ! empty( $input['api_key'] ) && '***' !== $input['api_key'];
 		if ( $real_plaintext_typed ) {
 			$out['api_key_expires_at'] = 0;
@@ -941,16 +935,15 @@ class WPD_Settings {
 
 	/**
 	 * REST: redeem a dansal connect-link. Thin wrapper around
-	 * redeem_connect_link() so the AJAX bridge and REST route share the
-	 * same challenge/RSA/rollback logic.
+	 * redeem_connect_link() which owns the challenge/RSA/rollback logic.
 	 */
 	public function rest_connect_link( WP_REST_Request $request ) {
 		return $this->redeem_connect_link( (string) $request->get_param( 'connect_url' ) );
 	}
 
 	/**
-	 * REST: admin-triggered disconnect. Same behaviour as ajax_disconnect
-	 * (best-effort server-side revoke, then local clear).
+	 * REST: admin-triggered disconnect (best-effort server-side revoke,
+	 * then local clear).
 	 */
 	public function rest_disconnect() {
 		if ( '' === $this->get_api_key() ) {
@@ -960,81 +953,11 @@ class WPD_Settings {
 	}
 
 	/**
-	 * Legacy admin-ajax bridge, superseded by POST /wp-json/wpd/v1/connection/test
-	 * (#130). Removed in the release after the one that adds this deprecation.
-	 */
-	public function ajax_test_connection() {
-		check_ajax_referer( 'wpd_test_connection' );
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-
-		if ( ! $this->is_configured() ) {
-			wp_send_json_error( array( 'message' => __( 'Base URL, org ID and API key must all be set first.', 'wp-dansal' ) ) );
-		}
-
-		$api  = wpd_plugin()->api;
-		$info = $api->get_public( '/api/v1/info' );
-		if ( is_wp_error( $info ) ) {
-			/* translators: %s: underlying HTTP/connection error message. */
-			wp_send_json_error( array( 'message' => sprintf( __( 'Could not reach dansal server: %s', 'wp-dansal' ), $info->get_error_message() ) ) );
-		}
-
-		// Optional certificate pin check configured in settings.
-		$pinned = $this->get( 'pinned_cert_sha256' );
-		if ( ! empty( $pinned ) ) {
-			$base = $this->get_base_url();
-			$host = wp_parse_url( $base, PHP_URL_HOST );
-			$port = wp_parse_url( $base, PHP_URL_PORT );
-			$port = $port ? (int) $port : 443;
-			$fingerprint = $this->get_peer_cert_sha256( $host, $port );
-			if ( false === $fingerprint || strtolower( trim( $pinned ) ) !== strtolower( trim( $fingerprint ) ) ) {
-				wp_send_json_error( array( 'message' => __( 'TLS certificate pin mismatch for configured dansal base URL.', 'wp-dansal' ) ) );
-			}
-		}
-
-		$token = $api->get_session_token( true );
-		if ( is_wp_error( $token ) ) {
-			/* translators: %s: underlying authentication error message. */
-			wp_send_json_error( array( 'message' => sprintf( __( 'Reached server, but authentication failed: %s', 'wp-dansal' ), $token->get_error_message() ) ) );
-		}
-
-		wp_send_json_success(
-            array(
-				'message' => sprintf(
-				/* translators: %s dansal server version */
-                    __( 'Connected to dansal %s and authenticated successfully.', 'wp-dansal' ),
-                    isset( $info['version'] ) ? $info['version'] : '?'
-                ),
-            )
-        );
-	}
-
-	/**
-	 * Legacy admin-ajax bridge, superseded by POST /wp-json/wpd/v1/connection/link
-	 * (#130). The actual redemption logic lives in redeem_connect_link()
-	 * and is shared with the REST route. Removed in the release after
-	 * the one that adds this deprecation.
+	 * Redeem a dansal connect-link and commit the resulting credentials
+	 * (base_url / org_id / api_key), or roll back on any failure. Called
+	 * by rest_connect_link().
 	 *
 	 * @see https://github.com/ademant/dansal API.md, "Connect-link bootstrap"
-	 */
-	public function ajax_connect_link() {
-		check_ajax_referer( 'wpd_connect_link' );
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-		$connect_url = isset( $_POST['connect_url'] ) ? esc_url_raw( wp_unslash( $_POST['connect_url'] ) ) : '';
-		$result = $this->redeem_connect_link( $connect_url );
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
-		}
-		wp_send_json_success( $result );
-	}
-
-	/**
-	 * Redeem a dansal connect-link and commit the resulting credentials
-	 * (base_url / org_id / api_key), or roll back on any failure. Shared
-	 * by ajax_connect_link (legacy) and rest_connect_link (#130).
 	 *
 	 * @return array|WP_Error {base_url, org_id, message} on success.
 	 */
@@ -1198,26 +1121,11 @@ class WPD_Settings {
 	}
 
 	/**
-	 * Legacy admin-ajax bridge, superseded by DELETE /wp-json/wpd/v1/connection
-	 * (#130). Removed in the release after the one that adds this deprecation.
-	 */
-	public function ajax_disconnect() {
-		check_ajax_referer( 'wpd_disconnect' );
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-		if ( '' === $this->get_api_key() ) {
-			wp_send_json_error( array( 'message' => __( 'No API key configured — nothing to disconnect.', 'wp-dansal' ) ) );
-		}
-		wp_send_json_success( $this->do_disconnect() );
-	}
-
-	/**
 	 * Admin-triggered disconnect. Best-effort server-side revocation via
 	 * DELETE /api/v1/apikeys/current (dansal #869); when the server doesn't
 	 * expose that route yet, still clear locally and return a hint so the
 	 * admin knows to delete the publisher key by hand from dansal's
-	 * /admin/users. Shared by ajax_disconnect and rest_disconnect (#130).
+	 * /admin/users. Called by rest_disconnect().
 	 *
 	 * @return array {server_revoked, hint, message}
 	 */

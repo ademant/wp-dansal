@@ -55,13 +55,6 @@ class WPD_CPT_Location {
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
 		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
-		// Legacy admin-ajax bridges kept for one release; the JS below uses
-		// the REST routes registered on rest_api_init (#130). Slated for
-		// removal in the release after this one.
-		add_action( 'wp_ajax_wpd_check_location_duplicate', array( $this, 'ajax_check_duplicate' ) );
-		add_action( 'wp_ajax_wpd_list_rooms', array( $this, 'ajax_list_rooms' ) );
-		add_action( 'wp_ajax_wpd_add_room', array( $this, 'ajax_add_room' ) );
-		add_action( 'wp_ajax_wpd_delete_room', array( $this, 'ajax_delete_room' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 		add_action( 'admin_notices', array( $this, 'show_sync_notices' ) );
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
@@ -461,95 +454,6 @@ class WPD_CPT_Location {
 	}
 
 	/**
-	 * Legacy admin-ajax bridge, superseded by GET /wp-json/wpd/v1/locations/{post_id}/rooms
-	 * (#130). Removed in the release after the one that adds this deprecation.
-	 */
-	public function ajax_list_rooms() {
-		check_ajax_referer( 'wpd_rooms' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-		$post_id = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0;
-		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid location.', 'wp-dansal' ) ) );
-		}
-		wp_send_json_success( array( 'rooms' => $this->fetch_rooms_for_post( $post_id ) ) );
-	}
-
-	/**
-	 * Legacy admin-ajax bridge, superseded by POST /wp-json/wpd/v1/locations/{post_id}/rooms
-	 * (#130). Removed in the release after the one that adds this deprecation.
-	 */
-	public function ajax_add_room() {
-		check_ajax_referer( 'wpd_rooms' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
-		$name    = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
-		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) || '' === trim( $name ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid input.', 'wp-dansal' ) ) );
-		}
-		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
-		if ( ! $dansal_id ) {
-			wp_send_json_error( array( 'message' => __( 'Location is not synced yet — save it first.', 'wp-dansal' ) ) );
-		}
-		if ( self::is_room( $post_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'A room cannot have rooms of its own.', 'wp-dansal' ) ) );
-		}
-		// A room is a child location (API.md → Locations); address and
-		// coordinates are inherited from the building server-side, so only the
-		// name is sent.
-		$result = $this->api->post( "/api/v1/locations/{$dansal_id}/children", array( 'name' => $name ) );
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
-		}
-		// Re-reading the list (rather than importing the POST response) picks
-		// the new room up with its inherited address/coordinates filled in.
-		wp_send_json_success( array( 'rooms' => $this->fetch_rooms_for_post( $post_id ) ) );
-	}
-
-	/**
-	 * Legacy admin-ajax bridge, superseded by
-	 * DELETE /wp-json/wpd/v1/locations/{post_id}/rooms/{room_id} (#130).
-	 * Removed in the release after the one that adds this deprecation.
-	 */
-	public function ajax_delete_room() {
-		check_ajax_referer( 'wpd_rooms' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
-		$room_id = isset( $_POST['room_id'] ) ? absint( $_POST['room_id'] ) : 0;
-		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) || ! $room_id ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid input.', 'wp-dansal' ) ) );
-		}
-		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
-		if ( ! $dansal_id ) {
-			wp_send_json_error( array( 'message' => __( 'Location is not synced yet.', 'wp-dansal' ) ) );
-		}
-		// Only ever delete a room of *this* building — room_id comes from the
-		// browser, and a room is just a location, so the API itself would
-		// happily delete any location id it is given.
-		$room_post_id = self::find_post_id_by_dansal_id( $room_id );
-		if ( ! $room_post_id || self::parent_dansal_id( $room_post_id ) !== $dansal_id ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid input.', 'wp-dansal' ) ) );
-		}
-		// A room is deleted through its own location id; events still using it
-		// are moved to the building (`reassign_to`, honored for admin keys —
-		// otherwise dansal answers 409 and we show its message).
-		$result = $this->api->delete( "/api/v1/locations/{$room_id}?reassign_to={$dansal_id}" );
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
-		}
-		foreach ( $this->events_at_location( $room_post_id ) as $event_id ) {
-			update_post_meta( $event_id, '_wpd_location_post_id', $post_id );
-		}
-		wp_delete_post( $room_post_id, true );
-		wp_send_json_success( array( 'rooms' => $this->fetch_rooms_for_post( $post_id ) ) );
-	}
-
-	/**
 	 * REST counterparts of the four admin-ajax endpoints (#130):
 	 *
 	 *   GET    /wp-json/wpd/v1/locations/duplicates
@@ -626,7 +530,7 @@ class WPD_CPT_Location {
 	/**
 	 * REST: `{matches: […]}` — array of dansal locations (building-only,
 	 * rooms filtered out) that match the picked OSM entity or fall within
-	 * the configured dedup radius. Matches ajax_check_duplicate's shape.
+	 * the configured dedup radius.
 	 */
 	public function rest_check_duplicate( WP_REST_Request $request ) {
 		$osm_id   = (int) $request->get_param( 'osm_id' );
@@ -741,10 +645,6 @@ class WPD_CPT_Location {
             'wpd-admin-location',
             'wpdLocation',
             array(
-				'ajaxUrl'          => admin_url( 'admin-ajax.php' ),
-				'nonceSearch'      => wp_create_nonce( 'wpd_nominatim_search' ),
-				'nonceDuplicate'   => wp_create_nonce( 'wpd_check_location_duplicate' ),
-				'nonceRooms'       => wp_create_nonce( 'wpd_rooms' ),
 				// Reuses the frontend map's own tile config (wpd_tile_url_template
 				// et al filters) so an admin pointing tiles at a self-hosted proxy
 				// doesn't have to configure it twice.
@@ -766,65 +666,6 @@ class WPD_CPT_Location {
 				),
             )
         );
-	}
-
-	/**
-	 * Legacy admin-ajax bridge, superseded by GET /wp-json/wpd/v1/locations/duplicates
-	 * (#130). Removed in the release after the one that adds this deprecation.
-	 */
-	public function ajax_check_duplicate() {
-		check_ajax_referer( 'wpd_check_location_duplicate' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-
-		$osm_id   = isset( $_GET['osm_id'] ) ? absint( $_GET['osm_id'] ) : 0;
-		$osm_type = isset( $_GET['osm_type'] ) ? sanitize_key( $_GET['osm_type'] ) : '';
-		$lat      = isset( $_GET['lat'] ) ? (float) $_GET['lat'] : null;
-		$lng      = isset( $_GET['lng'] ) ? (float) $_GET['lng'] : null;
-
-		$matches = array();
-
-		if ( $osm_id && $osm_type ) {
-			$result = $this->api->get_public(
-                '/api/v1/locations',
-                array(
-					'osm_id'   => $osm_id,
-					'osm_type' => $osm_type,
-                )
-            );
-			if ( ! is_wp_error( $result ) ) {
-				$matches = $this->extract_locations( $result );
-			}
-		}
-
-		if ( empty( $matches ) && null !== $lat && null !== $lng ) {
-			$result = $this->api->get_public(
-                '/api/v1/locations',
-                array(
-					'lat'    => $lat,
-					'lng'    => $lng,
-					'radius' => $this->settings->get_dedup_radius_km(),
-                )
-            );
-			if ( ! is_wp_error( $result ) ) {
-				$matches = $this->extract_locations( $result );
-			}
-		}
-
-		// Rooms inherit their building's coordinates, so a proximity lookup
-		// returns them alongside the building — they are never a duplicate of a
-		// *new* building (#121).
-		$matches = array_values(
-			array_filter(
-				$matches,
-				static function ( $m ) {
-					return is_array( $m ) && empty( $m['parent_id'] );
-				}
-			)
-		);
-
-		wp_send_json_success( array( 'matches' => $matches ) );
 	}
 
 	private function extract_locations( $result ) {

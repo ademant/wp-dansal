@@ -41,12 +41,6 @@ class WPD_CPT_Event {
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
 		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
-		// Legacy admin-ajax bridges kept for one release; the JS below uses
-		// the REST routes registered on rest_api_init (#130). Slated for
-		// removal in the release after this one.
-		add_action( 'wp_ajax_wpd_search_entity', array( $this, 'ajax_search_entity' ) );
-		add_action( 'wp_ajax_wpd_create_entity', array( $this, 'ajax_create_entity' ) );
-		add_action( 'wp_ajax_wpd_promote_entity', array( $this, 'ajax_promote_entity' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
@@ -707,8 +701,6 @@ class WPD_CPT_Event {
             'wpd-admin-event',
             'wpdEvent',
             array(
-				'ajaxUrl'                 => admin_url( 'admin-ajax.php' ),
-				'nonce'                   => wp_create_nonce( 'wpd_search_entity' ),
 				// Auto-fill end datetime with start + this many seconds when
 				// end is still empty (see #58). Filterable per-site.
 				'defaultDurationSeconds'  => (int) apply_filters( 'wpd_default_event_duration', 2 * HOUR_IN_SECONDS ),
@@ -729,9 +721,7 @@ class WPD_CPT_Event {
             'wpd-admin-rooms',
             'wpdRooms',
             array(
-				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'wpd_rooms' ),
-				'i18n'    => array(
+				'i18n' => array(
 					'noRoom' => __( '— no specific room —', 'wp-dansal' ),
 				),
             )
@@ -739,119 +729,11 @@ class WPD_CPT_Event {
 	}
 
 	/**
-	 * Legacy admin-ajax bridge, superseded by GET /wp-json/wpd/v1/entities/search
-	 * (#130). Removed in the release after the one that adds this deprecation.
-	 */
-	public function ajax_search_entity() {
-		check_ajax_referer( 'wpd_search_entity' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-
-		$type = isset( $_GET['type'] ) ? sanitize_key( $_GET['type'] ) : '';
-		$q    = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
-		if ( ! in_array( $type, array( 'musician', 'instructor' ), true ) || strlen( $q ) < 2 ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid search.', 'wp-dansal' ) ) );
-		}
-
-		$path = 'musician' === $type ? '/api/v1/musicians' : '/api/v1/instructors';
-		// Musician's display field is "bandname"; Instructor's is "name".
-		$name_key = 'musician' === $type ? 'bandname' : 'name';
-		$result   = $this->api->get_public( $path, array( 'name' => $q ) );
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
-		}
-
-		$list = is_array( $result ) ? $result : array();
-		$out  = array();
-		foreach ( $list as $item ) {
-			if ( isset( $item['id'], $item[ $name_key ] ) ) {
-				$out[] = array(
-					'id' => $item['id'],
-					'name' => $item[ $name_key ],
-				);
-			}
-		}
-		wp_send_json_success( $out );
-	}
-
-	/**
-	 * Legacy admin-ajax bridge, superseded by POST /wp-json/wpd/v1/entities
-	 * (#130). Removed in the release after the one that adds this deprecation.
-	 */
-	public function ajax_create_entity() {
-		check_ajax_referer( 'wpd_search_entity' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-
-		$type = isset( $_POST['type'] ) ? sanitize_key( wp_unslash( $_POST['type'] ) ) : '';
-		$name = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
-		if ( ! in_array( $type, array( 'musician', 'instructor' ), true ) || '' === trim( $name ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid input.', 'wp-dansal' ) ) );
-		}
-
-		$path     = 'musician' === $type ? '/api/v1/musicians' : '/api/v1/instructors';
-		$name_key = 'musician' === $type ? 'bandname' : 'name';
-		$result   = $this->api->post( $path, array( $name_key => trim( $name ) ) );
-		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
-		}
-
-		if ( ! isset( $result['id'], $result[ $name_key ] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Unexpected response from dansal.', 'wp-dansal' ) ) );
-		}
-		wp_send_json_success(
-			array(
-				'id'   => (int) $result['id'],
-				'name' => (string) $result[ $name_key ],
-			)
-		);
-	}
-
-	/**
-	 * Legacy admin-ajax bridge, superseded by
-	 * POST /wp-json/wpd/v1/entities/{id}/promote (#130). Removed in the
-	 * release after the one that adds this deprecation.
-	 */
-	public function ajax_promote_entity() {
-		check_ajax_referer( 'wpd_search_entity' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-
-		$type = isset( $_POST['type'] ) ? sanitize_key( wp_unslash( $_POST['type'] ) ) : '';
-		$id   = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
-		if ( ! in_array( $type, array( 'musician', 'instructor' ), true ) || $id <= 0 ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid input.', 'wp-dansal' ) ) );
-		}
-
-		$path   = 'musician' === $type ? '/api/v1/musicians' : '/api/v1/instructors';
-		$entity = $this->api->get_public( $path . '/' . $id );
-		if ( is_wp_error( $entity ) || ! is_array( $entity ) || empty( $entity['id'] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Could not fetch entity from dansal.', 'wp-dansal' ) ) );
-		}
-
-		$cpt     = 'musician' === $type ? wpd_plugin()->cpt_musician : wpd_plugin()->cpt_instructor;
-		$post_id = $cpt->upsert_from_dansal( $entity );
-		if ( ! $post_id ) {
-			wp_send_json_error( array( 'message' => __( 'Failed to create local copy.', 'wp-dansal' ) ) );
-		}
-
-		wp_send_json_success(
-			array(
-				'post_id'  => (int) $post_id,
-				'edit_url' => get_edit_post_link( $post_id, 'raw' ),
-			)
-		);
-	}
-
-	/**
-	 * REST counterparts of the three entity-picker admin-ajax endpoints
-	 * (#130). All three are edit_posts-gated; wp.apiFetch attaches
-	 * X-WP-Nonce automatically for logged-in admin requests. `type` is a
-	 * closed enum ('musician' | 'instructor') and validated at the args
-	 * layer so the handler bodies can trust it.
+	 * Entity-picker REST endpoints for musicians and instructors on the
+	 * event edit screen. All three are edit_posts-gated; wp.apiFetch
+	 * attaches X-WP-Nonce automatically for logged-in admin requests.
+	 * `type` is a closed enum ('musician' | 'instructor') validated at
+	 * the args layer, so handler bodies can trust it.
 	 */
 	public function register_rest_routes() {
 		$edit_posts = static function () {
