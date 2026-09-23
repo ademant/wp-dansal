@@ -235,14 +235,12 @@ class WPD_CPT_Series {
 		}
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
 		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
-		wp_enqueue_script( 'wpd-admin-rooms', WPD_PLUGIN_URL . 'assets/js/admin-rooms.js', array(), wpd_asset_ver( 'assets/js/admin-rooms.js' ), true );
+		wp_enqueue_script( 'wpd-admin-rooms', WPD_PLUGIN_URL . 'assets/js/admin-rooms.js', array( 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-rooms.js' ), true );
 		wp_localize_script(
             'wpd-admin-rooms',
             'wpdRooms',
             array(
-				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'wpd_rooms' ),
-				'i18n'    => array(
+				'i18n' => array(
 					'noRoom' => __( '— no specific room —', 'wp-dansal' ),
 				),
             )

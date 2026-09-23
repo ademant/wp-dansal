@@ -7,9 +7,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Search-only wrapper around OpenStreetMap's Nominatim, used to turn a
  * free-text venue search into coordinates + osm_id/osm_type when creating a
  * dansal location. Public JS never talks to Nominatim directly; requests go
- * through this AJAX proxy so we can set the User-Agent Nominatim's usage
- * policy requires (https://operations.osmfoundation.org/policies/nominatim/)
- * and keep API traffic server-side.
+ * through this proxy so we can set the User-Agent Nominatim's usage policy
+ * requires (https://operations.osmfoundation.org/policies/nominatim/) and
+ * keep API traffic server-side.
+ *
+ * Transport is REST — `GET /wp-json/wpd/v1/nominatim/search` and
+ * `/reverse`, registered on `rest_api_init`.
  */
 class WPD_Nominatim {
 
@@ -17,52 +20,91 @@ class WPD_Nominatim {
 	const REVERSE_ENDPOINT = 'https://nominatim.openstreetmap.org/reverse';
 
 	public function __construct() {
-		add_action( 'wp_ajax_wpd_nominatim_search', array( $this, 'ajax_search' ) );
-		add_action( 'wp_ajax_wpd_nominatim_reverse', array( $this, 'ajax_reverse' ) );
-	}
-
-	public function ajax_search() {
-		check_ajax_referer( 'wpd_nominatim_search' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-
-		$q = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
-		if ( strlen( $q ) < 3 ) {
-			wp_send_json_error( array( 'message' => __( 'Search term too short.', 'wp-dansal' ) ) );
-		}
-
-		$results = $this->search( $q );
-		if ( is_wp_error( $results ) ) {
-			wp_send_json_error( array( 'message' => $results->get_error_message() ) );
-		}
-
-		wp_send_json_success( $results );
+		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 	}
 
 	/**
-	 * AJAX: lat/lng → a single normalized place, same shape as one entry from
-	 * search(). Shares the 'wpd_nominatim_search' nonce action — it's the same
-	 * edit_posts-gated, read-only Nominatim lookup, just a different endpoint.
+	 * Both routes are `edit_posts`-gated via `permission_callback`; callers
+	 * must include the standard `X-WP-Nonce` header (wp.apiFetch does this
+	 * automatically for logged-in admin requests). The response shape is
+	 * the raw payload.
 	 */
-	public function ajax_reverse() {
-		check_ajax_referer( 'wpd_nominatim_search' );
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
+	public function register_rest_routes() {
+		register_rest_route(
+			'wpd/v1',
+			'/nominatim/search',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'rest_search' ),
+				'permission_callback' => static function () {
+					return current_user_can( 'edit_posts' );
+				},
+				'args'                => array(
+					'q' => array(
+						'type'              => 'string',
+						'required'          => true,
+						'sanitize_callback' => 'sanitize_text_field',
+						'validate_callback' => static function ( $v ) {
+							return is_string( $v ) && strlen( trim( $v ) ) >= 3;
+						},
+					),
+				),
+			)
+		);
+		register_rest_route(
+			'wpd/v1',
+			'/nominatim/reverse',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'rest_reverse' ),
+				'permission_callback' => static function () {
+					return current_user_can( 'edit_posts' );
+				},
+				'args'                => array(
+					'lat' => array(
+						'type'     => 'number',
+						'required' => true,
+					),
+					'lng' => array(
+						'type'     => 'number',
+						'required' => true,
+					),
+				),
+			)
+		);
+	}
 
-		$lat = isset( $_GET['lat'] ) && is_numeric( $_GET['lat'] ) ? (float) $_GET['lat'] : null;
-		$lng = isset( $_GET['lng'] ) && is_numeric( $_GET['lng'] ) ? (float) $_GET['lng'] : null;
-		if ( null === $lat || null === $lng ) {
-			wp_send_json_error( array( 'message' => __( 'Missing coordinates.', 'wp-dansal' ) ) );
+	/**
+	 * REST: text query → list of normalized places. Wraps search() for
+	 * error → WP_Error translation; the raw list is returned directly, no
+	 * {success, data} envelope (that's the AJAX bridge's convention, not
+	 * REST's).
+	 */
+	public function rest_search( WP_REST_Request $request ) {
+		$results = $this->search( $request->get_param( 'q' ) );
+		if ( is_wp_error( $results ) ) {
+			return new WP_Error(
+				$results->get_error_code(),
+				$results->get_error_message(),
+				array( 'status' => 502 )
+			);
 		}
+		return rest_ensure_response( $results );
+	}
 
-		$place = $this->reverse( $lat, $lng );
+	/**
+	 * REST: lat/lng → a single normalized place.
+	 */
+	public function rest_reverse( WP_REST_Request $request ) {
+		$place = $this->reverse( (float) $request->get_param( 'lat' ), (float) $request->get_param( 'lng' ) );
 		if ( is_wp_error( $place ) ) {
-			wp_send_json_error( array( 'message' => $place->get_error_message() ) );
+			return new WP_Error(
+				$place->get_error_code(),
+				$place->get_error_message(),
+				array( 'status' => 502 )
+			);
 		}
-
-		wp_send_json_success( $place );
+		return rest_ensure_response( $place );
 	}
 
 	/**

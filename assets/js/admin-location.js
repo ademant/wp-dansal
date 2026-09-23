@@ -100,18 +100,18 @@
 
 	function checkDuplicates( place ) {
 		$( '#wpd-duplicate-results' ).text( wpdLocation.i18n.checking );
-		$.getJSON( wpdLocation.ajaxUrl, {
-			action: 'wpd_check_location_duplicate',
-			_wpnonce: wpdLocation.nonceDuplicate,
-			osm_id: place.osm_id,
-			osm_type: place.osm_type,
-			lat: place.lat,
-			lng: place.lng,
-		} ).done( function ( resp ) {
-			if ( resp.success ) {
-				renderDuplicates( resp.data.matches, place.osm_id );
-			}
-		} );
+		var qs = 'osm_id=' + encodeURIComponent( place.osm_id || 0 )
+			+ '&osm_type=' + encodeURIComponent( place.osm_type || '' )
+			+ '&lat=' + encodeURIComponent( place.lat )
+			+ '&lng=' + encodeURIComponent( place.lng );
+		wp.apiFetch( { path: '/wpd/v1/locations/duplicates?' + qs } )
+			.then( function ( data ) {
+				renderDuplicates( data.matches, place.osm_id );
+			} )
+			.catch( function () {
+				// Silent — the duplicate-check is a nice-to-have; a failure just
+				// means we don't offer the "use existing" affordance for this pick.
+			} );
 	}
 
 	function renderSearchResults( results ) {
@@ -164,20 +164,15 @@
 				return;
 			}
 			$( '#wpd-nominatim-results' ).text( wpdLocation.i18n.reversing );
-			$.getJSON( wpdLocation.ajaxUrl, {
-				action: 'wpd_nominatim_reverse',
-				_wpnonce: wpdLocation.nonceSearch,
-				lat: lat,
-				lng: lng,
-			} ).done( function ( resp ) {
-				if ( resp.success ) {
-					fillManualFields( resp.data );
-					setMapPosition( resp.data.lat, resp.data.lng );
-					checkDuplicates( resp.data );
-					$( '#wpd-nominatim-results' ).empty();
-				} else {
-					$( '#wpd-nominatim-results' ).text( resp.data && resp.data.message ? resp.data.message : 'Error' );
-				}
+			wp.apiFetch( {
+				path: '/wpd/v1/nominatim/reverse?lat=' + encodeURIComponent( lat ) + '&lng=' + encodeURIComponent( lng ),
+			} ).then( function ( data ) {
+				fillManualFields( data );
+				setMapPosition( data.lat, data.lng );
+				checkDuplicates( data );
+				$( '#wpd-nominatim-results' ).empty();
+			} ).catch( function ( err ) {
+				$( '#wpd-nominatim-results' ).text( err && err.message ? err.message : 'Error' );
 			} );
 		} );
 
@@ -187,16 +182,12 @@
 				return;
 			}
 			$( '#wpd-nominatim-results' ).text( '…' );
-			$.getJSON( wpdLocation.ajaxUrl, {
-				action: 'wpd_nominatim_search',
-				_wpnonce: wpdLocation.nonceSearch,
-				q: q,
-			} ).done( function ( resp ) {
-				if ( resp.success ) {
-					renderSearchResults( resp.data );
-				} else {
-					$( '#wpd-nominatim-results' ).text( resp.data && resp.data.message ? resp.data.message : 'Error' );
-				}
+			wp.apiFetch( {
+				path: '/wpd/v1/nominatim/search?q=' + encodeURIComponent( q ),
+			} ).then( function ( data ) {
+				renderSearchResults( data );
+			} ).catch( function ( err ) {
+				$( '#wpd-nominatim-results' ).text( err && err.message ? err.message : 'Error' );
 			} );
 		} );
 
@@ -239,34 +230,25 @@
 				$rooms.append( $ul );
 			};
 
-			$.getJSON( wpdLocation.ajaxUrl, {
-				action: 'wpd_list_rooms',
-				_wpnonce: wpdLocation.nonceRooms,
-				post_id: postId,
-			} ).done( function ( resp ) {
-				if ( resp.success ) {
-					renderRooms( resp.data.rooms );
-				}
-			} );
+			wp.apiFetch( { path: '/wpd/v1/locations/' + postId + '/rooms' } )
+				.then( function ( data ) { renderRooms( data.rooms ); } )
+				.catch( function () { /* leave the room panel empty on transient error */ } );
 
 			$( '#wpd-room-add' ).on( 'click', function () {
 				var name = $.trim( $( '#wpd-room-new-name' ).val() );
 				if ( ! name ) {
 					return;
 				}
-				$.post( wpdLocation.ajaxUrl, {
-					action: 'wpd_add_room',
-					_wpnonce: wpdLocation.nonceRooms,
-					post_id: postId,
-					name: name,
-				}, function ( resp ) {
-					if ( resp.success ) {
-						renderRooms( resp.data.rooms );
-						$( '#wpd-room-new-name' ).val( '' );
-					} else {
-						window.alert( ( resp.data && resp.data.message ) || wpdLocation.i18n.roomsError );
-					}
-				}, 'json' );
+				wp.apiFetch( {
+					path: '/wpd/v1/locations/' + postId + '/rooms',
+					method: 'POST',
+					data: { name: name },
+				} ).then( function ( data ) {
+					renderRooms( data.rooms );
+					$( '#wpd-room-new-name' ).val( '' );
+				} ).catch( function ( err ) {
+					window.alert( ( err && err.message ) || wpdLocation.i18n.roomsError );
+				} );
 			} );
 
 			$rooms.on( 'click', '.wpd-room-remove', function () {
@@ -274,18 +256,14 @@
 				if ( ! window.confirm( wpdLocation.i18n.confirmRemove ) ) {
 					return;
 				}
-				$.post( wpdLocation.ajaxUrl, {
-					action: 'wpd_delete_room',
-					_wpnonce: wpdLocation.nonceRooms,
-					post_id: postId,
-					room_id: roomId,
-				}, function ( resp ) {
-					if ( resp.success ) {
-						renderRooms( resp.data.rooms );
-					} else {
-						window.alert( ( resp.data && resp.data.message ) || wpdLocation.i18n.roomsError );
-					}
-				}, 'json' );
+				wp.apiFetch( {
+					path: '/wpd/v1/locations/' + postId + '/rooms/' + encodeURIComponent( roomId ),
+					method: 'DELETE',
+				} ).then( function ( data ) {
+					renderRooms( data.rooms );
+				} ).catch( function ( err ) {
+					window.alert( ( err && err.message ) || wpdLocation.i18n.roomsError );
+				} );
 			} );
 		}
 	} );

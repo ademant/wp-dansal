@@ -3,8 +3,8 @@ Contributors: ademant
 Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.1
-Requires PHP: 7.4
-Stable tag: 0.16.2
+Requires PHP: 8.1
+Stable tag: 0.23.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,34 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.23.0 =
+* Cleanup after the admin admin-ajax → REST migration (#130): removed the deprecated `wpd_nominatim_search` / `wpd_nominatim_reverse`, `wpd_search_entity` / `wpd_create_entity` / `wpd_promote_entity`, `wpd_check_location_duplicate` / `wpd_list_rooms` / `wpd_add_room` / `wpd_delete_room`, and `wpd_test_connection` / `wpd_connect_link` / `wpd_disconnect` admin-ajax endpoints that were kept live as bridges for one release. Any custom JS or third-party integration still calling them via admin-ajax.php will now get a WordPress "0" response — switch to the corresponding `/wp-json/wpd/v1/…` REST route (see the previous four release notes for the full mapping). Localized JS globals `wpdEvent.ajaxUrl` / `wpdEvent.nonce`, `wpdRooms.ajaxUrl` / `wpdRooms.nonce`, and `wpdLocation.ajaxUrl` / `wpdLocation.nonceSearch` / `wpdLocation.nonceDuplicate` / `wpdLocation.nonceRooms` are also gone for the same reason. This completes the migration; no admin JS in the plugin talks to `admin-ajax.php` any more (frontend endpoints `wpd_mini_calendar` / `wpd_nearby` / `wpd_tile` are unaffected).
+
+= 0.22.0 =
+* Final slice of the admin admin-ajax → REST migration (#130): the Settings → Dansal page's Test Connection button, Connect via Link redemption, and Disconnect now go through `POST /wp-json/wpd/v1/connection/test`, `POST /wp-json/wpd/v1/connection/link`, and `DELETE /wp-json/wpd/v1/connection`. The settings page's home-address search also switches to the REST Nominatim route added in 0.19.0 (it was still on admin-ajax by oversight). The old `wpd_test_connection` / `wpd_connect_link` / `wpd_disconnect` admin-ajax endpoints stay live as bridges for one release and will be removed in the next release; that will complete the migration of every admin JS caller from admin-ajax to REST (closes #130).
+
+= 0.21.0 =
+* Third slice of the admin admin-ajax → REST migration (#130): the location duplicate-check and the rooms CRUD (list/add/delete) on the location edit screen, plus the room picker on the event and series edit screens, all now go through `GET /wp-json/wpd/v1/locations/duplicates`, `GET|POST /wp-json/wpd/v1/locations/{post_id}/rooms`, and `DELETE /wp-json/wpd/v1/locations/{post_id}/rooms/{room_id}`. Route paths are REST-idiomatic (parent-scoped `/locations/{post_id}/rooms/...`) rather than mirroring the old action names. The old `wpd_check_location_duplicate` / `wpd_list_rooms` / `wpd_add_room` / `wpd_delete_room` admin-ajax endpoints stay live as bridges for one release, to be removed in the release after this one. No user-visible behaviour change.
+
+= 0.20.0 =
+* Second slice of the admin admin-ajax → REST migration (#130): the musician/instructor picker on the event edit screen now goes through `GET /wp-json/wpd/v1/entities/search`, `POST /wp-json/wpd/v1/entities`, and `POST /wp-json/wpd/v1/entities/{id}/promote`. The old `wpd_search_entity` / `wpd_create_entity` / `wpd_promote_entity` admin-ajax endpoints stay live as bridges for one release and will be removed in the release after this one. No user-visible behaviour change.
+
+= 0.19.0 =
+* First slice of the admin admin-ajax → REST migration (#130): the Nominatim search / reverse-geocode helpers used by the location edit screen now go through `GET /wp-json/wpd/v1/nominatim/search` and `/reverse`. The old `wpd_nominatim_search` and `wpd_nominatim_reverse` admin-ajax endpoints are kept live as bridges for one release so any custom JS still calling them keeps working; they will be removed in the next release. No user-visible behaviour change — this is groundwork for future block-editor integrations and to align with WordPress core's guidance to use REST for new plugin code.
+
+= 0.18.0 =
+* Opt-in self-update from GitHub Releases (**off by default**). Enable it under **Settings → Dansal → Automated updates → Check github.com/ademant/wp-dansal for new releases** and WordPress will poll GitHub daily for new tagged releases and offer them under **Plugins → Updates**, just like a wordpress.org-hosted plugin — installing an offered update still requires you to click Update, nothing is installed silently. Turning the option off again fully stops the update check; combined with the `Update URI` header added in 0.17.0, WordPress then consults nobody about this plugin. Built on the `yahnis-elsts/plugin-update-checker` library, which ships in the release zip as a runtime composer dep (closes #129).
+
+= 0.17.0 =
+* Minimum PHP is now 8.1 (previously 7.4, which reached end-of-life in November 2022 and no longer receives security patches). Sites still on 7.4 or 8.0 should upgrade their host's PHP before installing this release; WordPress core itself has recommended 8.1+ for a while (closes #127).
+* Added an `Update URI: https://github.com/ademant/wp-dansal` header so WordPress never consults wordpress.org for updates to this plugin — a defensive measure against a future wordpress.org slug collision silently rerouting installs to someone else's code. Distribution stays via GitHub Releases; an opt-in in-WP updater is planned separately (closes #128).
+
+= 0.16.4 =
+* A building's page (and any `[dansal_events location="…"]` list for a building) now also shows the events held in its rooms. Events link to the room they take place in, so the building's "Upcoming events here" list used to come up empty even though its rooms had events. A room's own page still lists only that room's events.
+
+= 0.16.3 =
+* Event page: the "Add to calendar (.ics)" link now has breathing room below the booking button instead of touching it.
 
 = 0.16.2 =
 * Regenerated the translation template (`wp-dansal.pot`) so the new blocks, room screens and notices can be translated (closes #123). Not part of this release and tracked separately: the PHP/WordPress minimum and structural refactor (#124), block-editor/REST exposure of the post types (#125), and the Interactivity API / dropping jQuery from the admin JS (#126).

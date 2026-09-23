@@ -16,6 +16,15 @@ ZIP_FILE  := $(DIST_DIR)/$(SLUG)-$(VERSION).zip
 # it was added to the repo root later.
 DIST_FILES := wp-dansal.php uninstall.php includes templates assets blocks languages LICENSE README.md readme.txt
 
+# Runtime composer deps shipped in the release zip. Currently just the
+# plugin-update-checker library (opt-in self-update, #129). The Makefile
+# includes vendor/ only when the release-only subtree is present, so a dev
+# checkout with `composer install` (dev deps and all) doesn't accidentally
+# bloat a local `make zip`. CI's build-zip job runs `composer install
+# --no-dev --optimize-autoloader` before `make zip`, producing a lean
+# vendor/ tree with just the runtime deps.
+DIST_FILES_OPTIONAL := vendor
+
 .PHONY: all zip build deploy setup-env clean version help pot mo wp-cli
 
 all: zip
@@ -85,6 +94,9 @@ build:
 	@rm -rf "$(STAGE)"
 	@mkdir -p "$(STAGE)"
 	@cp -R $(DIST_FILES) "$(STAGE)/"
+	@for f in $(DIST_FILES_OPTIONAL); do \
+		if [ -e "$$f" ]; then cp -R "$$f" "$(STAGE)/"; fi; \
+	done
 	@find "$(BUILD_DIR)" -name '.DS_Store' -delete
 	@echo "Staged plugin in $(STAGE)"
 

@@ -454,6 +454,71 @@ class RoomModelTest extends WP_UnitTestCase {
 		$this->assertSame( array( $building ), wp_list_pluck( $posts, 'ID' ) );
 	}
 
+	// ---- location pages list the events held in their rooms --------------
+
+	/** IDs of the local events a `location="<id>"` listing would show. */
+	private function event_ids_for_location( $location_post_id ) {
+		$meta_query = $this->call( wpd_plugin()->frontend, 'base_meta_query', array( array( 'location' => $location_post_id ) ) );
+		return get_posts(
+			array(
+				'post_type'      => WPD_CPT_Event::POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'orderby'        => 'ID',
+				'order'          => 'ASC',
+				'meta_query'     => $meta_query, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+			)
+		);
+	}
+
+	private function event_at( $location_post_id, $dansal_id ) {
+		$event = $this->make_event( $dansal_id );
+		update_post_meta( $event, '_wpd_location_post_id', $location_post_id );
+		return $event;
+	}
+
+	public function test_a_buildings_event_list_includes_events_held_in_its_rooms() {
+		$building = $this->make_building();
+		$room     = $this->make_room();
+		$other    = $this->make_building( 99, 'Elsewhere' );
+
+		$at_building = $this->event_at( $building, 501 );
+		$at_room     = $this->event_at( $room, 502 );
+		$this->event_at( $other, 503 );
+
+		$this->assertSame( array( $at_building, $at_room ), $this->event_ids_for_location( $building ) );
+	}
+
+	public function test_a_rooms_event_list_stays_limited_to_that_room() {
+		$building   = $this->make_building();
+		$room       = $this->make_room( 36, 135, 'Raum 316' );
+		$other_room = $this->make_room( 36, 136, 'Raum 0.14' );
+
+		$this->event_at( $building, 501 );
+		$at_room = $this->event_at( $room, 502 );
+		$this->event_at( $other_room, 503 );
+
+		$this->assertSame( array( $at_room ), $this->event_ids_for_location( $room ) );
+	}
+
+	public function test_a_building_without_rooms_lists_only_its_own_events() {
+		$building = $this->make_building();
+		$only     = $this->event_at( $building, 501 );
+
+		$this->assertSame( array( $building ), WPD_CPT_Location::venue_post_ids( $building ) );
+		$this->assertSame( array( $only ), $this->event_ids_for_location( $building ) );
+	}
+
+	public function test_rooms_of_another_building_do_not_leak_into_a_buildings_event_list() {
+		$building     = $this->make_building();
+		$this->make_building( 99, 'Elsewhere' );
+		$foreign_room = $this->make_room( 99, 300, 'Elsewhere room' );
+		$this->event_at( $foreign_room, 501 );
+
+		$this->assertSame( array(), $this->event_ids_for_location( $building ) );
+	}
+
 	// ---- migration of pre-#121 events -----------------------------------
 
 	public function test_legacy_room_is_resolved_from_dansals_event_location_not_the_old_room_id() {

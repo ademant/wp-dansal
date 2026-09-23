@@ -20,9 +20,7 @@ class WPD_Settings {
 		add_action( 'init', array( $this, 'maybe_upgrade_key_encryption' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
-		add_action( 'wp_ajax_wpd_test_connection', array( $this, 'ajax_test_connection' ) );
-		add_action( 'wp_ajax_wpd_connect_link', array( $this, 'ajax_connect_link' ) );
-		add_action( 'wp_ajax_wpd_disconnect', array( $this, 'ajax_disconnect' ) );
+		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 	}
 
 	/**
@@ -93,6 +91,13 @@ class WPD_Settings {
 			'home_lon'      => '',
 			'home_address'  => '',
 			'home_seeded'   => false,
+			// Opt-in self-update from GitHub Releases (#129). Off by default —
+			// a fresh install must not enable this on its own. When true, the
+			// bundled plugin-update-checker library polls
+			// github.com/ademant/wp-dansal for new tagged releases and offers
+			// them under Plugins → Updates. When false, the library is never
+			// instantiated (see wpd_maybe_init_update_checker() in wp-dansal.php).
+			'github_updates_enabled' => false,
 		);
 	}
 
@@ -405,6 +410,9 @@ class WPD_Settings {
 		}
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
 		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
+		// Inline scripts in render_page() call wp.apiFetch for the settings-page
+		// admin-ajax → REST migration (#130), so the library must be loaded.
+		wp_enqueue_script( 'wp-api-fetch' );
 	}
 
 	public function register_settings() {
@@ -448,9 +456,9 @@ class WPD_Settings {
 
 		// Only overwrite the API key if a new real value was actually typed in.
 		// The settings form re-renders the masked placeholder '***', never the
-		// real key. Programmatic update_option() calls (e.g. ajax_connect_link)
-		// also pass '***' + a fresh api_key_encrypted — treat those the same as
-		// an unchanged field so we don't accidentally re-encrypt the placeholder.
+		// real key. Programmatic update_option() calls also pass '***' + a
+		// fresh api_key_encrypted — treat those the same as an unchanged field
+		// so we don't accidentally re-encrypt the placeholder.
 		if ( ! empty( $input['api_key'] ) && '***' !== $input['api_key'] ) {
 			$plaintext = sanitize_text_field( $input['api_key'] );
 			$encrypted = $this->encrypt_api_key( $plaintext );
@@ -464,9 +472,9 @@ class WPD_Settings {
 			}
 		} else {
 			// Preserve incoming api_key_encrypted when explicitly set by a
-			// programmatic call (e.g. ajax_connect_link just stored the real
-			// encrypted key there). Fall back to the current DB value when the
-			// field is absent (normal settings-form submissions don't include it).
+			// programmatic call that just stored the real encrypted key
+			// there. Fall back to the current DB value when the field is
+			// absent (normal settings-form submissions don't include it).
 			$out['api_key'] = ! empty( $input['api_key'] ) ? $input['api_key'] : $existing['api_key'];
 			$out['api_key_encrypted'] = ! empty( $input['api_key_encrypted'] )
 				? $input['api_key_encrypted']
@@ -493,10 +501,10 @@ class WPD_Settings {
 		}
 
 		// A new real plaintext key typed in the admin form resets renewal state.
-		// Programmatic callers (ajax_connect_link, record_apikey_renewed,
-		// mark_apikey_no_expiry, mark_apikey_dead) pass '***' as the api_key
-		// and supply their own lifecycle values in $input — honour those verbatim
-		// rather than resetting, so renew expiry / no-expiry / dead flags survive.
+		// Programmatic callers (record_apikey_renewed, mark_apikey_no_expiry,
+		// mark_apikey_dead) pass '***' as the api_key and supply their own
+		// lifecycle values in $input — honour those verbatim rather than
+		// resetting, so renew expiry / no-expiry / dead flags survive.
 		$real_plaintext_typed = ! empty( $input['api_key'] ) && '***' !== $input['api_key'];
 		if ( $real_plaintext_typed ) {
 			$out['api_key_expires_at'] = 0;
@@ -519,6 +527,12 @@ class WPD_Settings {
 		$out['home_lon'] = ( '' !== $raw_home_lon && is_numeric( $raw_home_lon ) ) ? (string) (float) $raw_home_lon : '';
 		$out['home_address'] = isset( $input['home_address'] ) ? sanitize_text_field( wp_unslash( $input['home_address'] ) ) : ( isset( $existing['home_address'] ) ? $existing['home_address'] : '' );
 		$out['home_seeded'] = array_key_exists( 'home_seeded', $input ) ? (bool) $input['home_seeded'] : (bool) $existing['home_seeded'];
+
+		// Opt-in self-update (#129). Absent from POST means unchecked (the
+		// browser doesn't submit an unchecked checkbox), which is why we
+		// treat "field missing" as "off" rather than "keep existing" — the
+		// admin form is the source of truth here.
+		$out['github_updates_enabled'] = ! empty( $input['github_updates_enabled'] );
 
 		// A different dansal server may ship different vocabularies.
 		if ( $out['base_url'] !== $existing['base_url'] ) {
@@ -661,6 +675,27 @@ class WPD_Settings {
 					</table>
 				</details>
 
+				<details style="margin: 1em 0;">
+					<summary style="font-weight: 600; cursor: pointer; font-size: 1.3em;"><?php esc_html_e( 'Automated updates', 'wp-dansal' ); ?></summary>
+					<p class="description">
+						<?php esc_html_e( 'wp-dansal is distributed via GitHub Releases, not the wordpress.org plugin directory. WordPress will not check for updates to this plugin unless you enable it here.', 'wp-dansal' ); ?>
+					</p>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><?php esc_html_e( 'GitHub Releases', 'wp-dansal' ); ?></th>
+							<td>
+								<label>
+									<input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[github_updates_enabled]" value="1" <?php checked( ! empty( $o['github_updates_enabled'] ) ); ?> />
+									<?php esc_html_e( 'Check github.com/ademant/wp-dansal for new releases and offer them under Plugins → Updates.', 'wp-dansal' ); ?>
+								</label>
+								<p class="description">
+									<?php esc_html_e( 'Off by default. Turn on to have WordPress poll GitHub daily for new tagged releases; installing an offered update still requires you to click Update on the Plugins screen — nothing is installed silently. Turning this off again fully stops the update check (no background polling).', 'wp-dansal' ); ?>
+								</p>
+							</td>
+						</tr>
+					</table>
+				</details>
+
 				<?php submit_button(); ?>
 			</form>
 			<hr />
@@ -684,14 +719,13 @@ class WPD_Settings {
 		document.getElementById('wpd-test-connection').addEventListener('click', function () {
 			var resultEl = document.getElementById('wpd-test-connection-result');
 			resultEl.textContent = <?php echo wp_json_encode( __( 'Testing…', 'wp-dansal' ) ); ?>;
-			fetch(ajaxurl + '?action=wpd_test_connection&_wpnonce=' + encodeURIComponent(<?php echo wp_json_encode( wp_create_nonce( 'wpd_test_connection' ) ); ?>))
-				.then(function (r) { return r.json(); })
+			wp.apiFetch({ path: '/wpd/v1/connection/test', method: 'POST' })
 				.then(function (data) {
-					resultEl.textContent = data.data && data.data.message ? data.data.message : (data.success ? 'OK' : 'Error');
-					resultEl.style.color = data.success ? 'green' : 'crimson';
+					resultEl.textContent = (data && data.message) ? data.message : 'OK';
+					resultEl.style.color = 'green';
 				})
-				.catch(function (e) {
-					resultEl.textContent = String(e);
+				.catch(function (err) {
+					resultEl.textContent = (err && err.message) ? err.message : String(err);
 					resultEl.style.color = 'crimson';
 				});
 		});
@@ -705,23 +739,16 @@ class WPD_Settings {
 				var resultEl = document.getElementById('wpd-disconnect-result');
 				resultEl.textContent = <?php echo wp_json_encode( __( 'Disconnecting…', 'wp-dansal' ) ); ?>;
 				resultEl.style.color = '';
-				var body = new URLSearchParams();
-				body.set('action', 'wpd_disconnect');
-				body.set('_wpnonce', <?php echo wp_json_encode( wp_create_nonce( 'wpd_disconnect' ) ); ?>);
-				fetch(ajaxurl, { method: 'POST', body: body })
-					.then(function (r) { return r.json(); })
+				wp.apiFetch({ path: '/wpd/v1/connection', method: 'DELETE' })
 					.then(function (data) {
-						var d = data.data || {};
-						var msg = d.message || (data.success ? 'OK' : 'Error');
-						if (d.hint) { msg += ' — ' + d.hint; }
+						var msg = (data && data.message) || 'OK';
+						if (data && data.hint) { msg += ' — ' + data.hint; }
 						resultEl.textContent = msg;
-						resultEl.style.color = data.success ? (d.server_revoked ? 'green' : '#b58900') : 'crimson';
-						if (data.success) {
-							setTimeout(function () { window.location.reload(); }, 3500);
-						}
+						resultEl.style.color = (data && data.server_revoked) ? 'green' : '#b58900';
+						setTimeout(function () { window.location.reload(); }, 3500);
 					})
-					.catch(function (e) {
-						resultEl.textContent = String(e);
+					.catch(function (err) {
+						resultEl.textContent = (err && err.message) ? err.message : String(err);
 						resultEl.style.color = 'crimson';
 					});
 			});
@@ -734,12 +761,10 @@ class WPD_Settings {
 				var box = document.getElementById('wpd-home-results');
 				if (!q) { return; }
 				box.textContent = <?php echo wp_json_encode( __( 'Searching…', 'wp-dansal' ) ); ?>;
-				var url = ajaxurl + '?action=wpd_nominatim_search&_wpnonce=' + encodeURIComponent(<?php echo wp_json_encode( wp_create_nonce( 'wpd_nominatim_search' ) ); ?>) + '&q=' + encodeURIComponent(q);
-				fetch(url)
-					.then(function (r) { return r.json(); })
+				wp.apiFetch({ path: '/wpd/v1/nominatim/search?q=' + encodeURIComponent(q) })
 					.then(function (data) {
 						box.textContent = '';
-						if (!data.success || !Array.isArray(data.data) || !data.data.length) {
+						if (!Array.isArray(data) || !data.length) {
 							box.textContent = <?php echo wp_json_encode( __( 'No results.', 'wp-dansal' ) ); ?>;
 							return;
 						}
@@ -747,7 +772,7 @@ class WPD_Settings {
 						ul.style.listStyle = 'none';
 						ul.style.margin = '0';
 						ul.style.padding = '0';
-						data.data.forEach(function (p) {
+						data.forEach(function (p) {
 							var li = document.createElement('li');
 							li.style.padding = '4px 0';
 							var btn = document.createElement('button');
@@ -767,8 +792,8 @@ class WPD_Settings {
 						});
 						box.appendChild(ul);
 					})
-					.catch(function (e) {
-						box.textContent = String(e);
+					.catch(function (err) {
+						box.textContent = (err && err.message) ? err.message : String(err);
 					});
 			});
 		}
@@ -782,23 +807,16 @@ class WPD_Settings {
 			}
 			resultEl.textContent = <?php echo wp_json_encode( __( 'Connecting…', 'wp-dansal' ) ); ?>;
 			resultEl.style.color = '';
-			var body = new URLSearchParams();
-			body.set('action', 'wpd_connect_link');
-			body.set('_wpnonce', <?php echo wp_json_encode( wp_create_nonce( 'wpd_connect_link' ) ); ?>);
-			body.set('connect_url', url);
-			fetch(ajaxurl, { method: 'POST', body: body })
-				.then(function (r) { return r.json(); })
+			wp.apiFetch({ path: '/wpd/v1/connection/link', method: 'POST', data: { connect_url: url } })
 				.then(function (data) {
-					if (data.success) {
-						urlEl.value = '';
-						document.getElementById('wpd_base_url').value = data.data.base_url;
-						document.getElementById('wpd_org_id').value = data.data.org_id;
-					}
-					resultEl.textContent = data.data && data.data.message ? data.data.message : (data.success ? 'OK' : 'Error');
-					resultEl.style.color = data.success ? 'green' : 'crimson';
+					urlEl.value = '';
+					document.getElementById('wpd_base_url').value = data.base_url;
+					document.getElementById('wpd_org_id').value = data.org_id;
+					resultEl.textContent = data.message || 'OK';
+					resultEl.style.color = 'green';
 				})
-				.catch(function (e) {
-					resultEl.textContent = String(e);
+				.catch(function (err) {
+					resultEl.textContent = (err && err.message) ? err.message : String(err);
 					resultEl.style.color = 'crimson';
 				});
 		});
@@ -806,24 +824,82 @@ class WPD_Settings {
 		<?php
 	}
 
-	public function ajax_test_connection() {
-		check_ajax_referer( 'wpd_test_connection' );
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
+	/**
+	 * REST counterparts of the three connect/test/disconnect admin-ajax
+	 * endpoints (#130 slice 4/4):
+	 *
+	 *   POST   /wp-json/wpd/v1/connection/test
+	 *   POST   /wp-json/wpd/v1/connection/link
+	 *   DELETE /wp-json/wpd/v1/connection
+	 *
+	 * All three require manage_options — the settings page's own gate.
+	 * wp.apiFetch attaches X-WP-Nonce automatically for the logged-in admin.
+	 */
+	public function register_rest_routes() {
+		$manage_options = static function () {
+			return current_user_can( 'manage_options' );
+		};
 
+		register_rest_route(
+			'wpd/v1',
+			'/connection/test',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'rest_test_connection' ),
+				'permission_callback' => $manage_options,
+			)
+		);
+		register_rest_route(
+			'wpd/v1',
+			'/connection/link',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'rest_connect_link' ),
+				'permission_callback' => $manage_options,
+				'args'                => array(
+					'connect_url' => array(
+						'type'              => 'string',
+						'required'          => true,
+						'sanitize_callback' => 'esc_url_raw',
+						'validate_callback' => static function ( $v ) {
+							return is_string( $v ) && '' !== trim( $v );
+						},
+					),
+				),
+			)
+		);
+		register_rest_route(
+			'wpd/v1',
+			'/connection',
+			array(
+				'methods'             => 'DELETE',
+				'callback'            => array( $this, 'rest_disconnect' ),
+				'permission_callback' => $manage_options,
+			)
+		);
+	}
+
+	/**
+	 * REST: probe the configured dansal base URL for reachability and
+	 * authentication. Returns `{message}` on success; a WP_Error on any
+	 * failure (unreachable, bad credentials, cert-pin mismatch).
+	 */
+	public function rest_test_connection() {
 		if ( ! $this->is_configured() ) {
-			wp_send_json_error( array( 'message' => __( 'Base URL, org ID and API key must all be set first.', 'wp-dansal' ) ) );
+			return new WP_Error( 'wpd_test_missing_config', __( 'Base URL, org ID and API key must all be set first.', 'wp-dansal' ), array( 'status' => 400 ) );
 		}
 
 		$api  = wpd_plugin()->api;
 		$info = $api->get_public( '/api/v1/info' );
 		if ( is_wp_error( $info ) ) {
-			/* translators: %s: underlying HTTP/connection error message. */
-			wp_send_json_error( array( 'message' => sprintf( __( 'Could not reach dansal server: %s', 'wp-dansal' ), $info->get_error_message() ) ) );
+			return new WP_Error(
+				'wpd_test_unreachable',
+				/* translators: %s: underlying HTTP/connection error message. */
+				sprintf( __( 'Could not reach dansal server: %s', 'wp-dansal' ), $info->get_error_message() ),
+				array( 'status' => 502 )
+			);
 		}
 
-		// Optional certificate pin check configured in settings.
 		$pinned = $this->get( 'pinned_cert_sha256' );
 		if ( ! empty( $pinned ) ) {
 			$base = $this->get_base_url();
@@ -832,47 +908,66 @@ class WPD_Settings {
 			$port = $port ? (int) $port : 443;
 			$fingerprint = $this->get_peer_cert_sha256( $host, $port );
 			if ( false === $fingerprint || strtolower( trim( $pinned ) ) !== strtolower( trim( $fingerprint ) ) ) {
-				wp_send_json_error( array( 'message' => __( 'TLS certificate pin mismatch for configured dansal base URL.', 'wp-dansal' ) ) );
+				return new WP_Error( 'wpd_test_pin_mismatch', __( 'TLS certificate pin mismatch for configured dansal base URL.', 'wp-dansal' ), array( 'status' => 502 ) );
 			}
 		}
 
 		$token = $api->get_session_token( true );
 		if ( is_wp_error( $token ) ) {
-			/* translators: %s: underlying authentication error message. */
-			wp_send_json_error( array( 'message' => sprintf( __( 'Reached server, but authentication failed: %s', 'wp-dansal' ), $token->get_error_message() ) ) );
+			return new WP_Error(
+				'wpd_test_auth_failed',
+				/* translators: %s: underlying authentication error message. */
+				sprintf( __( 'Reached server, but authentication failed: %s', 'wp-dansal' ), $token->get_error_message() ),
+				array( 'status' => 401 )
+			);
 		}
 
-		wp_send_json_success(
-            array(
+		return rest_ensure_response(
+			array(
 				'message' => sprintf(
-				/* translators: %s dansal server version */
-                    __( 'Connected to dansal %s and authenticated successfully.', 'wp-dansal' ),
-                    isset( $info['version'] ) ? $info['version'] : '?'
-                ),
-            )
-        );
+					/* translators: %s dansal server version */
+					__( 'Connected to dansal %s and authenticated successfully.', 'wp-dansal' ),
+					isset( $info['version'] ) ? $info['version'] : '?'
+				),
+			)
+		);
 	}
 
 	/**
-	 * Redeem a dansal connect-link (POST /api/v1/invites/{token}/publisher)
-	 * to bootstrap base_url/org_id/api_key in one step, instead of an admin
-	 * copying a numeric org ID and API key by hand.
+	 * REST: redeem a dansal connect-link. Thin wrapper around
+	 * redeem_connect_link() which owns the challenge/RSA/rollback logic.
+	 */
+	public function rest_connect_link( WP_REST_Request $request ) {
+		return $this->redeem_connect_link( (string) $request->get_param( 'connect_url' ) );
+	}
+
+	/**
+	 * REST: admin-triggered disconnect (best-effort server-side revoke,
+	 * then local clear).
+	 */
+	public function rest_disconnect() {
+		if ( '' === $this->get_api_key() ) {
+			return new WP_Error( 'wpd_disconnect_no_key', __( 'No API key configured — nothing to disconnect.', 'wp-dansal' ), array( 'status' => 409 ) );
+		}
+		return rest_ensure_response( $this->do_disconnect() );
+	}
+
+	/**
+	 * Redeem a dansal connect-link and commit the resulting credentials
+	 * (base_url / org_id / api_key), or roll back on any failure. Called
+	 * by rest_connect_link().
 	 *
 	 * @see https://github.com/ademant/dansal API.md, "Connect-link bootstrap"
+	 *
+	 * @return array|WP_Error {base_url, org_id, message} on success.
 	 */
-	public function ajax_connect_link() {
-		check_ajax_referer( 'wpd_connect_link' );
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-
-		$connect_url = isset( $_POST['connect_url'] ) ? esc_url_raw( wp_unslash( $_POST['connect_url'] ) ) : '';
+	private function redeem_connect_link( $connect_url ) {
 		// #54: require HTTPS so the api_key exchange can't be sniffed on-wire.
 		// Escape hatch for local dev via `wpd_allow_insecure_connect_url` filter.
 		$allow_http = (bool) apply_filters( 'wpd_allow_insecure_connect_url', false );
 		$scheme_re  = $allow_http ? 'https?' : 'https';
 		if ( '' === $connect_url || ! preg_match( '#^' . $scheme_re . '://\S+/api/v1/invites/[^/\s]+/publisher/?$#', $connect_url ) ) {
-			wp_send_json_error( array( 'message' => __( 'Connect link must be HTTPS and look like .../api/v1/invites/{token}/publisher.', 'wp-dansal' ) ) );
+			return new WP_Error( 'wpd_connect_bad_url', __( 'Connect link must be HTTPS and look like .../api/v1/invites/{token}/publisher.', 'wp-dansal' ), array( 'status' => 400 ) );
 		}
 
 		$client_name = sprintf( 'wp-dansal @ %s', wp_parse_url( home_url(), PHP_URL_HOST ) );
@@ -932,8 +1027,12 @@ class WPD_Settings {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			/* translators: %s: underlying HTTP/connection error message. */
-			wp_send_json_error( array( 'message' => sprintf( __( 'Could not reach that link: %s', 'wp-dansal' ), $response->get_error_message() ) ) );
+			return new WP_Error(
+				'wpd_connect_unreachable',
+				/* translators: %s: underlying HTTP/connection error message. */
+				sprintf( __( 'Could not reach that link: %s', 'wp-dansal' ), $response->get_error_message() ),
+				array( 'status' => 502 )
+			);
 		}
 
 		$code = wp_remote_retrieve_response_code( $response );
@@ -941,13 +1040,17 @@ class WPD_Settings {
 
 		if ( $code < 200 || $code >= 300 || ! is_array( $body ) || empty( $body['org_id'] ) || empty( $body['base_url'] ) ) {
 			$message = is_array( $body ) && ! empty( $body['error'] ) ? $body['error'] : sprintf( 'HTTP %d', $code );
-			/* translators: %s: underlying error message from dansal. */
-			wp_send_json_error( array( 'message' => sprintf( __( 'Connect link redemption failed: %s', 'wp-dansal' ), $message ) ) );
+			return new WP_Error(
+				'wpd_connect_redemption_failed',
+				/* translators: %s: underlying error message from dansal. */
+				sprintf( __( 'Connect link redemption failed: %s', 'wp-dansal' ), $message ),
+				array( 'status' => 502 )
+			);
 		}
 
 		// #55: verify challenge echo before touching credentials.
 		if ( empty( $body['challenge'] ) || ! hash_equals( $challenge, (string) $body['challenge'] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Connect link challenge mismatch — refusing to store credentials.', 'wp-dansal' ) ) );
+			return new WP_Error( 'wpd_connect_challenge_mismatch', __( 'Connect link challenge mismatch — refusing to store credentials.', 'wp-dansal' ), array( 'status' => 502 ) );
 		}
 
 		// #56: prefer encrypted api_key when we sent a pubkey. Plaintext
@@ -956,13 +1059,13 @@ class WPD_Settings {
 			$cipher    = base64_decode( (string) $body['api_key_encrypted'], true );
 			$decrypted = '';
 			if ( false === $cipher || ! openssl_private_decrypt( $cipher, $decrypted, $private_key, OPENSSL_PKCS1_OAEP_PADDING ) || '' === $decrypted ) {
-				wp_send_json_error( array( 'message' => __( 'Could not decrypt the API key returned by dansal.', 'wp-dansal' ) ) );
+				return new WP_Error( 'wpd_connect_decrypt_failed', __( 'Could not decrypt the API key returned by dansal.', 'wp-dansal' ), array( 'status' => 502 ) );
 			}
 			$api_key = $decrypted;
 		} elseif ( ! empty( $body['api_key'] ) ) {
 			$api_key = (string) $body['api_key'];
 		} else {
-			wp_send_json_error( array( 'message' => __( 'dansal response did not include an API key.', 'wp-dansal' ) ) );
+			return new WP_Error( 'wpd_connect_no_api_key', __( 'dansal response did not include an API key.', 'wp-dansal' ), array( 'status' => 502 ) );
 		}
 
 		$previous                       = $this->get_all();
@@ -1001,17 +1104,19 @@ class WPD_Settings {
 		if ( is_wp_error( $token ) ) {
 			update_option( self::OPTION, $previous );
 			delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
-			/* translators: %s: underlying error from dansal token exchange. */
-			wp_send_json_error( array( 'message' => sprintf( __( 'Connect link redeemed but the returned API key did not authenticate: %s', 'wp-dansal' ), $token->get_error_message() ) ) );
+			return new WP_Error(
+				'wpd_connect_auth_failed',
+				/* translators: %s: underlying error from dansal token exchange. */
+				sprintf( __( 'Connect link redeemed but the returned API key did not authenticate: %s', 'wp-dansal' ), $token->get_error_message() ),
+				array( 'status' => 401 )
+			);
 		}
 
-		wp_send_json_success(
-			array(
-				'base_url' => $existing['base_url'],
-				'org_id'   => $existing['org_id'],
-				/* translators: %s: organization name returned by dansal. */
-				'message'  => sprintf( __( 'Connected to organization "%s". Settings saved.', 'wp-dansal' ), isset( $body['org_name'] ) ? $body['org_name'] : $existing['org_id'] ),
-			)
+		return array(
+			'base_url' => $existing['base_url'],
+			'org_id'   => $existing['org_id'],
+			/* translators: %s: organization name returned by dansal. */
+			'message'  => sprintf( __( 'Connected to organization "%s". Settings saved.', 'wp-dansal' ), isset( $body['org_name'] ) ? $body['org_name'] : $existing['org_id'] ),
 		);
 	}
 
@@ -1020,17 +1125,11 @@ class WPD_Settings {
 	 * DELETE /api/v1/apikeys/current (dansal #869); when the server doesn't
 	 * expose that route yet, still clear locally and return a hint so the
 	 * admin knows to delete the publisher key by hand from dansal's
-	 * /admin/users.
+	 * /admin/users. Called by rest_disconnect().
+	 *
+	 * @return array {server_revoked, hint, message}
 	 */
-	public function ajax_disconnect() {
-		check_ajax_referer( 'wpd_disconnect' );
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-dansal' ) ), 403 );
-		}
-		if ( '' === $this->get_api_key() ) {
-			wp_send_json_error( array( 'message' => __( 'No API key configured — nothing to disconnect.', 'wp-dansal' ) ) );
-		}
-
+	private function do_disconnect() {
 		$api = wpd_plugin()->api;
 
 		$supported = $api->apikey_delete_supported();
@@ -1057,14 +1156,12 @@ class WPD_Settings {
 
 		$this->clear_credentials();
 
-		wp_send_json_success(
-			array(
-				'server_revoked' => $server_revoked,
-				'hint'           => $hint,
-				'message'        => $server_revoked
-					? __( 'Disconnected. Publisher API key revoked on dansal.', 'wp-dansal' )
-					: __( 'Disconnected locally.', 'wp-dansal' ),
-			)
+		return array(
+			'server_revoked' => $server_revoked,
+			'hint'           => $hint,
+			'message'        => $server_revoked
+				? __( 'Disconnected. Publisher API key revoked on dansal.', 'wp-dansal' )
+				: __( 'Disconnected locally.', 'wp-dansal' ),
 		);
 	}
 }
