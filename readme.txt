@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.21.0
+Stable tag: 0.22.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.22.0 =
+* Final slice of the admin admin-ajax → REST migration (#130): the Settings → Dansal page's Test Connection button, Connect via Link redemption, and Disconnect now go through `POST /wp-json/wpd/v1/connection/test`, `POST /wp-json/wpd/v1/connection/link`, and `DELETE /wp-json/wpd/v1/connection`. The settings page's home-address search also switches to the REST Nominatim route added in 0.19.0 (it was still on admin-ajax by oversight). The old `wpd_test_connection` / `wpd_connect_link` / `wpd_disconnect` admin-ajax endpoints stay live as bridges for one release and will be removed in the next release; that will complete the migration of every admin JS caller from admin-ajax to REST (closes #130).
 
 = 0.21.0 =
 * Third slice of the admin admin-ajax → REST migration (#130): the location duplicate-check and the rooms CRUD (list/add/delete) on the location edit screen, plus the room picker on the event and series edit screens, all now go through `GET /wp-json/wpd/v1/locations/duplicates`, `GET|POST /wp-json/wpd/v1/locations/{post_id}/rooms`, and `DELETE /wp-json/wpd/v1/locations/{post_id}/rooms/{room_id}`. Route paths are REST-idiomatic (parent-scoped `/locations/{post_id}/rooms/...`) rather than mirroring the old action names. The old `wpd_check_location_duplicate` / `wpd_list_rooms` / `wpd_add_room` / `wpd_delete_room` admin-ajax endpoints stay live as bridges for one release, to be removed in the release after this one. No user-visible behaviour change.
