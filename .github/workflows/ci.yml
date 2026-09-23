@@ -152,6 +152,44 @@ jobs:
         with:
           build-dir: './build/wp-dansal'
 
+  pot-drift:
+    # #132: fail the build when languages/wp-dansal.pot is out of sync with
+    # the translatable strings in the source tree. WP-CLI's make-pot scans
+    # PHP files without needing a WordPress install, so we just curl the
+    # phar into PATH and re-run the same command the Makefile uses.
+    name: Translation template drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install WP-CLI
+        run: |
+          curl -sSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x /tmp/wp-cli.phar
+          sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
+          wp --info | head -3
+
+      - name: Regenerate translation template
+        run: make pot
+
+      - name: Fail on drift
+        # `POT-Creation-Date` is stamped with the wall clock every time
+        # make-pot runs, so a naive `git diff --exit-code` would fail on
+        # every CI run even without source changes. `-I` skips hunks whose
+        # every changed line matches the regex — the only line that
+        # differs between two consecutive regenerations from unchanged
+        # source.
+        run: |
+          if ! git diff -I '^"POT-Creation-Date' --exit-code -- languages/wp-dansal.pot; then
+            echo "::error::languages/wp-dansal.pot is out of date. Run \`make pot\` locally, commit the result, and push again."
+            exit 1
+          fi
+
   secrets:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
@@ -166,7 +204,7 @@ jobs:
 
   build-zip:
     name: Build plugin zip
-    needs: [php-lint, phpcs, phpunit, plugin-check, secrets]
+    needs: [php-lint, phpcs, phpunit, plugin-check, pot-drift, secrets]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
