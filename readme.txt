@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.3
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.25.0
+Stable tag: 0.26.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.26.0 =
+* First slice of #125 (block-editor / REST support for the plugin's CPTs): the five custom post types — `dansal_event`, `dansal_location`, `dansal_series`, `dansal_musician`, `dansal_instructor` — now set `show_in_rest: true` with dedicated `rest_base` values (`events`, `locations`, `series`, `musicians`, `instructors`). Consequence: editors get the block editor as the default editing mode, the existing classic meta boxes render in the block editor's "Meta boxes" panel below (WP fires the legacy meta-box save request alongside the REST save, so the `$_POST`-based save handlers and dansal sync flow keep working unchanged), and block-theme templates + Query Loop / Post Template blocks can now list events/locations/etc. No post meta is registered for REST yet — internal `_wpd_*` sync-state meta (dansal IDs, last-synced timestamps, pending-pull markers, series tokens) stays invisible to REST because WordPress only exposes meta keys explicitly opted in via `register_post_meta(..., show_in_rest: true)`. Slice B (register a read-safe subset of meta so Query Loop cards show real event data) and slice C (writable REST meta + a Gutenberg sidebar panel) follow in later releases.
 
 = 0.25.0 =
 * Rate-limited two REST routes that had no throttling (#133): the Nominatim proxy (`/wpd/v1/nominatim/{search,reverse}`) now enforces a short site-wide cooldown before each outbound call to OpenStreetMap (whose usage policy caps 1 request/second *per site*, not per user), plus a 5-minute cache so repeated identical lookups never hit the network at all; entity creation (`POST /wpd/v1/entities`) now caps each user to 10 creations/minute (`wpd_entity_create_rate_limit` filter) instead of allowing unlimited musician/instructor records to be spammed onto the org's shared dansal account.

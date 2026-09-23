@@ -157,14 +157,15 @@ class WPD_CPT_Event {
 				'show_in_menu' => WPD_Admin_Menu::SLUG,
 				'supports'     => array( 'title', 'editor', 'thumbnail' ),
 				'rewrite'      => array( 'slug' => 'dance-events' ),
-				// Deliberately classic-editor-only. The event edit screen is
-				// meta-box-heavy (dansal fields, series prefill, template
-				// prefill, admin-action toolbar), and those UIs don't survive
-				// Gutenberg's __back_compat_meta_box path cleanly. Revisit if
-				// we ever move the field group to block-editor-native
-				// controls; until then leave show_in_rest=false so users get
-				// the classic editor consistently, not a half-broken block UI.
-				'show_in_rest' => false,
+				// #125 slice A: block-editor mode + Query Loop / block-theme
+				// templating for events. The classic meta boxes still render
+				// in a "Meta boxes" panel and WP fires the legacy meta-box
+				// save request alongside the REST save, so our $_POST-based
+				// save handler and the dansal sync flow keep working
+				// unchanged. Meta keys are NOT registered for REST yet
+				// (slice B) — `_wpd_*` internal sync state stays invisible.
+				'show_in_rest' => true,
+				'rest_base'    => 'events',
             )
         );
 		// Restricted to this CPT via the array arg so it doesn't force

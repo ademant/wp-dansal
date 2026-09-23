@@ -77,9 +77,10 @@ class WPD_CPT_Location {
 				'show_in_menu' => WPD_Admin_Menu::SLUG,
 				'supports'     => array( 'title', 'editor' ),
 				'rewrite'      => array( 'slug' => 'dance-locations' ),
-				// Classic editor by design — see the matching comment on
-				// WPD_CPT_Event::register_post_type().
-				'show_in_rest' => false,
+				// #125 slice A — see WPD_CPT_Event::register_post_type() for
+				// the trade-off rationale.
+				'show_in_rest' => true,
+				'rest_base'    => 'locations',
             )
         );
 	}
