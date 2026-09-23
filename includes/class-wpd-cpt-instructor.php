@@ -28,15 +28,17 @@ class WPD_CPT_Instructor extends WPD_CPT_Person {
 				'rest_base'    => 'instructors',
 			)
 		);
-		// #125 slice B: read-safe instructor meta. The instructor CPT only
-		// carries a `_wpd_description` overlay locally (dansal's `bio`);
-		// register it for REST so a Query Loop instructor card can render
-		// the same text shown on the frontend page. Writes refused.
+		// The instructor CPT only carries a `_wpd_description` overlay
+		// locally (dansal's `bio`); register it for REST so a Query Loop
+		// instructor card can render the same text shown on the frontend
+		// page. Writable by anyone with edit_post on the target.
 		register_post_meta(
 			self::POST_TYPE,
 			'_wpd_description',
 			array(
-				'auth_callback' => '__return_false',
+				'auth_callback' => static function ( $allowed, $meta_key, $object_id ) {
+					return current_user_can( 'edit_post', $object_id );
+				},
 				'show_in_rest'  => true,
 				'single'        => true,
 				'type'          => 'string',

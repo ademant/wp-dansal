@@ -34,6 +34,19 @@ class WPD_CPT_Event {
 	/** @var WPD_Event_Fields */
 	private $fields;
 
+	/**
+	 * Per-request set of post IDs sync_to_dansal() has already been
+	 * called for (#125 slice C). Both the classic $_POST save handler
+	 * and the REST-driven rest_after_insert hook route through
+	 * maybe_sync_to_dansal(), which consults this to skip the second
+	 * call — the block editor's save fires the REST write AND a
+	 * meta-box fallback POST in the same request, and without this
+	 * guard every block-editor save would push twice to dansal.
+	 *
+	 * @var array<int,true>
+	 */
+	private static $synced_this_request = array();
+
 	public function __construct( WPD_Api_Client $api, WPD_Settings $settings, WPD_Event_Fields $fields ) {
 		$this->api      = $api;
 		$this->settings = $settings;
@@ -44,6 +57,13 @@ class WPD_CPT_Event {
 		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
+		// #125 slice C: on a REST-driven write (block editor / any REST
+		// client) the classic $_POST-based save() bails on the missing
+		// nonce, so we hook rest_after_insert too and route both paths
+		// through maybe_sync_to_dansal() — its per-request guard collapses
+		// them when both fire (block editor triggers REST insert + a
+		// meta-box fallback POST in the same round-trip).
+		add_action( 'rest_after_insert_' . self::POST_TYPE, array( $this, 'rest_after_insert' ), 10, 3 );
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
@@ -177,21 +197,23 @@ class WPD_CPT_Event {
 	}
 
 	/**
-	 * #125 slice B: expose a read-safe subset of the event's post meta on
-	 * the /wp/v2/events REST resource, so Query Loop / Post Template blocks
-	 * can render the fields a public event card actually needs (datetimes,
-	 * pricing basics, location FK, tags, musician/instructor names). Every
-	 * key here is either already surfaced on the public single-event page
-	 * or on the frontend shortcodes — nothing new leaks. Writes are refused
-	 * (`auth_callback => __return_false`); block-editor-driven meta writes
-	 * come in slice C alongside a save-handler refactor. Internal sync
-	 * state (`_wpd_dansal_id`, `_wpd_last_synced_*`, `_wpd_pending_*`,
-	 * `_wpd_room_post_id`) is deliberately NOT registered here — REST only
-	 * exposes meta keys explicitly opted in, so those stay invisible.
+	 * Expose a read-and-write subset of the event's post meta on the
+	 * /wp/v2/events REST resource, so Query Loop / Post Template blocks
+	 * can render the fields a public event card needs and a Gutenberg
+	 * sidebar can update them. Every key here is either already surfaced
+	 * on the public single-event page or on the frontend shortcodes —
+	 * nothing new leaks. Internal sync state (`_wpd_dansal_id`,
+	 * `_wpd_last_synced_*`, `_wpd_pending_*`, `_wpd_room_post_id`) is
+	 * deliberately NOT registered — REST only exposes meta keys
+	 * explicitly opted in, so those stay invisible. `auth_callback`
+	 * gates writes to callers who can `edit_post` on the target — the
+	 * same check the classic $_POST-driven save handler uses.
 	 */
 	private function register_rest_meta() {
-		$readonly = array(
-			'auth_callback' => '__return_false',
+		$rw = array(
+			'auth_callback' => static function ( $allowed, $meta_key, $object_id ) {
+				return current_user_can( 'edit_post', $object_id );
+			},
 			'show_in_rest'  => true,
 			'single'        => true,
 		);
@@ -211,14 +233,14 @@ class WPD_CPT_Event {
 				'_wpd_instructor_names',
 			) as $key
 		) {
-			register_post_meta( self::POST_TYPE, $key, $readonly + array( 'type' => 'string' ) );
+			register_post_meta( self::POST_TYPE, $key, $rw + array( 'type' => 'string' ) );
 		}
 		// FK to the local location post — an integer, useful for template
 		// code that wants to hop from an event to its venue.
 		register_post_meta(
 			self::POST_TYPE,
 			'_wpd_location_post_id',
-			$readonly + array( 'type' => 'integer' )
+			$rw + array( 'type' => 'integer' )
 		);
 	}
 
@@ -1039,10 +1061,40 @@ class WPD_CPT_Event {
 			update_post_meta( $post_id, $meta_key, sanitize_text_field( $value ) );
 		}
 
+		$this->maybe_sync_to_dansal( $post_id );
+	}
+
+	/**
+	 * REST-side counterpart to save(): fires after the block editor (or
+	 * any REST client) writes to /wp/v2/events/{id}. save() bails
+	 * because there's no `wpd_event_nonce` in an unrelated REST request,
+	 * so we mirror the sync push here. maybe_sync_to_dansal() dedups if
+	 * the meta-box fallback POST also fires this request.
+	 *
+	 * @param WP_Post         $post
+	 * @param WP_REST_Request $request
+	 * @param bool            $creating
+	 */
+	public function rest_after_insert( $post, $request, $creating ) {
+		if ( ! $post || self::POST_TYPE !== $post->post_type ) {
+			return;
+		}
+		$this->maybe_sync_to_dansal( (int) $post->ID );
+	}
+
+	/**
+	 * Idempotent per-request wrapper around sync_to_dansal(). Bails on
+	 * unconfigured settings and on a repeat call for the same post
+	 * within one HTTP request.
+	 */
+	private function maybe_sync_to_dansal( $post_id ) {
+		if ( isset( self::$synced_this_request[ $post_id ] ) ) {
+			return;
+		}
 		if ( ! $this->settings->is_configured() ) {
 			return;
 		}
-
+		self::$synced_this_request[ $post_id ] = true;
 		$this->sync_to_dansal( $post_id );
 	}
 

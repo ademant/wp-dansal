@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.3
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.27.0
+Stable tag: 0.28.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.28.0 =
+* Third slice of #125: the REST-registered post meta from 0.27.0 is now REST-writable too. The `auth_callback` on every registered meta key changed from `__return_false` to `current_user_can( 'edit_post', $object_id )` — the same check the classic $_POST-driven save handlers already enforce. A REST client (or a future block-editor sidebar) can now `POST /wp/v2/events/{id}` with a `meta` block to update start_time, tags, pricing, etc.; the change is pushed through to the dansal API via a new `rest_after_insert_{post_type}` hook on each CPT. A per-request dedup guard (`WPD_CPT_Event::$synced_this_request` and siblings) collapses the two save-post firings the block editor produces (REST write + meta-box fallback POST) into a single dansal push per save. No Gutenberg sidebar UI yet — the classic meta boxes still render in the block editor's "Meta boxes" panel and remain the canonical editing surface for now; a proper sidebar (slice D) follows once the fields are chosen for de-duplication against the meta boxes so the two can't overwrite each other's values.
 
 = 0.27.0 =
 * Second slice of #125: a read-safe subset of post meta is now registered for REST on four of the five CPTs. Query Loop / Post Template blocks (and any REST client) can now read: event start/end time, booking URL, workshop difficulty, tags, dance IDs, pricing type/amount/currency, is_cancelled, musician/instructor display names, and the location FK on `/wp/v2/events`; address / zipcode / town / country(_code) / latitude / longitude on `/wp/v2/locations`; country / MusicBrainz ID / description on `/wp/v2/musicians`; description on `/wp/v2/instructors`. Every registered meta refuses writes (`auth_callback => __return_false`) so nothing is REST-writable in this slice — block-editor-driven meta writes come in slice C alongside a save-handler refactor. Internal sync state (`_wpd_dansal_id`, `_wpd_last_synced_*`, `_wpd_pending_*`, `_wpd_series_token`, timetable, pricing tiers, contact PII, amenity flags) is deliberately NOT registered, so it stays invisible to REST. `dansal_series` (which is `public: false`) also skips meta registration in this slice.

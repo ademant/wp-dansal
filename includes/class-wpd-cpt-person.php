@@ -32,6 +32,16 @@ abstract class WPD_CPT_Person {
 	/** @var WPD_Settings */
 	protected $settings;
 
+	/**
+	 * Per-request dedup guard shared by save() and rest_after_insert()
+	 * (#125 slice C). Keyed by post_id, per class since musician and
+	 * instructor share this base but never touch each other's IDs.
+	 * See the matching field on WPD_CPT_Event for the rationale.
+	 *
+	 * @var array<int,true>
+	 */
+	private static $synced_this_request = array();
+
 	public function __construct( WPD_Api_Client $api, WPD_Settings $settings ) {
 		$this->api      = $api;
 		$this->settings = $settings;
@@ -39,6 +49,7 @@ abstract class WPD_CPT_Person {
 		add_action( 'init', array( $this, 'register_post_type' ) );
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
 		add_action( 'save_post_' . static::POST_TYPE, array( $this, 'save' ) );
+		add_action( 'rest_after_insert_' . static::POST_TYPE, array( $this, 'rest_after_insert' ), 10, 3 );
 		add_filter( 'manage_' . static::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . static::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
@@ -174,9 +185,36 @@ abstract class WPD_CPT_Person {
 		// or not it started life as a bulk-imported stub (#103).
 		delete_post_meta( $post_id, self::META_STUB );
 
+		$this->maybe_sync_to_dansal( $post_id );
+	}
+
+	/**
+	 * REST-side counterpart to save() (#125 slice C).
+	 *
+	 * @param WP_Post         $post
+	 * @param WP_REST_Request $request
+	 * @param bool            $creating
+	 */
+	public function rest_after_insert( $post, $request, $creating ) {
+		if ( ! $post || static::POST_TYPE !== $post->post_type ) {
+			return;
+		}
+		$this->maybe_sync_to_dansal( (int) $post->ID );
+	}
+
+	/**
+	 * Idempotent per-request wrapper around sync_to_dansal(). Both the
+	 * classic $_POST save() and the REST hook go through here so a
+	 * block-editor save that fires both paths doesn't double-push.
+	 */
+	private function maybe_sync_to_dansal( $post_id ) {
+		if ( isset( self::$synced_this_request[ $post_id ] ) ) {
+			return;
+		}
 		if ( ! $this->settings->is_configured() ) {
 			return;
 		}
+		self::$synced_this_request[ $post_id ] = true;
 		$this->sync_to_dansal( $post_id );
 	}
 

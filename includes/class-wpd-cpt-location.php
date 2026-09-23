@@ -46,6 +46,15 @@ class WPD_CPT_Location {
 	 */
 	private $unresolvable = array();
 
+	/**
+	 * Per-request dedup guard for the classic $_POST save + REST
+	 * rest_after_insert paths (#125 slice C). See the matching field
+	 * on WPD_CPT_Event for the rationale.
+	 *
+	 * @var array<int,true>
+	 */
+	private static $synced_this_request = array();
+
 	public function __construct( WPD_Api_Client $api, WPD_Nominatim $nominatim, WPD_Settings $settings ) {
 		$this->api       = $api;
 		$this->nominatim = $nominatim;
@@ -56,6 +65,7 @@ class WPD_CPT_Location {
 		add_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_assets' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
+		add_action( 'rest_after_insert_' . self::POST_TYPE, array( $this, 'rest_after_insert' ), 10, 3 );
 		add_action( 'admin_notices', array( $this, 'show_sync_notices' ) );
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
@@ -93,8 +103,10 @@ class WPD_CPT_Location {
 	 * refused, matching the event-side pattern.
 	 */
 	private function register_rest_meta() {
-		$readonly = array(
-			'auth_callback' => '__return_false',
+		$rw = array(
+			'auth_callback' => static function ( $allowed, $meta_key, $object_id ) {
+				return current_user_can( 'edit_post', $object_id );
+			},
 			'show_in_rest'  => true,
 			'single'        => true,
 		);
@@ -109,8 +121,43 @@ class WPD_CPT_Location {
 				'_wpd_longitude',
 			) as $key
 		) {
-			register_post_meta( self::POST_TYPE, $key, $readonly + array( 'type' => 'string' ) );
+			register_post_meta( self::POST_TYPE, $key, $rw + array( 'type' => 'string' ) );
 		}
+	}
+
+	/**
+	 * REST-side counterpart to save() (#125 slice C). Fires after any
+	 * REST client (block editor or otherwise) writes to /wp/v2/locations.
+	 *
+	 * @param WP_Post         $post
+	 * @param WP_REST_Request $request
+	 * @param bool            $creating
+	 */
+	public function rest_after_insert( $post, $request, $creating ) {
+		if ( ! $post || self::POST_TYPE !== $post->post_type ) {
+			return;
+		}
+		$this->maybe_sync_to_dansal( (int) $post->ID );
+	}
+
+	/**
+	 * Idempotent per-request wrapper around sync_to_dansal(). Both the
+	 * classic save() paths (room + non-room) and the REST hook call
+	 * through here so a block-editor save that fires both the REST
+	 * write AND the meta-box fallback POST in one round-trip only
+	 * pushes once to dansal. Passes 0 for $use_existing_id since
+	 * that flag only exists on the "assign to existing dansal
+	 * location" classic-form path, not on REST writes.
+	 */
+	private function maybe_sync_to_dansal( $post_id, $use_existing_id = 0 ) {
+		if ( isset( self::$synced_this_request[ $post_id ] ) ) {
+			return;
+		}
+		if ( ! $this->settings->is_configured() ) {
+			return;
+		}
+		self::$synced_this_request[ $post_id ] = true;
+		$this->sync_to_dansal( $post_id, $use_existing_id );
 	}
 
 	public function columns( $columns ) {
@@ -734,9 +781,7 @@ class WPD_CPT_Location {
 		// the address inputs aren't even rendered and must not be blanked here.
 		if ( self::is_room( $post_id ) ) {
 			$this->save_room_fields( $post_id );
-			if ( $this->settings->is_configured() ) {
-				$this->sync_to_dansal( $post_id );
-			}
+			$this->maybe_sync_to_dansal( $post_id );
 			return;
 		}
 
@@ -773,12 +818,8 @@ class WPD_CPT_Location {
 		}
 		update_post_meta( $post_id, '_wpd_no_street_shoes', ! empty( $_POST['wpd_no_street_shoes'] ) ? '1' : '' );
 
-		if ( ! $this->settings->is_configured() ) {
-			return;
-		}
-
 		$use_existing_id = isset( $_POST['wpd_use_existing_dansal_id'] ) ? absint( $_POST['wpd_use_existing_dansal_id'] ) : 0;
-		$this->sync_to_dansal( $post_id, $use_existing_id );
+		$this->maybe_sync_to_dansal( $post_id, $use_existing_id );
 	}
 
 	/**
