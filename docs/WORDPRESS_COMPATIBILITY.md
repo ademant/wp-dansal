@@ -15,7 +15,7 @@
 
 | WordPress Version | PHP Version | Status | Notes |
 |-------------------|-------------|--------|-------|
-| 6.0+ | 8.1+ | ✅ Fully Supported | Minimum requirements (#127; 7.4/8.0 dropped in 0.17.0 — both EOL) |
+| 6.3+ | 8.1+ | ✅ Fully Supported | Minimum requirements (#124, #127; WP floor raised from 6.0 in 0.24.0 — the plugin's blocks need block API v3 (6.3+) since 0.16.0; 7.4/8.0 dropped in 0.17.0 — both EOL) |
 | 6.5+ | 8.2+ | ✅ Fully Supported | Tested |
 | 7.0 | 8.1-8.4 | ✅ Fully Supported | Current target |
 
@@ -31,7 +31,7 @@
 - **Status:** ✅ Compatible
 - **Details:** Plugin adds no site health warnings
 - **PHP Version:** Declared in readme.txt as 8.1+ (7.4 dropped in 0.17.0 — EOL Nov 2022)
-- **WordPress Version:** Declared in readme.txt as 6.0+
+- **WordPress Version:** Declared in readme.txt as 6.3+ (raised from 6.0 in 0.24.0, #124)
 
 ### 3. REST API Integration
 - **Status:** ✅ N/A (Plugin doesn't expose REST API)
@@ -162,14 +162,14 @@
 **Status: FULLY COMPATIBLE**
 
 The wp-dansal plugin is fully compatible with:
-- WordPress 6.0 through 7.0
+- WordPress 6.3 through 7.1 (floor raised from 6.0 in 0.24.0, #124)
 - PHP 8.1 through 8.4 (7.4/8.0 support dropped in 0.17.0 as both are EOL)
 - All modern browsers
 
 No compatibility issues were found. The plugin follows WordPress coding standards and uses modern PHP practices.
 
 ### Recommendations
-- [ ] Add explicit WordPress 7.0 tested-up-to declaration
+- [x] Add explicit WordPress tested-up-to declaration (7.1, see readme.txt)
 - [ ] Test in multisite environment
 - [ ] Consider adding REST API endpoints (see #116)
 
