@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.3
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.24.0
+Stable tag: 0.25.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,10 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.25.0 =
+* Rate-limited two REST routes that had no throttling (#133): the Nominatim proxy (`/wpd/v1/nominatim/{search,reverse}`) now enforces a short site-wide cooldown before each outbound call to OpenStreetMap (whose usage policy caps 1 request/second *per site*, not per user), plus a 5-minute cache so repeated identical lookups never hit the network at all; entity creation (`POST /wpd/v1/entities`) now caps each user to 10 creations/minute (`wpd_entity_create_rate_limit` filter) instead of allowing unlimited musician/instructor records to be spammed onto the org's shared dansal account.
+* Added a WordPress Playground `blueprint.json` at the repo root — a "Try it in your browser" link (see `README.md`) launches a sandboxed WordPress with the plugin pre-installed and a few sample events/locations already seeded, no dansal connection required (closes #131).
 
 = 0.24.0 =
 * Declares `Requires at least: 6.3` (up from 6.0), matching what the plugin has actually needed since 0.16.0: its blocks ship as block API `apiVersion: 3` (WordPress 6.3+) and its front-end scripts use the 6.3+ script-loading `strategy => 'defer'`. Sites on WordPress 6.0-6.2 were never fully supported despite the lower declared floor; this just states it. `Requires PHP: 8.1` is unchanged (raised in 0.17.0). No restructuring (namespaces/autoloader/DI) — decided against for now; the codebase's plain class-per-file layout stays as is (closes #124).

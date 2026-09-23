@@ -19,6 +19,18 @@ class WPD_Nominatim {
 	const ENDPOINT         = 'https://nominatim.openstreetmap.org/search';
 	const REVERSE_ENDPOINT = 'https://nominatim.openstreetmap.org/reverse';
 
+	/**
+	 * Site-wide (not per-user) throttle lock (#133): OpenStreetMap's usage
+	 * policy caps Nominatim at 1 request/second *per site*, since every
+	 * outbound call shares this server's one IP regardless of which WP user
+	 * triggered it. A few editors double-clicking search — or one careless
+	 * one — could otherwise get the site rate-limited or blocked by OSM.
+	 */
+	const THROTTLE_TRANSIENT = 'wpd_nominatim_throttle';
+
+	/** How long an identical search()/reverse() result is served from cache (#133). */
+	const CACHE_TTL = 5 * MINUTE_IN_SECONDS;
+
 	public function __construct() {
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 	}
@@ -111,6 +123,12 @@ class WPD_Nominatim {
 	 * @return array|WP_Error List of normalized place results.
 	 */
 	public function search( $query ) {
+		$cache_key = 'wpd_nominatim_search_' . md5( $query );
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached ) {
+			return $cached;
+		}
+
 		$url = add_query_arg(
 			array(
 				'q'              => rawurlencode( $query ),
@@ -131,13 +149,24 @@ class WPD_Nominatim {
 			return new WP_Error( 'wpd_nominatim_bad_response', __( 'Unexpected Nominatim response.', 'wp-dansal' ) );
 		}
 
-		return array_map( array( $this, 'normalize_place' ), $data );
+		$results = array_map( array( $this, 'normalize_place' ), $data );
+		// A few minutes so a location editor retyping/re-searching the same
+		// venue doesn't re-hit the 1 req/s ceiling at all (#133); errors are
+		// never cached, so a transient outage self-heals on the next try.
+		set_transient( $cache_key, $results, self::CACHE_TTL );
+		return $results;
 	}
 
 	/**
 	 * @return array|WP_Error Single normalized place for the given coordinates.
 	 */
 	public function reverse( $lat, $lng ) {
+		$cache_key = 'wpd_nominatim_reverse_' . md5( $lat . ',' . $lng );
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached ) {
+			return $cached;
+		}
+
 		$url = add_query_arg(
 			array(
 				'lat'            => $lat,
@@ -158,7 +187,9 @@ class WPD_Nominatim {
 			return new WP_Error( 'wpd_nominatim_bad_response', __( 'Unexpected Nominatim response.', 'wp-dansal' ) );
 		}
 
-		return $this->normalize_place( $place );
+		$result = $this->normalize_place( $place );
+		set_transient( $cache_key, $result, self::CACHE_TTL );
+		return $result;
 	}
 
 	/**
@@ -166,6 +197,8 @@ class WPD_Nominatim {
 	 *                        checked for transport/HTTP errors.
 	 */
 	private function request( $url ) {
+		$this->throttle();
+
 		$contact = wpd_plugin()->settings->get_nominatim_email();
 		$url     = add_query_arg( array( 'email' => rawurlencode( $contact ) ), $url );
 
@@ -191,6 +224,31 @@ class WPD_Nominatim {
 		}
 
 		return $response;
+	}
+
+	/**
+	 * Blocks, if needed, so at least `wpd_nominatim_min_interval` seconds
+	 * (default 1.1 — OSM's policy is a maximum of 1/s) separate this
+	 * outbound call from the previous one, site-wide. Best-effort: two
+	 * requests racing the same transient read can both slip through, but
+	 * that's a vast improvement over the previous unbounded rate, and a
+	 * real mutex needs infrastructure (a persistent object cache) this
+	 * plugin doesn't require elsewhere. Filterable down to 0 for tests.
+	 */
+	private function throttle() {
+		$min_interval = (float) apply_filters( 'wpd_nominatim_min_interval', 1.1 );
+		if ( $min_interval <= 0 ) {
+			return;
+		}
+		$last = get_transient( self::THROTTLE_TRANSIENT );
+		if ( false !== $last ) {
+			$elapsed  = microtime( true ) - (float) $last;
+			$shortfall = $min_interval - $elapsed;
+			if ( $shortfall > 0 ) {
+				usleep( (int) ( $shortfall * 1000000 ) );
+			}
+		}
+		set_transient( self::THROTTLE_TRANSIENT, microtime( true ), MINUTE_IN_SECONDS );
 	}
 
 	/**

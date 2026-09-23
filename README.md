@@ -2,6 +2,8 @@
 
 WordPress plugin for managing dance events and locations, backed by [dansal](https://github.com/ademant/dansal) as the storage/publishing backend.
 
+**[Try it in your browser](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/ademant/wp-dansal/main/blueprint.json)** — launches a sandboxed WordPress with the plugin installed and a few sample events/locations, no install required. It's a static offline demo (no live dansal connection or API key) — see `blueprint.json` at the repo root.
+
 ## Connecting to dansal
 
 1. In dansal, open `/admin/users`, click **Connect link** next to your organization's publisher row (or create one).

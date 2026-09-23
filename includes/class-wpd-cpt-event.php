@@ -24,6 +24,8 @@ class WPD_CPT_Event {
 	const POST_TYPE                   = 'dansal_event';
 	/** One-shot marker: every event's pre-#121 _wpd_room_id/_wpd_room_name has been resolved. */
 	const OPTION_ROOMS_MIGRATED       = 'wpd_rooms_model_migrated';
+	/** Per-user rate-limit counter prefix for rest_create_entity() (#133). */
+	const ENTITY_CREATE_RATE_TRANSIENT = 'wpd_entity_create_';
 
 	/** @var WPD_Api_Client */
 	private $api;
@@ -840,6 +842,11 @@ class WPD_CPT_Event {
 	 * (POST needs publisher auth), unlike search which is public.
 	 */
 	public function rest_create_entity( WP_REST_Request $request ) {
+		$rate_limited = $this->check_entity_create_rate_limit();
+		if ( is_wp_error( $rate_limited ) ) {
+			return $rate_limited;
+		}
+
 		$type     = $request->get_param( 'type' );
 		$name     = trim( (string) $request->get_param( 'name' ) );
 		$path     = 'musician' === $type ? '/api/v1/musicians' : '/api/v1/instructors';
@@ -862,6 +869,36 @@ class WPD_CPT_Event {
 				'name' => (string) $result[ $name_key ],
 			)
 		);
+	}
+
+	/**
+	 * Counts this WP user's entity creations in the current rolling minute
+	 * (#133) — nothing stopped a user from spam-creating musician/instructor
+	 * records on the org's shared dansal account. Filterable via
+	 * `wpd_entity_create_rate_limit` (default 10/minute — generous enough for
+	 * an editor legitimately adding several performers to one event/series in
+	 * one sitting, low enough to stop a spam loop).
+	 *
+	 * @return true|WP_Error
+	 */
+	private function check_entity_create_rate_limit() {
+		$key   = self::ENTITY_CREATE_RATE_TRANSIENT . get_current_user_id();
+		$count = (int) get_transient( $key );
+		$limit = (int) apply_filters( 'wpd_entity_create_rate_limit', 10 );
+		if ( $count >= $limit ) {
+			return new WP_Error(
+				'wpd_entity_rate_limited',
+				__( 'Too many entities created in a short time — please wait a moment and try again.', 'wp-dansal' ),
+				array( 'status' => 429 )
+			);
+		}
+		// A sliding window: each allowed creation refreshes the minute, rather
+		// than a fixed window from the first hit. Simpler, and correct under a
+		// persistent object cache too (a fixed window would need reading the
+		// transient's own expiry back, which isn't reliably possible once
+		// transients live in the object cache instead of wp_options).
+		set_transient( $key, $count + 1, MINUTE_IN_SECONDS );
+		return true;
 	}
 
 	/**

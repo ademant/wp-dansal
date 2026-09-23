@@ -1,0 +1,44 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"landingPage": "/dance-events/?wpd_view=list",
+	"preferredVersions": {
+		"php": "8.1",
+		"wp": "latest"
+	},
+	"features": {
+		"networking": true
+	},
+	"steps": [
+		{
+			"step": "login",
+			"username": "admin",
+			"password": "password"
+		},
+		{
+			"step": "installPlugin",
+			"pluginZipFile": {
+				"resource": "url",
+				"url": "https://github.com/ademant/wp-dansal/releases/latest/download/wp-dansal.zip"
+			},
+			"options": {
+				"activate": true
+			}
+		},
+		{
+			"step": "wp-cli",
+			"command": "wp option update blogname 'WP Dansal demo'"
+		},
+		{
+			"step": "wp-cli",
+			"command": "wp rewrite structure '/%postname%/' --hard"
+		},
+		{
+			"step": "wp-cli",
+			"command": "wp rewrite flush --hard"
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php\nrequire '/wordpress/wp-load.php';\n\n// wp-dansal Playground demo (#131): seeds purely local sample content — no\n// dansal connection or API key is configured, so the plugin never makes an\n// outbound call. Dates are computed relative to \"now\" so the demo always\n// shows upcoming events, whenever it's actually launched.\n\nif ( ! post_type_exists( 'dansal_location' ) || ! post_type_exists( 'dansal_event' ) ) {\n\treturn; // Plugin isn't active for some reason — nothing to seed.\n}\n\nfunction wpd_demo_location( $title, array $meta ) {\n\t$post_id = wp_insert_post(\n\t\tarray(\n\t\t\t'post_type'   => 'dansal_location',\n\t\t\t'post_status' => 'publish',\n\t\t\t'post_title'  => $title,\n\t\t)\n\t);\n\tforeach ( $meta as $key => $value ) {\n\t\tupdate_post_meta( $post_id, $key, $value );\n\t}\n\treturn $post_id;\n}\n\nfunction wpd_demo_event( $title, $description, $days_from_now, $start_time, $end_time, $location_post_id, $tag ) {\n\t$post_id = wp_insert_post(\n\t\tarray(\n\t\t\t'post_type'    => 'dansal_event',\n\t\t\t'post_status'  => 'publish',\n\t\t\t'post_title'   => $title,\n\t\t\t'post_content' => $description,\n\t\t)\n\t);\n\t$date = gmdate( 'Y-m-d', strtotime( \"+{$days_from_now} days\" ) );\n\tupdate_post_meta( $post_id, '_wpd_start_time', $date . 'T' . $start_time );\n\tupdate_post_meta( $post_id, '_wpd_end_time', $date . 'T' . $end_time );\n\tupdate_post_meta( $post_id, '_wpd_location_post_id', $location_post_id );\n\tupdate_post_meta( $post_id, '_wpd_tags', ',' . $tag . ',' );\n\tupdate_post_meta( $post_id, '_wpd_is_cancelled', '' );\n\treturn $post_id;\n}\n\n// Fake, never-transmitted ids: only used locally to link the room to its\n// building (WPD_CPT_Location::is_room()/parent_post_id()) — there is no\n// dansal connection configured, so these never leave this WordPress install.\n$building = wpd_demo_location(\n\t'Kulturzentrum Nordstadt',\n\tarray(\n\t\t'_wpd_short_name'      => 'Kulturzentrum',\n\t\t'_wpd_address'         => 'Beispielstraße 12',\n\t\t'_wpd_zipcode'         => '50667',\n\t\t'_wpd_town'            => 'Köln',\n\t\t'_wpd_country'         => 'Germany',\n\t\t'_wpd_country_code'    => 'DE',\n\t\t'_wpd_latitude'        => '50.9375',\n\t\t'_wpd_longitude'       => '6.9603',\n\t\t'_wpd_floor_condition' => 'parquet',\n\t\t'_wpd_attr_wheelchair' => '1',\n\t\t'_wpd_attr_bar'        => '1',\n\t\t'_wpd_dansal_id'       => 900001,\n\t)\n);\n\n$room = wpd_demo_location(\n\t'Großer Saal',\n\tarray(\n\t\t'_wpd_address'          => 'Beispielstraße 12',\n\t\t'_wpd_zipcode'          => '50667',\n\t\t'_wpd_town'             => 'Köln',\n\t\t'_wpd_latitude'         => '50.9375',\n\t\t'_wpd_longitude'        => '6.9603',\n\t\t'_wpd_floor_condition'  => 'parquet',\n\t\t'_wpd_dansal_id'        => 900002,\n\t\t'_wpd_parent_dansal_id' => 900001,\n\t)\n);\n\n$second_building = wpd_demo_location(\n\t'Tanzhaus am Rhein',\n\tarray(\n\t\t'_wpd_address'      => 'Uferweg 3',\n\t\t'_wpd_zipcode'      => '53111',\n\t\t'_wpd_town'         => 'Bonn',\n\t\t'_wpd_country'      => 'Germany',\n\t\t'_wpd_country_code' => 'DE',\n\t\t'_wpd_latitude'     => '50.7359',\n\t\t'_wpd_longitude'    => '7.0906',\n\t\t'_wpd_dansal_id'    => 900003,\n\t)\n);\n\nwpd_demo_event(\n\t'Balfolk-Abend',\n\t'Ein entspannter Balfolk-Abend mit Livemusik.',\n\t3,\n\t'20:00',\n\t'23:30',\n\t$room,\n\t'bal-folk'\n);\n\nwpd_demo_event(\n\t'Workshop: Mazurka für Einsteiger',\n\t'Ein Einsteiger-Workshop rund um die Mazurka.',\n\t7,\n\t'18:00',\n\t'20:00',\n\t$building,\n\t'workshop'\n);\n\nwpd_demo_event(\n\t'Tanzfestival am Rhein',\n\t'Ein Wochenendfestival mit mehreren Workshops und Bällen.',\n\t21,\n\t'10:00',\n\t'23:00',\n\t$second_building,\n\t'festival'\n);\n"
+		}
+	]
+}

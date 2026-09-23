@@ -59,6 +59,7 @@ $wpd_named_transients = array(
 	'wpd_dansal_session_token', // WPD_Api_Client::TOKEN_TRANSIENT
 	'wpd_apikey_renew_lock',    // WPD_Api_Client::RENEW_LOCK
 	'wpd_dansal_tile_token',    // WPD_Api_Client::TILE_TOKEN_TRANSIENT
+	'wpd_nominatim_throttle',   // WPD_Nominatim::THROTTLE_TRANSIENT
 	'wpd_event_pull_lock',
 	'wpd_location_pull_lock',
 	'wpd_series_pull_lock',
@@ -82,6 +83,9 @@ $wpd_prefixes = array(
 	'wpd_tags_vocab_',
 	'wpd_dances_vocab_',
 	'wpd_vocab_',
+	'wpd_nominatim_search_',    // WPD_Nominatim::search() result cache
+	'wpd_nominatim_reverse_',   // WPD_Nominatim::reverse() result cache
+	'wpd_entity_create_',       // WPD_CPT_Event::ENTITY_CREATE_RATE_TRANSIENT
 );
 foreach ( $wpd_prefixes as $wpd_prefix ) {
 	$wpd_like = $wpdb->esc_like( '_transient_' . $wpd_prefix ) . '%';
