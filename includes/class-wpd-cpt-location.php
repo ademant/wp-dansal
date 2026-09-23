@@ -542,7 +542,13 @@ class WPD_CPT_Location {
 
 		$matches = array();
 		if ( $osm_id && $osm_type ) {
-			$result = $this->api->get_public( '/api/v1/locations', array( 'osm_id' => $osm_id, 'osm_type' => $osm_type ) );
+			$result = $this->api->get_public(
+                '/api/v1/locations',
+                array(
+					'osm_id' => $osm_id,
+					'osm_type' => $osm_type,
+                )
+            );
 			if ( ! is_wp_error( $result ) ) {
 				$matches = $this->extract_locations( $result );
 			}

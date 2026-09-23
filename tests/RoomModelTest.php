@@ -381,33 +381,16 @@ class RoomModelTest extends WP_UnitTestCase {
 				),
 			)
 		);
-		$_GET = array(
-			'_wpnonce' => wp_create_nonce( 'wpd_check_location_duplicate' ),
-			'osm_id'   => '123',
-			'osm_type' => 'way',
+		$request = new WP_REST_Request( 'GET', '/wpd/v1/locations/duplicates' );
+		$request->set_query_params(
+			array(
+				'osm_id'   => 123,
+				'osm_type' => 'way',
+			)
 		);
-		$_REQUEST = $_GET;
-		add_filter(
-            'wp_die_ajax_handler',
-            function () {
-				return function () {
-					throw new WPDieException( 'done' );
-				};
-			}
-        );
-		add_filter( 'wp_doing_ajax', '__return_true' );
+		$response = rest_do_request( $request );
 
-		ob_start();
-		try {
-			wpd_plugin()->cpt_location->ajax_check_duplicate();
-		} catch ( WPDieException $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
-			// wp_send_json_* dies after printing.
-		}
-		$out = json_decode( ob_get_clean(), true );
-		$_GET     = array();
-		$_REQUEST = array();
-
-		$this->assertSame( array( 36 ), wp_list_pluck( $out['data']['matches'], 'id' ) );
+		$this->assertSame( array( 36 ), wp_list_pluck( $response->get_data()['matches'], 'id' ) );
 	}
 
 	// ---- event form ------------------------------------------------------
@@ -592,33 +575,11 @@ class RoomModelTest extends WP_UnitTestCase {
 		$building = $this->make_building();
 		$foreign  = $this->make_room( 99, 300, 'Elsewhere' );
 		$this->mock_dansal( array( 'DELETE /api/v1/locations/300' => array() ) );
-		$_POST    = array(
-			'_wpnonce' => wp_create_nonce( 'wpd_rooms' ),
-			'post_id'  => (string) $building,
-			'room_id'  => '300',
-		);
-		$_REQUEST = $_POST;
-		add_filter(
-            'wp_die_ajax_handler',
-            function () {
-				return function () {
-					throw new WPDieException( 'done' );
-				};
-			}
-        );
-		add_filter( 'wp_doing_ajax', '__return_true' );
 
-		ob_start();
-		try {
-			wpd_plugin()->cpt_location->ajax_delete_room();
-		} catch ( WPDieException $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
-			// wp_send_json_* dies after printing.
-		}
-		$out = json_decode( ob_get_clean(), true );
-		$_POST    = array();
-		$_REQUEST = array();
+		$request = new WP_REST_Request( 'DELETE', "/wpd/v1/locations/{$building}/rooms/300" );
+		$response = rest_do_request( $request );
 
-		$this->assertFalse( $out['success'] );
+		$this->assertTrue( $response->is_error() );
 		$this->assertNotNull( get_post( $foreign ) );
 		$this->assertCount( 0, $this->requests, 'a room of another building never reaches the API' );
 	}
