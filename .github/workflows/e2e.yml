@@ -1,0 +1,111 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: Playwright (wp-admin smoke tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mysql:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: wordpress_e2e
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install WP-CLI
+        run: |
+          curl -sSLo /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x /tmp/wp-cli.phar
+          sudo mv /tmp/wp-cli.phar /usr/local/bin/wp
+
+      - name: Install WordPress core and activate the plugin
+        env:
+          WP_CORE_DIR: ${{ github.workspace }}/tmp/wordpress
+          WP_ADMIN_USER: admin
+          WP_ADMIN_PASS: password
+        run: |
+          set -euo pipefail
+          mkdir -p "$WP_CORE_DIR"
+          curl -sSfL https://wordpress.org/latest.tar.gz | tar -xz --strip-components=1 -C "$WP_CORE_DIR"
+
+          wp config create --path="$WP_CORE_DIR" \
+            --dbname=wordpress_e2e --dbuser=root --dbpass=root --dbhost=127.0.0.1
+          wp core install --path="$WP_CORE_DIR" \
+            --url=http://localhost:8888 --title="wp-dansal e2e" \
+            --admin_user="$WP_ADMIN_USER" --admin_password="$WP_ADMIN_PASS" \
+            --admin_email=admin@example.org --skip-email
+
+          # The plugin under test is this checkout, not a separate install —
+          # symlinking it in means the running site always reflects the PR's
+          # code, no copy step to keep in sync.
+          ln -s "$GITHUB_WORKSPACE" "$WP_CORE_DIR/wp-content/plugins/wp-dansal"
+          wp plugin activate wp-dansal --path="$WP_CORE_DIR"
+
+          # Pretty permalinks: with Plain permalinks, /wp-json/... doesn't
+          # route at all, which apiFetch (and these tests) rely on.
+          wp rewrite structure '/%postname%/' --path="$WP_CORE_DIR"
+          wp rewrite flush --hard --path="$WP_CORE_DIR"
+
+      - name: Start WordPress
+        env:
+          WP_CORE_DIR: ${{ github.workspace }}/tmp/wordpress
+        run: |
+          php -S localhost:8888 -t "$WP_CORE_DIR" &
+          for i in $(seq 1 20); do
+            curl -sSf http://localhost:8888/wp-json/ > /dev/null && break
+            sleep 0.5
+          done
+          curl -sSf http://localhost:8888/wp-json/ > /dev/null
+
+      - name: Install e2e dependencies
+        run: |
+          cd e2e
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: |
+          cd e2e
+          npx playwright test
+        env:
+          BASE_URL: http://localhost:8888
+          WP_ADMIN_USER: admin
+          WP_ADMIN_PASS: password
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
+          retention-days: 14
