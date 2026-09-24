@@ -1475,7 +1475,7 @@ class WPD_CPT_Event {
 		$new_etag   = null;
 		$result     = $this->api->get_all_pages(
 			'/api/v1/events',
-			array( 'organization_id' => $this->settings->get_org_id() ) ,
+			array( 'organization_id' => $this->settings->get_org_id() ),
 			'' !== $last_etag ? $last_etag : null,
 			$new_etag
 		);
@@ -1516,6 +1516,33 @@ class WPD_CPT_Event {
 				'success'
 			);
 		}
+	}
+
+	/**
+	 * Fetches and applies exactly one event by its dansal id (#141): the
+	 * webhook receiver's counterpart to run_pull_sync()'s org-wide walk, for
+	 * reacting to a single push notification without a full pull. An existing
+	 * local post still stashes the fetched version for admin confirmation
+	 * (pull_one_event()'s #47 rule — a push is no more trusted than any other
+	 * pull source); only a brand-new event not yet seen locally is written
+	 * immediately.
+	 *
+	 * @param int $dansal_id
+	 * @return string|WP_Error 'created', 'updated', or 'unchanged' — never
+	 *                         null, so a caller building an HTTP response
+	 *                         always has a concrete status string — or a
+	 *                         WP_Error if the fetch itself failed.
+	 */
+	public function pull_event_by_dansal_id( $dansal_id ) {
+		$event = $this->api->get( "/api/v1/events/{$dansal_id}" );
+		if ( is_wp_error( $event ) ) {
+			return $event;
+		}
+		if ( ! is_array( $event ) || empty( $event['id'] ) ) {
+			return new WP_Error( 'wpd_webhook_bad_event', __( 'Unexpected event payload from dansal.', 'wp-dansal' ) );
+		}
+		$status = $this->pull_one_event( $event );
+		return $status ? $status : 'unchanged';
 	}
 
 	/**

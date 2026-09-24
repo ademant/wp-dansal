@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.3
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.31.0
+Stable tag: 0.32.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.32.0 =
+* Push-based reverse sync via webhook (#141, paired with dansal's own [dansal#1370](https://github.com/ademant/dansal/issues/1370)): when registered, dansal pushes a signed notification to this site the moment one of its events changes, so the local copy updates within seconds instead of waiting for the scheduled pull (0.30.0) to catch it. A new **Settings → Dansal → Webhooks** panel lets an admin explicitly register/test/unregister the subscription (never automatic) and shows its live status, including when dansal has auto-disabled it after repeated delivery failures. Reuses the exact HMAC scheme from 0.31.0's request signing — same `X-Wpd-Timestamp`/`X-Wpd-Nonce`/`X-Wpd-Signature` headers, verified instead of generated — so the public `POST /wp-json/wpd/v1/webhook` receiver needs no WordPress capability check; authentication is entirely the signature. Requires having connected via Connect Link (not the manual base URL/API key form), since only that response ever hands us this site's own dansal publisher id. The scheduled pull keeps running regardless, as the fallback for any push that's ever missed or dropped (dansal's own delivery has no persistent queue).
 
 = 0.31.0 =
 * HMAC request signing on authenticated writes to dansal, matching the server-side scheme in ademant/dansal#1366. Every `POST`/`PATCH`/`PUT`/`DELETE` now carries `X-Wpd-Timestamp`, `X-Wpd-Nonce`, and `X-Wpd-Signature` headers computed over a five-line canonical payload — `<METHOD>\n<path>?<sorted-encoded-query>\n<ts>\n<sha256(body) hex>\n<32-hex nonce>` — signed with the publisher's signing secret. Fixes the pre-existing latent `'\n'` literal-backslash-n bug (single-quoted PHP string, so the previous signatures never matched anything anyway). The setting `hmac_secret` is renamed to `signing_secret`, encrypted at rest via the same libsodium wrapper the API key uses, and captured from the connect-link redemption response when dansal returns it. A new **Settings → Dansal → Rotate signing secret** button calls `POST /api/v1/apikeys/rotate-signing-secret` and swaps in the new secret; dansal hard-swaps server-side without a grace window, so clicking rotate should be timed for a quiet moment. Signing is only enforced by dansal for publishers with `require_signature` opted in on their key — for existing publishers the headers are sent quietly with no effect until the flag is turned on server-side (closes #137).

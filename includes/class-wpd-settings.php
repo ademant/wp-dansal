@@ -42,6 +42,14 @@ class WPD_Settings {
 		$opts['signing_secret']           = '';
 		$opts['signing_secret_encrypted'] = '';
 		$opts['hmac_secret']              = '';
+		// #141: a disconnected site can no longer authenticate as the
+		// publisher to manage (or receive deliveries meaningfully signed
+		// for) its webhook subscription — drop the local pointers. The
+		// dansal-side subscription itself isn't deleted here (that needs a
+		// session-token exchange this best-effort local wipe deliberately
+		// avoids); it will auto-disable after 4 failed deliveries.
+		$opts['publisher_user_id']        = 0;
+		$opts['webhook_id']               = 0;
 		update_option( self::OPTION, $opts );
 		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
 	}
@@ -95,6 +103,18 @@ class WPD_Settings {
 			// legacy readers that don't call get_signing_secret().
 			'signing_secret'           => '',
 			'signing_secret_encrypted' => '',
+			// #141: this site's own dansal "publisher" (service-account) user
+			// id, captured from the connect-link redemption response's
+			// `user_id` field — the only place it's ever returned to us.
+			// Needed to build /api/v1/publishers/{id}/webhooks; there is no
+			// way to look it up later from the API key alone, so a
+			// manual-connection-only setup (no connect-link) has no
+			// push-webhook support — the #140 cron pull still works either way.
+			'publisher_user_id' => 0,
+			// dansal-side webhook subscription id, once registered (#141).
+			// Presence is the enabled/disabled state; there is no separate
+			// boolean setting.
+			'webhook_id'        => 0,
 			// #99: WordPress-local "home" coordinates for [dansal_nearby]'s
 			// default proximity center. Explicitly NOT part of any dansal push
 			// payload — this is a plugin-side setting, not a per-location
@@ -160,6 +180,19 @@ class WPD_Settings {
 
 	public function get_org_id() {
 		return (int) $this->get( 'org_id' );
+	}
+
+	/**
+	 * This site's own dansal publisher user id (#141) — see the `defaults()`
+	 * comment on `publisher_user_id` for why it can be 0 (unknown).
+	 */
+	public function get_publisher_user_id() {
+		return (int) $this->get( 'publisher_user_id' );
+	}
+
+	/** Stored dansal webhook subscription id (#141), or 0 if none registered. */
+	public function get_webhook_id() {
+		return (int) $this->get( 'webhook_id' );
 	}
 
 	/**
@@ -800,6 +833,22 @@ class WPD_Settings {
 					</p>
 				<?php endif; ?>
 				<hr />
+				<h2><?php esc_html_e( 'Webhooks', 'wp-dansal' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'When registered, dansal pushes a signed notification to this site the moment one of its events changes, so the local copy updates within seconds instead of waiting for the scheduled pull. The scheduled pull keeps running regardless, as a fallback for any push that never arrives.', 'wp-dansal' ); ?></p>
+				<?php if ( ! $this->get_publisher_user_id() ) : ?>
+					<p class="description"><em><?php esc_html_e( 'Not available: this connection has no known publisher id, which only a Connect Link redemption provides (not the manual base URL/API key form). Reconnect via Connect Link above to enable webhooks.', 'wp-dansal' ); ?></em></p>
+				<?php else : ?>
+					<div id="wpd-webhook-panel">
+						<p id="wpd-webhook-status"><?php esc_html_e( 'Checking status…', 'wp-dansal' ); ?></p>
+						<p>
+							<button type="button" class="button" id="wpd-webhook-register" hidden><?php esc_html_e( 'Register webhook', 'wp-dansal' ); ?></button>
+							<button type="button" class="button" id="wpd-webhook-test" hidden><?php esc_html_e( 'Test', 'wp-dansal' ); ?></button>
+							<button type="button" class="button" id="wpd-webhook-unregister" hidden><?php esc_html_e( 'Unregister', 'wp-dansal' ); ?></button>
+							<span id="wpd-webhook-result" style="margin-left:10px;"></span>
+						</p>
+					</div>
+				<?php endif; ?>
+				<hr />
 				<h2><?php esc_html_e( 'Disconnect', 'wp-dansal' ); ?></h2>
 				<p><?php esc_html_e( 'Forget the publisher API key stored on this site. If the dansal server supports self-revoke, the key is also invalidated there; otherwise you\'ll need to delete it manually via /admin/users on dansal.', 'wp-dansal' ); ?></p>
 				<p>
@@ -934,6 +983,102 @@ class WPD_Settings {
 					});
 			});
 		}
+
+		var webhookPanel = document.getElementById('wpd-webhook-panel');
+		if (webhookPanel) {
+			var wpdWhStatus = document.getElementById('wpd-webhook-status');
+			var wpdWhRegister = document.getElementById('wpd-webhook-register');
+			var wpdWhTest = document.getElementById('wpd-webhook-test');
+			var wpdWhUnregister = document.getElementById('wpd-webhook-unregister');
+			var wpdWhResult = document.getElementById('wpd-webhook-result');
+
+			var wpdRenderWebhookStatus = function (data) {
+				if (data && data.registered) {
+					var line = <?php echo wp_json_encode( __( 'Registered', 'wp-dansal' ) ); ?>;
+					if (data.active === false) {
+						line += ' — ' + <?php echo wp_json_encode( __( 'inactive (dansal disabled it after repeated delivery failures)', 'wp-dansal' ) ); ?>;
+						if (data.last_error) {
+							line += ': ' + data.last_error;
+						}
+					} else if (data.active) {
+						line += ' — ' + <?php echo wp_json_encode( __( 'active', 'wp-dansal' ) ); ?>;
+					}
+					if (data.last_delivery_at) {
+						line += '. ' + <?php echo wp_json_encode( __( 'Last delivery:', 'wp-dansal' ) ); ?> + ' ' + data.last_delivery_at;
+					}
+					wpdWhStatus.textContent = line;
+					wpdWhRegister.hidden = true;
+					wpdWhTest.hidden = false;
+					wpdWhUnregister.hidden = false;
+				} else {
+					wpdWhStatus.textContent = <?php echo wp_json_encode( __( 'Not registered.', 'wp-dansal' ) ); ?>;
+					wpdWhRegister.hidden = false;
+					wpdWhTest.hidden = true;
+					wpdWhUnregister.hidden = true;
+				}
+			};
+
+			var wpdLoadWebhookStatus = function () {
+				wp.apiFetch({ path: '/wpd/v1/webhook-subscription' })
+					.then(wpdRenderWebhookStatus)
+					.catch(function (err) {
+						wpdWhStatus.textContent = (err && err.message) ? err.message : String(err);
+					});
+			};
+			wpdLoadWebhookStatus();
+
+			wpdWhRegister.addEventListener('click', function () {
+				wpdWhResult.textContent = <?php echo wp_json_encode( __( 'Registering…', 'wp-dansal' ) ); ?>;
+				wpdWhResult.style.color = '';
+				wp.apiFetch({ path: '/wpd/v1/webhook-subscription', method: 'POST' })
+					.then(function (data) {
+						wpdWhResult.textContent = (data && data.message) ? data.message : 'OK';
+						wpdWhResult.style.color = 'green';
+						wpdLoadWebhookStatus();
+					})
+					.catch(function (err) {
+						wpdWhResult.textContent = (err && err.message) ? err.message : String(err);
+						wpdWhResult.style.color = 'crimson';
+					});
+			});
+
+			wpdWhTest.addEventListener('click', function () {
+				wpdWhResult.textContent = <?php echo wp_json_encode( __( 'Testing…', 'wp-dansal' ) ); ?>;
+				wpdWhResult.style.color = '';
+				wp.apiFetch({ path: '/wpd/v1/webhook-subscription/test', method: 'POST' })
+					.then(function (data) {
+						if (data && data.ok) {
+							wpdWhResult.textContent = <?php echo wp_json_encode( __( 'Test ping delivered successfully.', 'wp-dansal' ) ); ?>;
+							wpdWhResult.style.color = 'green';
+						} else {
+							wpdWhResult.textContent = (data && data.error) ? data.error : <?php echo wp_json_encode( __( 'Test ping failed.', 'wp-dansal' ) ); ?>;
+							wpdWhResult.style.color = 'crimson';
+						}
+					})
+					.catch(function (err) {
+						wpdWhResult.textContent = (err && err.message) ? err.message : String(err);
+						wpdWhResult.style.color = 'crimson';
+					});
+			});
+
+			wpdWhUnregister.addEventListener('click', function () {
+				if (!window.confirm(<?php echo wp_json_encode( __( 'Unregister this webhook subscription?', 'wp-dansal' ) ); ?>)) {
+					return;
+				}
+				wpdWhResult.textContent = <?php echo wp_json_encode( __( 'Unregistering…', 'wp-dansal' ) ); ?>;
+				wpdWhResult.style.color = '';
+				wp.apiFetch({ path: '/wpd/v1/webhook-subscription', method: 'DELETE' })
+					.then(function (data) {
+						wpdWhResult.textContent = (data && data.message) ? data.message : 'OK';
+						wpdWhResult.style.color = 'green';
+						wpdLoadWebhookStatus();
+					})
+					.catch(function (err) {
+						wpdWhResult.textContent = (err && err.message) ? err.message : String(err);
+						wpdWhResult.style.color = 'crimson';
+					});
+			});
+		}
 		</script>
 		<?php
 	}
@@ -1001,6 +1146,189 @@ class WPD_Settings {
 				'permission_callback' => $manage_options,
 			)
 		);
+		// #141: manage the dansal-side webhook subscription. Distinct path
+		// prefix from the inbound receiver (WPD_Webhook's public POST
+		// /wpd/v1/webhook) — this is admin-only outbound management, that is
+		// the unauthenticated delivery target dansal itself POSTs to.
+		register_rest_route(
+			'wpd/v1',
+			'/webhook-subscription',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( $this, 'rest_webhook_status' ),
+					'permission_callback' => $manage_options,
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'rest_register_webhook' ),
+					'permission_callback' => $manage_options,
+				),
+				array(
+					'methods'             => 'DELETE',
+					'callback'            => array( $this, 'rest_unregister_webhook' ),
+					'permission_callback' => $manage_options,
+				),
+			)
+		);
+		register_rest_route(
+			'wpd/v1',
+			'/webhook-subscription/test',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'rest_test_webhook' ),
+				'permission_callback' => $manage_options,
+			)
+		);
+	}
+
+	/**
+	 * REST: create this site's dansal webhook subscription (#141), pointing
+	 * at its own public POST /wp-json/wpd/v1/webhook. Explicit, admin-
+	 * triggered — never auto-registered on connect or settings save. Guards
+	 * against creating a second subscription if one is already stored (the
+	 * UI only shows this action when none is); dansal caps at 5 per publisher.
+	 */
+	public function rest_register_webhook() {
+		if ( '' === $this->get_api_key() ) {
+			return new WP_Error( 'wpd_no_api_key', __( 'No dansal API key configured.', 'wp-dansal' ), array( 'status' => 409 ) );
+		}
+		if ( $this->get_webhook_id() ) {
+			return new WP_Error( 'wpd_webhook_already_registered', __( 'A webhook subscription is already registered. Unregister first to create a new one.', 'wp-dansal' ), array( 'status' => 409 ) );
+		}
+		$publisher_id = $this->get_publisher_user_id();
+		if ( ! $publisher_id ) {
+			return new WP_Error(
+				'wpd_webhook_no_publisher_id',
+				__( 'This connection has no known publisher id, which only a Connect Link redemption provides. Reconnect via Connect Link to enable webhooks.', 'wp-dansal' ),
+				array( 'status' => 409 )
+			);
+		}
+		if ( '' === $this->get_signing_secret() ) {
+			return new WP_Error(
+				'wpd_webhook_no_signing_secret',
+				__( 'A signing secret is required before dansal will accept a webhook subscription. Ask an org admin to enable request signing for this publisher, then reconnect.', 'wp-dansal' ),
+				array( 'status' => 409 )
+			);
+		}
+
+		$result = wpd_plugin()->api->post(
+			"/api/v1/publishers/{$publisher_id}/webhooks",
+			array(
+				'url'         => rest_url( 'wpd/v1/webhook' ),
+				'event_types' => '*',
+			)
+		);
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		if ( empty( $result['id'] ) ) {
+			return new WP_Error( 'wpd_webhook_bad_response', __( 'Unexpected response from dansal.', 'wp-dansal' ), array( 'status' => 502 ) );
+		}
+
+		$opts               = $this->get_all();
+		$opts['webhook_id'] = absint( $result['id'] );
+		update_option( self::OPTION, $opts );
+
+		return rest_ensure_response(
+			array(
+				'message' => __( 'Webhook registered. dansal sent a test ping to verify signature handling.', 'wp-dansal' ),
+				'active'  => ! empty( $result['active'] ),
+			)
+		);
+	}
+
+	/**
+	 * REST: delete this site's dansal webhook subscription and forget it
+	 * locally. Best-effort against dansal — a 404 (already gone dansal-side,
+	 * e.g. an admin deleted it directly) is treated as success so the local
+	 * pointer doesn't get stuck.
+	 */
+	public function rest_unregister_webhook() {
+		$webhook_id = $this->get_webhook_id();
+		if ( ! $webhook_id ) {
+			return new WP_Error( 'wpd_webhook_not_registered', __( 'No webhook subscription is registered.', 'wp-dansal' ), array( 'status' => 409 ) );
+		}
+		$publisher_id = $this->get_publisher_user_id();
+		if ( $publisher_id ) {
+			$result = wpd_plugin()->api->delete( "/api/v1/publishers/{$publisher_id}/webhooks/{$webhook_id}" );
+			if ( is_wp_error( $result ) && 'wpd_http_404' !== $result->get_error_code() ) {
+				return $result;
+			}
+		}
+
+		$opts               = $this->get_all();
+		$opts['webhook_id'] = 0;
+		update_option( self::OPTION, $opts );
+
+		return rest_ensure_response( array( 'message' => __( 'Webhook unregistered.', 'wp-dansal' ) ) );
+	}
+
+	/**
+	 * REST: fire dansal's synchronous test ping
+	 * (`POST .../webhooks/{id}/test`) at the registered subscription.
+	 * Doesn't touch dansal's failure counters — safe to click any time.
+	 */
+	public function rest_test_webhook() {
+		$publisher_id = $this->get_publisher_user_id();
+		$webhook_id   = $this->get_webhook_id();
+		if ( ! $publisher_id || ! $webhook_id ) {
+			return new WP_Error( 'wpd_webhook_not_registered', __( 'No webhook subscription is registered.', 'wp-dansal' ), array( 'status' => 409 ) );
+		}
+		$result = wpd_plugin()->api->post( "/api/v1/publishers/{$publisher_id}/webhooks/{$webhook_id}/test", array() );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		return rest_ensure_response( $result ); // {ok, http_status, error}
+	}
+
+	/**
+	 * REST: live status of the registered subscription, straight from
+	 * dansal (`GET /api/v1/publishers/{id}/webhooks`, filtered to our stored
+	 * id) rather than a locally cached copy — an admin/other client could
+	 * have changed it on dansal's side (including auto-disable after 4
+	 * consecutive delivery failures) since we last looked. `{registered:
+	 * false}` when nothing is stored; if our stored id no longer exists
+	 * dansal-side, the local pointer is cleared so the UI offers Register
+	 * again instead of a permanently-broken Test/Unregister pair.
+	 */
+	public function rest_webhook_status() {
+		$webhook_id = $this->get_webhook_id();
+		if ( ! $webhook_id ) {
+			return rest_ensure_response( array( 'registered' => false ) );
+		}
+		$publisher_id = $this->get_publisher_user_id();
+		if ( ! $publisher_id ) {
+			// Shouldn't happen — webhook_id is only ever set alongside a known
+			// publisher_id — but degrade gracefully rather than fatal.
+			return rest_ensure_response( array( 'registered' => true ) );
+		}
+
+		$result = wpd_plugin()->api->get( "/api/v1/publishers/{$publisher_id}/webhooks" );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		$rows = isset( $result['webhooks'] ) && is_array( $result['webhooks'] )
+			? $result['webhooks']
+			: ( is_array( $result ) && array_is_list( $result ) ? $result : array() );
+
+		foreach ( $rows as $row ) {
+			if ( is_array( $row ) && absint( $row['id'] ?? 0 ) === $webhook_id ) {
+				return rest_ensure_response(
+					array(
+						'registered'       => true,
+						'active'           => ! empty( $row['active'] ),
+						'last_error'       => isset( $row['last_error'] ) ? (string) $row['last_error'] : '',
+						'last_delivery_at' => isset( $row['last_delivery_at'] ) ? (string) $row['last_delivery_at'] : '',
+					)
+				);
+			}
+		}
+
+		$opts               = $this->get_all();
+		$opts['webhook_id'] = 0;
+		update_option( self::OPTION, $opts );
+		return rest_ensure_response( array( 'registered' => false ) );
 	}
 
 	/**
@@ -1217,6 +1545,11 @@ class WPD_Settings {
 		$existing                       = $previous;
 		$existing['base_url']           = esc_url_raw( untrailingslashit( trim( $body['base_url'] ) ) );
 		$existing['org_id']             = absint( $body['org_id'] );
+		// #141: dansal's own "publisher" user id, needed later to manage a
+		// webhook subscription (/api/v1/publishers/{id}/webhooks). Only ever
+		// returned here (and from POST /api/v1/publishers, which this plugin
+		// never calls) — best-effort, not required for connect-link to succeed.
+		$existing['publisher_user_id'] = ! empty( $body['user_id'] ) ? absint( $body['user_id'] ) : 0;
 		// Store api key encrypted when possible; keep a masked placeholder
 		$plaintext_key = sanitize_text_field( $api_key );
 		$encrypted = $this->encrypt_api_key( $plaintext_key );

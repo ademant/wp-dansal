@@ -86,6 +86,7 @@ $wpd_prefixes = array(
 	'wpd_nominatim_search_',    // WPD_Nominatim::search() result cache
 	'wpd_nominatim_reverse_',   // WPD_Nominatim::reverse() result cache
 	'wpd_entity_create_',       // WPD_CPT_Event::ENTITY_CREATE_RATE_TRANSIENT
+	'wpd_webhook_nonce_',       // WPD_Webhook::NONCE_TRANSIENT_PREFIX
 );
 foreach ( $wpd_prefixes as $wpd_prefix ) {
 	$wpd_like = $wpdb->esc_like( '_transient_' . $wpd_prefix ) . '%';

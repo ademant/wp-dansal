@@ -454,7 +454,19 @@ class WPD_Api_Client {
 			if ( 0 === $offset && null !== $if_none_match && '' !== $if_none_match ) {
 				$headers['If-None-Match'] = $if_none_match;
 			}
-			$response = $this->request_raw( 'GET', $path, null, array_merge( $query, array( 'limit' => $limit, 'offset' => $offset ) ), $headers );
+			$response = $this->request_raw(
+                'GET',
+                $path,
+                null,
+                array_merge(
+                    $query,
+                    array(
+						'limit' => $limit,
+						'offset' => $offset,
+                    )
+                ),
+                $headers
+            );
 			if ( is_wp_error( $response ) ) {
 				return $response;
 			}

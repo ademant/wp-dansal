@@ -3,7 +3,7 @@
  * Plugin Name: WP Dansal
  * Plugin URI: https://github.com/ademant/wp-dansal
  * Description: Manage dance events and locations in WordPress, backed by a dansal server (https://github.com/ademant/dansal) as the storage/publishing backend.
- * Version: 0.31.0
+ * Version: 0.32.0
  * Author: ademant
  * License: GPL-2.0-or-later
  * Text Domain: wp-dansal
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPD_VERSION', '0.31.0' );
+define( 'WPD_VERSION', '0.32.0' );
 define( 'WPD_PLUGIN_FILE', __FILE__ );
 define( 'WPD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPD_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -68,6 +68,7 @@ require_once WPD_PLUGIN_DIR . 'includes/class-wpd-preset-menu.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-preset-buttons.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-datetime-hint.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-event.php';
+require_once WPD_PLUGIN_DIR . 'includes/class-wpd-webhook.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-series.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-person.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-cpt-musician.php';
@@ -93,6 +94,7 @@ final class WPD_Plugin {
 	public $cpt_location;
 	public $event_fields;
 	public $cpt_event;
+	public $webhook;
 	public $cpt_series;
 	public $cpt_musician;
 	public $cpt_instructor;
@@ -115,6 +117,7 @@ final class WPD_Plugin {
 		$this->cpt_location = new WPD_CPT_Location( $this->api, $this->nominatim, $this->settings );
 		$this->event_fields = new WPD_Event_Fields( $this->api );
 		$this->cpt_event    = new WPD_CPT_Event( $this->api, $this->settings, $this->event_fields );
+		$this->webhook      = new WPD_Webhook( $this->settings, $this->cpt_event );
 		$this->cpt_series   = new WPD_CPT_Series( $this->api, $this->settings, $this->event_fields );
 		$this->cpt_musician   = new WPD_CPT_Musician( $this->api, $this->settings );
 		$this->cpt_instructor = new WPD_CPT_Instructor( $this->api, $this->settings );
