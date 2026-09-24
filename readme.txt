@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.3
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.30.0
+Stable tag: 0.31.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,9 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.31.0 =
+* HMAC request signing on authenticated writes to dansal, matching the server-side scheme in ademant/dansal#1366. Every `POST`/`PATCH`/`PUT`/`DELETE` now carries `X-Wpd-Timestamp`, `X-Wpd-Nonce`, and `X-Wpd-Signature` headers computed over a five-line canonical payload — `<METHOD>\n<path>?<sorted-encoded-query>\n<ts>\n<sha256(body) hex>\n<32-hex nonce>` — signed with the publisher's signing secret. Fixes the pre-existing latent `'\n'` literal-backslash-n bug (single-quoted PHP string, so the previous signatures never matched anything anyway). The setting `hmac_secret` is renamed to `signing_secret`, encrypted at rest via the same libsodium wrapper the API key uses, and captured from the connect-link redemption response when dansal returns it. A new **Settings → Dansal → Rotate signing secret** button calls `POST /api/v1/apikeys/rotate-signing-secret` and swaps in the new secret; dansal hard-swaps server-side without a grace window, so clicking rotate should be timed for a quiet moment. Signing is only enforced by dansal for publishers with `require_signature` opted in on their key — for existing publishers the headers are sent quietly with no effect until the flag is turned on server-side (closes #137).
 
 = 0.30.0 =
 * WP-Cron baseline pull-sync: a new `wpd_pull_sync_tick` cron event runs the same pull-sync the admin event/location list screens fire on view, so a dansal-side change is mirrored to WP even when no admin has opened those screens. Interval is hourly by default and filterable via `wpd_pull_sync_interval` (any string from WP's `cron_schedules`, e.g. `twicedaily`, `daily`; falls back to `hourly` for an unregistered value). Reuses the existing 30-second transient locks and 0.29.0's conditional-GET short-circuit, so a quiet org is one `304 Not Modified` per tick and cannot race an in-progress admin view. Note: WP-Cron itself only fires on page visits, so a completely visitor-less site still stalls indefinitely — that's a WP-core-wide issue solved out-of-plugin by `DISABLE_WP_CRON` + a real system cron pinging `/wp-cron.php` (closes #140).

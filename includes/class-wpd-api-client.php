@@ -90,6 +90,47 @@ class WPD_Api_Client {
 	}
 
 	/**
+	 * Rotate the publisher's HMAC signing secret via
+	 * `POST /api/v1/apikeys/rotate-signing-secret` (dansal #1366). Uses
+	 * the raw api_key as the bearer — same auth model as renew_apikey.
+	 * dansal responds with `{ signing_secret: "..." }` and hard-swaps
+	 * server-side, so we store the new secret unconditionally on 200.
+	 *
+	 * @return true|WP_Error
+	 */
+	public function rotate_signing_secret() {
+		$api_key = $this->settings->get_api_key();
+		if ( '' === $api_key ) {
+			return new WP_Error( 'wpd_no_api_key', __( 'No dansal API key configured.', 'wp-dansal' ) );
+		}
+		$url  = $this->settings->get_base_url() . '/api/v1/apikeys/rotate-signing-secret';
+		$args = array(
+			'method'  => 'POST',
+			'timeout' => self::timeout( '/api/v1/apikeys/rotate-signing-secret' ),
+			'headers' => array(
+				'Authorization' => 'Bearer ' . $api_key,
+				'Accept'        => 'application/json',
+			),
+		);
+		$response = wp_remote_request( $url, $args );
+		$response = $this->maybe_retry_after( $response, $url, $args );
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( 200 === $code && is_array( $body ) && ! empty( $body['signing_secret'] ) ) {
+			$this->settings->record_signing_secret( (string) $body['signing_secret'] );
+			return true;
+		}
+		if ( 404 === $code ) {
+			return new WP_Error( 'wpd_signing_unsupported', __( 'This dansal server does not support signing-secret rotation. Upgrade dansal to a build that includes the rotate-signing-secret endpoint.', 'wp-dansal' ) );
+		}
+		$message = is_array( $body ) && ! empty( $body['error'] ) ? $body['error'] : sprintf( 'HTTP %d', $code );
+		return new WP_Error( 'wpd_rotate_signing_failed', $message );
+	}
+
+	/**
 	 * True when the stored expires_at is inside the renewal lead-time window
 	 * (default 7 days). Filter `wpd_apikey_renew_leadtime` to tune (seconds).
 	 */
@@ -240,22 +281,53 @@ class WPD_Api_Client {
 			$args['body']                    = wp_json_encode( $body );
 		}
 
-		// Optional HMAC request signing when configured in settings. The
-		// signature covers method, path, timestamp and body to prevent replay
-		// and tampering. Servers must agree on the same scheme.
-		$hmac_secret = $this->settings->get( 'hmac_secret' );
-		if ( ! empty( $hmac_secret ) ) {
-			$ts = (string) time();
-			$body_str = isset( $args['body'] ) ? $args['body'] : '';
-			$payload = $method . '\n' . $path . '\n' . $ts . '\n' . $body_str;
-			$sig = hash_hmac( 'sha256', $payload, $hmac_secret );
-			$args['headers']['X-WPD-Timestamp']   = $ts;
-			$args['headers']['X-WPD-Signature']   = $sig;
-		}
+		$this->apply_signing_headers( $method, $path, $query, $args );
 
 		$response = wp_remote_request( $url, $args );
 		$response = $this->maybe_retry_after( $response, $url, $args );
 		return $this->handle_response( $response );
+	}
+
+	/**
+	 * HMAC request signing per dansal #1366. When a signing secret is
+	 * stored, every authenticated write carries three headers dansal
+	 * verifies before running any handler code — a leaked Bearer token
+	 * alone can't replay a request without also holding the signing
+	 * secret. Canonical payload is five ASCII lines joined by real
+	 * newlines (the previous code used `'\n'` in a PHP single-quoted
+	 * string, i.e. a literal backslash-n — never matched anything on
+	 * the server side):
+	 *
+	 *   <METHOD>
+	 *   <path>[?<canonical query>]      ← keys alphabetized, RFC3986 encoded
+	 *   <unix ts>
+	 *   <lowercase-hex sha256(body)>    ← empty string when no body
+	 *   <32-hex-char CSPRNG nonce>
+	 *
+	 * dansal recomputes the same form from parsed query params (never
+	 * the literal wire bytes), so wire ordering is irrelevant — both
+	 * sides ksort() before hashing.
+	 */
+	private function apply_signing_headers( $method, $path, $query, &$args ) {
+		$signing_secret = $this->settings->get_signing_secret();
+		if ( empty( $signing_secret ) ) {
+			return;
+		}
+		$canonical_path = $path;
+		if ( ! empty( $query ) ) {
+			$sorted = $query;
+			ksort( $sorted );
+			$canonical_path .= '?' . http_build_query( $sorted, '', '&', PHP_QUERY_RFC3986 );
+		}
+		$body_str = isset( $args['body'] ) ? $args['body'] : '';
+		$body_sha = hash( 'sha256', $body_str );
+		$ts       = (string) time();
+		$nonce    = bin2hex( random_bytes( 16 ) );
+		$payload  = $method . "\n" . $canonical_path . "\n" . $ts . "\n" . $body_sha . "\n" . $nonce;
+		$sig      = hash_hmac( 'sha256', $payload, $signing_secret );
+		$args['headers']['X-Wpd-Timestamp'] = $ts;
+		$args['headers']['X-Wpd-Nonce']     = $nonce;
+		$args['headers']['X-Wpd-Signature'] = $sig;
 	}
 
 	/**
@@ -475,6 +547,7 @@ class WPD_Api_Client {
 			$args['headers']['Content-Type'] = ( 'PATCH' === $method ) ? 'application/merge-patch+json' : 'application/json';
 			$args['body']                    = wp_json_encode( $body );
 		}
+		$this->apply_signing_headers( $method, $path, $query, $args );
 		$response = wp_remote_request( $url, $args );
 		$response = $this->maybe_retry_after( $response, $url, $args );
 		if ( is_wp_error( $response ) ) {

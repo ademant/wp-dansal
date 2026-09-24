@@ -30,12 +30,18 @@ class WPD_Settings {
 	 * token so no later request tries to reuse it.
 	 */
 	public function clear_credentials() {
-		$opts                          = $this->get_all();
-		$opts['api_key']               = '';
-		$opts['api_key_encrypted']     = '';
-		$opts['api_key_expires_at']    = 0;
-		$opts['api_key_no_expiry']     = false;
-		$opts['api_key_dead']          = false;
+		$opts                             = $this->get_all();
+		$opts['api_key']                  = '';
+		$opts['api_key_encrypted']        = '';
+		$opts['api_key_expires_at']       = 0;
+		$opts['api_key_no_expiry']        = false;
+		$opts['api_key_dead']             = false;
+		// Signing secret is paired with the api_key — it's per-publisher
+		// and dansal-issued, so disconnecting from the publisher must
+		// drop it too (#137).
+		$opts['signing_secret']           = '';
+		$opts['signing_secret_encrypted'] = '';
+		$opts['hmac_secret']              = '';
 		update_option( self::OPTION, $opts );
 		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
 	}
@@ -80,7 +86,15 @@ class WPD_Settings {
 			'api_key_dead'       => false,
 			// Optional security settings
 			'pinned_cert_sha256' => '',
-			'hmac_secret' => '',
+			// dansal HMAC request signing (#137, dansal #1366). Encrypted at
+			// rest via `signing_secret_encrypted`; the plaintext key is only
+			// on the wire when dansal returned it (connect-link redemption,
+			// reconnect-link, or POST /apikeys/rotate-signing-secret). The
+			// plain `signing_secret` key holds a masked '***' placeholder
+			// so the option array still signals "a secret is stored" for
+			// legacy readers that don't call get_signing_secret().
+			'signing_secret'           => '',
+			'signing_secret_encrypted' => '',
 			// #99: WordPress-local "home" coordinates for [dansal_nearby]'s
 			// default proximity center. Explicitly NOT part of any dansal push
 			// payload — this is a plugin-side setting, not a per-location
@@ -174,6 +188,69 @@ class WPD_Settings {
 
 	public function is_api_key_dead() {
 		return (bool) $this->get( 'api_key_dead' );
+	}
+
+	/**
+	 * Return the signing-secret plaintext for HMAC request signing
+	 * (dansal #1366). Prefers the encrypted store; falls back to the
+	 * legacy `hmac_secret` plaintext option for one migration cycle.
+	 * Returns '' when no secret is stored, which the api client reads
+	 * as "signing disabled".
+	 */
+	public function get_signing_secret() {
+		$all = $this->get_all();
+		if ( ! empty( $all['signing_secret_encrypted'] ) ) {
+			$decrypted = WPD_Secret::decrypt( $all['signing_secret_encrypted'] );
+			if ( false !== $decrypted && '' !== $decrypted ) {
+				return (string) $decrypted;
+			}
+		}
+		// Legacy plaintext option — migrate on next successful read so
+		// old installs pick up the new storage without a manual step.
+		$legacy = (string) ( isset( $all['hmac_secret'] ) ? $all['hmac_secret'] : '' );
+		if ( '' === $legacy ) {
+			return '';
+		}
+		$this->record_signing_secret( $legacy );
+		return $legacy;
+	}
+
+	/**
+	 * Store a signing secret returned by dansal (connect-link redemption,
+	 * publisher reconnect, or `POST /api/v1/apikeys/rotate-signing-secret`).
+	 * Encrypts at rest via WPD_Secret; clears both the legacy plaintext
+	 * option and the placeholder so no plaintext value survives.
+	 */
+	public function record_signing_secret( $plaintext ) {
+		$opts      = $this->get_all();
+		$plaintext = (string) $plaintext;
+		$encrypted = '' !== $plaintext ? WPD_Secret::encrypt( $plaintext ) : false;
+		if ( false !== $encrypted ) {
+			$opts['signing_secret_encrypted'] = $encrypted;
+			$opts['signing_secret']           = '***';
+		} else {
+			// WPD_Secret returned false — encryption unavailable. Keep the
+			// plaintext under the new option name but flag it as unencrypted
+			// (empty encrypted blob) so the getter still finds it.
+			$opts['signing_secret']           = $plaintext;
+			$opts['signing_secret_encrypted'] = '';
+		}
+		if ( isset( $opts['hmac_secret'] ) ) {
+			$opts['hmac_secret'] = '';
+		}
+		update_option( self::OPTION, $opts );
+	}
+
+	/**
+	 * Clear the stored signing secret. Called on disconnect and when a
+	 * dansal-side rotation returns an empty response body.
+	 */
+	public function clear_signing_secret() {
+		$opts                             = $this->get_all();
+		$opts['signing_secret']           = '';
+		$opts['signing_secret_encrypted'] = '';
+		$opts['hmac_secret']              = '';
+		update_option( self::OPTION, $opts );
 	}
 
 	/**
@@ -518,7 +595,14 @@ class WPD_Settings {
 
 		// Optional security settings
 		$out['pinned_cert_sha256'] = isset( $input['pinned_cert_sha256'] ) ? sanitize_text_field( $input['pinned_cert_sha256'] ) : ( isset( $existing['pinned_cert_sha256'] ) ? $existing['pinned_cert_sha256'] : '' );
-		$out['hmac_secret'] = isset( $input['hmac_secret'] ) ? sanitize_text_field( $input['hmac_secret'] ) : ( isset( $existing['hmac_secret'] ) ? $existing['hmac_secret'] : '' );
+		// signing_secret is dansal-issued and stored encrypted (#137). The
+		// settings form doesn't expose it as an editable input, so sanitize
+		// just preserves whatever's already stored — programmatic callers
+		// (record_signing_secret / clear_signing_secret) go through
+		// update_option directly.
+		$out['signing_secret']           = isset( $existing['signing_secret'] ) ? $existing['signing_secret'] : '';
+		$out['signing_secret_encrypted'] = isset( $existing['signing_secret_encrypted'] ) ? $existing['signing_secret_encrypted'] : '';
+		$out['hmac_secret']              = isset( $existing['hmac_secret'] ) ? $existing['hmac_secret'] : '';
 
 		// Home location (#99). Accept blank explicitly so an admin can clear.
 		$raw_home_lat = isset( $input['home_lat'] ) ? trim( str_replace( ',', '.', (string) $input['home_lat'] ) ) : '';
@@ -706,6 +790,15 @@ class WPD_Settings {
 			</p>
 
 			<?php if ( '' !== $this->get_api_key() ) : ?>
+				<?php if ( '' !== $this->get_signing_secret() ) : ?>
+					<hr />
+					<h2><?php esc_html_e( 'Rotate signing secret', 'wp-dansal' ); ?></h2>
+					<p><?php esc_html_e( 'Ask dansal for a new HMAC signing secret and replace the stored one. dansal hard-swaps server-side — any request signed with the old secret in flight will fail 401; safest to click when the site is quiet.', 'wp-dansal' ); ?></p>
+					<p>
+						<button type="button" class="button" id="wpd-rotate-signing"><?php esc_html_e( 'Rotate signing secret', 'wp-dansal' ); ?></button>
+						<span id="wpd-rotate-signing-result" style="margin-left:10px;"></span>
+					</p>
+				<?php endif; ?>
 				<hr />
 				<h2><?php esc_html_e( 'Disconnect', 'wp-dansal' ); ?></h2>
 				<p><?php esc_html_e( 'Forget the publisher API key stored on this site. If the dansal server supports self-revoke, the key is also invalidated there; otherwise you\'ll need to delete it manually via /admin/users on dansal.', 'wp-dansal' ); ?></p>
@@ -820,6 +913,27 @@ class WPD_Settings {
 					resultEl.style.color = 'crimson';
 				});
 		});
+
+		var rotateBtn = document.getElementById('wpd-rotate-signing');
+		if (rotateBtn) {
+			rotateBtn.addEventListener('click', function () {
+				if (!window.confirm(<?php echo wp_json_encode( __( 'Rotate the HMAC signing secret? dansal hard-swaps server-side — any request signed with the old secret in flight will fail.', 'wp-dansal' ) ); ?>)) {
+					return;
+				}
+				var resultEl = document.getElementById('wpd-rotate-signing-result');
+				resultEl.textContent = <?php echo wp_json_encode( __( 'Rotating…', 'wp-dansal' ) ); ?>;
+				resultEl.style.color = '';
+				wp.apiFetch({ path: '/wpd/v1/connection/rotate-signing-secret', method: 'POST' })
+					.then(function (data) {
+						resultEl.textContent = (data && data.message) ? data.message : 'OK';
+						resultEl.style.color = 'green';
+					})
+					.catch(function (err) {
+						resultEl.textContent = (err && err.message) ? err.message : String(err);
+						resultEl.style.color = 'crimson';
+					});
+			});
+		}
 		</script>
 		<?php
 	}
@@ -876,6 +990,37 @@ class WPD_Settings {
 				'callback'            => array( $this, 'rest_disconnect' ),
 				'permission_callback' => $manage_options,
 			)
+		);
+		// #137: rotate the publisher's HMAC signing secret.
+		register_rest_route(
+			'wpd/v1',
+			'/connection/rotate-signing-secret',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'rest_rotate_signing_secret' ),
+				'permission_callback' => $manage_options,
+			)
+		);
+	}
+
+	/**
+	 * REST: rotate the HMAC signing secret via dansal's
+	 * `POST /api/v1/apikeys/rotate-signing-secret` (dansal #1366).
+	 * On success the new plaintext lands in `signing_secret_encrypted`
+	 * and the api client starts signing with it immediately — dansal
+	 * hard-swaps server-side, so any in-flight write signed with the
+	 * old secret would fail; there's no grace window.
+	 */
+	public function rest_rotate_signing_secret() {
+		if ( '' === $this->get_api_key() ) {
+			return new WP_Error( 'wpd_no_api_key', __( 'No dansal API key configured.', 'wp-dansal' ), array( 'status' => 409 ) );
+		}
+		$result = wpd_plugin()->api->rotate_signing_secret();
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		return rest_ensure_response(
+			array( 'message' => __( 'Signing secret rotated. Future requests use the new secret.', 'wp-dansal' ) )
 		);
 	}
 
@@ -1093,6 +1238,22 @@ class WPD_Settings {
 		$existing['api_key_expires_at'] = $expires_ts > 0 ? $expires_ts : 0;
 		$existing['api_key_no_expiry']  = 0 === $existing['api_key_expires_at'];
 		$existing['api_key_dead']       = false;
+		// #137: dansal returns `signing_secret` on the connect-link
+		// response only when signing is enabled for this publisher
+		// (dansal #1366). Store it encrypted so the api client can
+		// start signing outbound writes immediately.
+		if ( ! empty( $body['signing_secret'] ) ) {
+			$plain_signing = (string) $body['signing_secret'];
+			$encrypted     = WPD_Secret::encrypt( $plain_signing );
+			if ( false !== $encrypted ) {
+				$existing['signing_secret_encrypted'] = $encrypted;
+				$existing['signing_secret']           = '***';
+			} else {
+				$existing['signing_secret']           = $plain_signing;
+				$existing['signing_secret_encrypted'] = '';
+			}
+			$existing['hmac_secret'] = '';
+		}
 		update_option( self::OPTION, $existing );
 		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
 		WPD_Vocab::flush();
