@@ -13,7 +13,7 @@
 
 class WebhookReceiverTest extends WP_UnitTestCase {
 
-	const SECRET = 'test-signing-secret-0123456789abcdef';
+	const SECRET = 'test-signing-secret-0123456789abcdef'; // gitleaks:allow -- test fixture, not a real credential.
 	const ROUTE  = '/wpd/v1/webhook';
 
 	/** @var array Captured [method, url, body] of every intercepted outbound request. */

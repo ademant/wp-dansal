@@ -1,0 +1,14 @@
+title = "wp-dansal gitleaks config"
+
+[extend]
+useDefault = true
+
+# Known-safe test fixtures that match gitleaks' generic high-entropy/secret
+# heuristics but are not real credentials. Scoped to the exact literal value
+# (not a whole-file/path allowlist) so a real secret accidentally added
+# later to the same file would still be caught.
+[allowlist]
+description = "Test-only fixture values, not real credentials"
+regexes = [
+  '''test-signing-secret-0123456789abcdef''',
+]
