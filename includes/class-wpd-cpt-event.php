@@ -1218,16 +1218,23 @@ class WPD_CPT_Event {
 			// those and leave the event in a subtly wrong state. Only the
 			// becoming-true transition is routed here; going false stays
 			// on the PATCH body because dansal has no unpublish/uncancel
-			// endpoint. Legacy events (last-synced meta empty) treat that
-			// as "was false" — worst case an idempotent extra POST to
-			// dansal for an already-published event.
+			// endpoint. Legacy events (last-synced meta empty, pulled
+			// before #134 added it) treat that as "was false".
 			$prior_published = '1' === (string) get_post_meta( $post_id, self::META_LAST_SYNCED_PUBLISHED, true );
 			$prior_cancelled = '1' === (string) get_post_meta( $post_id, self::META_LAST_SYNCED_CANCELLED, true );
 			$curr_published  = ! empty( $payload['is_published'] );
 			$curr_cancelled  = ! empty( $payload['is_cancelled'] );
 			if ( ! $prior_published && $curr_published ) {
 				$res = $this->api->post( "/api/v1/events/{$dansal_id}/publish", array() );
-				if ( is_wp_error( $res ) ) {
+				// #143: for a publisher/user caller (the plugin's own role),
+				// dansal's publishEvent looks the event up with
+				// `WHERE id=? AND is_published=0`, so an already-published
+				// legacy event 404s here — this is NOT the idempotent
+				// no-op the comment above used to assume, and aborting on
+				// it silently dropped the rest of this save (the PATCH)
+				// every time. Treat a 404 as "already in the state we're
+				// pushing" and continue; any other error still aborts.
+				if ( is_wp_error( $res ) && 'wpd_http_404' !== $res->get_error_code() ) {
 					/* translators: 1: dansal event ID, 2: underlying error message. */
 					$this->store_notice( sprintf( __( 'Failed to publish dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $res->get_error_message() ), 'error' );
 					return;
@@ -1236,6 +1243,11 @@ class WPD_CPT_Event {
 			}
 			if ( ! $prior_cancelled && $curr_cancelled ) {
 				$res = $this->api->post( "/api/v1/events/{$dansal_id}/cancel", array() );
+				// #143 review: unlike /publish, dansal's cancelEvent has no
+				// is_cancelled=0 gate — it's a plain `UPDATE ... WHERE id=?`
+				// that succeeds (204) whether or not the event was already
+				// cancelled, for every role. Confirmed against
+				// cmd/dansal/events.go; no 404-tolerance needed here.
 				if ( is_wp_error( $res ) ) {
 					/* translators: 1: dansal event ID, 2: underlying error message. */
 					$this->store_notice( sprintf( __( 'Failed to cancel dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $res->get_error_message() ), 'error' );
@@ -2012,6 +2024,14 @@ class WPD_CPT_Event {
 		update_post_meta( $post_id, '_wpd_instructor_names', implode( '|', wp_list_pluck( $instructors, 'name' ) ) );
 
 		update_post_meta( $post_id, '_wpd_is_cancelled', ! empty( $event['is_cancelled'] ) ? '1' : '' );
+
+		// #143: record the publish/cancel baseline on every pull (not just
+		// after a successful push), so a legacy event that was already
+		// published/cancelled before #134 added these meta keys gets them
+		// backfilled here instead of only via sync_to_dansal()'s 404
+		// tolerance on the next edit.
+		update_post_meta( $post_id, self::META_LAST_SYNCED_PUBLISHED, ! empty( $event['is_published'] ) ? '1' : '' );
+		update_post_meta( $post_id, self::META_LAST_SYNCED_CANCELLED, ! empty( $event['is_cancelled'] ) ? '1' : '' );
 
 		update_post_meta( $post_id, '_wpd_booking_url', isset( $event['booking_url'] ) ? $event['booking_url'] : '' );
 		update_post_meta( $post_id, '_wpd_food', isset( $event['food'] ) ? $event['food'] : '' );
