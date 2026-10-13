@@ -219,7 +219,7 @@ abstract class WPD_CPT_Person {
 	}
 
 	protected function build_payload( $post_id ) {
-		$payload = array( $this->primary_field() => get_the_title( $post_id ) );
+		$payload = array( $this->primary_field() => get_post_field( 'post_title', $post_id, 'raw' ) );
 		foreach ( $this->field_map() as $meta_key => $dansal_key ) {
 			$payload[ $dansal_key ] = (string) get_post_meta( $post_id, $meta_key, true );
 		}
@@ -301,7 +301,7 @@ abstract class WPD_CPT_Person {
 
 	protected function write_post( $post_id, array $entity ) {
 		$primary = $this->primary_field();
-		if ( isset( $entity[ $primary ] ) && get_the_title( $post_id ) !== $entity[ $primary ] ) {
+		if ( isset( $entity[ $primary ] ) && get_post_field( 'post_title', $post_id, 'raw' ) !== $entity[ $primary ] ) {
 			remove_action( 'save_post_' . static::POST_TYPE, array( $this, 'save' ) );
 			wp_update_post(
 				array(

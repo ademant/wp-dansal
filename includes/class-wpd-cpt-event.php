@@ -777,7 +777,7 @@ class WPD_CPT_Event {
 			return;
 		}
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
-		wp_enqueue_script( 'wpd-admin-event', WPD_PLUGIN_URL . 'assets/js/admin-event.js', array( 'jquery', 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-event.js' ), true );
+		wp_enqueue_script( 'wpd-admin-event', WPD_PLUGIN_URL . 'assets/js/admin-event.js', array( 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-event.js' ), true );
 		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
 		wp_enqueue_script( 'wpd-admin-rooms', WPD_PLUGIN_URL . 'assets/js/admin-rooms.js', array( 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-rooms.js' ), true );
 		WPD_Datetime_Hint::enqueue();
@@ -1158,7 +1158,7 @@ class WPD_CPT_Event {
 		// series-membership endpoints instead (see there, #82).
 
 		return array(
-			'title'              => get_the_title( $post_id ),
+			'title'              => get_post_field( 'post_title', $post_id, 'raw' ),
 			'description'        => $post ? $post->post_content : '',
 			'start_time'         => $this->to_rfc3339( $get( '_wpd_start_time' ) ),
 			'end_time'           => $this->to_rfc3339( $get( '_wpd_end_time' ) ),

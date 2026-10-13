@@ -357,7 +357,7 @@ class WPD_CPT_Series {
 		return array_merge(
 			$owner_fields,
 			array(
-				'title'               => get_the_title( $post_id ),
+				'title'               => get_post_field( 'post_title', $post_id, 'raw' ),
 				'description'         => $post ? $post->post_content : '',
 				'default_location_id' => $location_dansal ? $location_dansal : null,
 				'default_start_time'  => (string) get_post_meta( $post_id, '_wpd_series_start_time_of_day', true ),

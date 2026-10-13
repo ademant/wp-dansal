@@ -722,7 +722,7 @@ class WPD_CPT_Location {
 		wp_enqueue_style( 'wpd-admin', WPD_PLUGIN_URL . 'assets/css/admin.css', array(), wpd_asset_ver( 'assets/css/admin.css' ) );
 		wp_enqueue_style( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.css', array(), '1.9.4' );
 		wp_enqueue_script( 'wpd-leaflet', WPD_PLUGIN_URL . 'assets/vendor/leaflet/leaflet.js', array(), '1.9.4', true );
-		wp_enqueue_script( 'wpd-admin-location', WPD_PLUGIN_URL . 'assets/js/admin-location.js', array( 'jquery', 'wpd-leaflet', 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-location.js' ), true );
+		wp_enqueue_script( 'wpd-admin-location', WPD_PLUGIN_URL . 'assets/js/admin-location.js', array( 'wpd-leaflet', 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-location.js' ), true );
 		wp_localize_script(
             'wpd-admin-location',
             'wpdLocation',
@@ -909,7 +909,7 @@ class WPD_CPT_Location {
 	}
 
 	private function sync_to_dansal( $post_id, $use_existing_id = 0 ) {
-		$title     = get_the_title( $post_id );
+		$title     = get_post_field( 'post_title', $post_id, 'raw' );
 		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
 		$org_id    = $this->settings->get_org_id();
 		$is_room   = self::is_room( $post_id );
@@ -1371,7 +1371,7 @@ class WPD_CPT_Location {
 	 * so the pull can't re-trigger a push right back to dansal.
 	 */
 	private function write_location_post( $post_id, array $loc ) {
-		if ( isset( $loc['location'] ) && get_the_title( $post_id ) !== $loc['location'] ) {
+		if ( isset( $loc['location'] ) && get_post_field( 'post_title', $post_id, 'raw' ) !== $loc['location'] ) {
 			remove_action( 'save_post_' . self::POST_TYPE, array( $this, 'save' ) );
 			wp_update_post(
 				array(
