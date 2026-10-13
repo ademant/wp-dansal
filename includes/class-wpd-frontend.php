@@ -123,31 +123,35 @@ class WPD_Frontend {
 		wp_enqueue_script( 'wpd-map', WPD_PLUGIN_URL . 'assets/js/frontend-map.js', array( 'wpd-leaflet' ), wpd_asset_ver( 'assets/js/frontend-map.js' ), wpd_footer_script_args() );
 	}
 
+	/**
+	 * #126 part 1: the month-nav click is wired through the Interactivity API
+	 * (data-wp-on--click in render_mini_calendar()) instead of a manual
+	 * addEventListener. The REST URL travels as a data-wpd-rest-url attribute
+	 * on the rendered markup rather than wp_localize_script() (which only
+	 * attaches to classic script handles, not script modules) — the route
+	 * itself needs no nonce, since it's a public, read-only GET.
+	 */
 	private function enqueue_mini_calendar_script() {
-		wp_enqueue_script( 'wpd-mini-calendar', WPD_PLUGIN_URL . 'assets/js/frontend-mini-calendar.js', array(), wpd_asset_ver( 'assets/js/frontend-mini-calendar.js' ), wpd_footer_script_args() );
-		wp_localize_script(
+		wp_enqueue_script_module(
 			'wpd-mini-calendar',
-			'wpdMiniCal',
-			array(
-				'restUrl' => rest_url( 'wpd/v1/mini-calendar' ),
-				// Legacy admin-ajax fallback, kept so a cached page that still
-				// carries the old localized data keeps working with new JS.
-				'ajaxurl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'wpd_mini_calendar' ),
-			)
+			WPD_PLUGIN_URL . 'assets/js/frontend-mini-calendar.js',
+			array( '@wordpress/interactivity' ),
+			wpd_asset_ver( 'assets/js/frontend-mini-calendar.js' )
 		);
 	}
 
+	/**
+	 * Same rationale as enqueue_mini_calendar_script() above: the geolocation
+	 * refresh is wired via data-wp-init (see shortcode_nearby()), and the
+	 * REST URL travels as a data-wpd-rest-url attribute instead of
+	 * wp_localize_script().
+	 */
 	private function enqueue_nearby_script() {
-		wp_enqueue_script( 'wpd-nearby', WPD_PLUGIN_URL . 'assets/js/frontend-nearby.js', array(), wpd_asset_ver( 'assets/js/frontend-nearby.js' ), wpd_footer_script_args() );
-		wp_localize_script(
+		wp_enqueue_script_module(
 			'wpd-nearby',
-			'wpdNearby',
-			array(
-				'restUrl' => rest_url( 'wpd/v1/nearby' ),
-				'ajaxurl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( 'wpd_nearby' ),
-			)
+			WPD_PLUGIN_URL . 'assets/js/frontend-nearby.js',
+			array( '@wordpress/interactivity' ),
+			wpd_asset_ver( 'assets/js/frontend-nearby.js' )
 		);
 	}
 
@@ -1269,8 +1273,14 @@ class WPD_Frontend {
 			}
 		}
 
+		// data-wp-init runs requestNearby() once per widget as soon as it
+		// mounts (#126 part 1) — same geolocation-then-refresh behavior
+		// whether or not a fallback org-home center was resolved above,
+		// since the client-side refresh only ever needs the visitor's own
+		// coordinates, not this wrapper's fallback lat/lon.
 		$data_attrs = sprintf(
-			' data-wpd-radius="%s" data-wpd-view="%s" data-wpd-limit="%d" data-wpd-tag="%s" data-wpd-exclude-own="%d" data-wpd-show-cancelled="%d"',
+			' data-wp-interactive="wp-dansal" data-wp-init="callbacks.requestNearby" data-wpd-rest-url="%s" data-wpd-radius="%s" data-wpd-view="%s" data-wpd-limit="%d" data-wpd-tag="%s" data-wpd-exclude-own="%d" data-wpd-show-cancelled="%d"',
+			esc_url( rest_url( 'wpd/v1/nearby' ) ),
 			esc_attr( $atts['radius_km'] ),
 			esc_attr( $atts['view'] ),
 			(int) $atts['limit'],
@@ -1974,10 +1984,10 @@ class WPD_Frontend {
 
 		ob_start();
 		?>
-		<div class="wpd-mini-calendar">
+		<div class="wpd-mini-calendar" data-wp-interactive="wp-dansal" data-wpd-rest-url="<?php echo esc_url( rest_url( 'wpd/v1/mini-calendar' ) ); ?>">
 			<div class="wpd-mini-nav">
 				<?php if ( $archive_url ) : ?>
-					<a class="wpd-mini-prev" data-wpd-month="<?php echo esc_attr( $prev_month ); ?>" data-wpd-year="<?php echo esc_attr( $prev_year ); ?>" href="
+					<a class="wpd-mini-prev" data-wp-on--click="actions.flipMonth" data-wpd-month="<?php echo esc_attr( $prev_month ); ?>" data-wpd-year="<?php echo esc_attr( $prev_year ); ?>" href="
                     <?php
                     echo esc_url(
                         add_query_arg(
@@ -1994,7 +2004,7 @@ class WPD_Frontend {
 				<?php endif; ?>
 				<span class="wpd-mini-title"><?php echo esc_html( date_i18n( 'F Y', mktime( 0, 0, 0, $month, 1, $year ) ) ); ?></span>
 				<?php if ( $archive_url ) : ?>
-					<a class="wpd-mini-next" data-wpd-month="<?php echo esc_attr( $next_month ); ?>" data-wpd-year="<?php echo esc_attr( $next_year ); ?>" href="
+					<a class="wpd-mini-next" data-wp-on--click="actions.flipMonth" data-wpd-month="<?php echo esc_attr( $next_month ); ?>" data-wpd-year="<?php echo esc_attr( $next_year ); ?>" href="
                     <?php
                     echo esc_url(
                         add_query_arg(

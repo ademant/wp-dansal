@@ -9,7 +9,7 @@
  * Text Domain: wp-dansal
  * Domain Path: /languages
  * Requires PHP: 8.1
- * Requires at least: 6.3
+ * Requires at least: 6.5
  * Update URI: https://github.com/ademant/wp-dansal
  */
 

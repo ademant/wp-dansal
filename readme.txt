@@ -1,7 +1,7 @@
 === WP Dansal ===
 Contributors: ademant
 Tags: events, calendar, dance, locations, dansal
-Requires at least: 6.3
+Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.1
 Stable tag: 0.32.0

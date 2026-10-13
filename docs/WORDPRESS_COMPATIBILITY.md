@@ -15,8 +15,8 @@
 
 | WordPress Version | PHP Version | Status | Notes |
 |-------------------|-------------|--------|-------|
-| 6.3+ | 8.1+ | ✅ Fully Supported | Minimum requirements (#124, #127; WP floor raised from 6.0 in 0.24.0 — the plugin's blocks need block API v3 (6.3+) since 0.16.0; 7.4/8.0 dropped in 0.17.0 — both EOL) |
-| 6.5+ | 8.2+ | ✅ Fully Supported | Tested |
+| 6.3-6.4 | 8.1+ | ❌ No longer supported | Superseded (#124, #126, #127; WP floor raised from 6.0 in 0.24.0 for block API v3, then from 6.3 for the Interactivity API/Script Modules API the mini-calendar and `[dansal_nearby]` refresh now use; 7.4/8.0 dropped in 0.17.0 — both EOL) |
+| 6.5+ | 8.2+ | ✅ Fully Supported | Minimum requirements |
 | 7.0 | 8.1-8.4 | ✅ Fully Supported | Current target |
 
 ## Feature Compatibility Tests
@@ -31,7 +31,7 @@
 - **Status:** ✅ Compatible
 - **Details:** Plugin adds no site health warnings
 - **PHP Version:** Declared in readme.txt as 8.1+ (7.4 dropped in 0.17.0 — EOL Nov 2022)
-- **WordPress Version:** Declared in readme.txt as 6.3+ (raised from 6.0 in 0.24.0, #124)
+- **WordPress Version:** Declared in readme.txt as 6.5+ (raised from 6.0 in 0.24.0, #124; raised again from 6.3 to 6.5 for the Interactivity API, #126)
 
 ### 3. REST API Integration
 - **Status:** ✅ Compatible
@@ -162,7 +162,7 @@
 **Status: FULLY COMPATIBLE**
 
 The wp-dansal plugin is fully compatible with:
-- WordPress 6.3 through 7.1 (floor raised from 6.0 in 0.24.0, #124)
+- WordPress 6.5 through 7.1 (floor raised from 6.0 in 0.24.0, #124; raised again from 6.3 in #126 for the Interactivity API/Script Modules API)
 - PHP 8.1 through 8.4 (7.4/8.0 support dropped in 0.17.0 as both are EOL)
 - All modern browsers
 
