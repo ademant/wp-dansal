@@ -1378,8 +1378,16 @@ class WPD_CPT_Event {
 			return;
 		}
 
+		// dansal's canonical event-image route (#146; dansal 9617844, "phase
+		// 23") is /api/v1/events/{id}/image; the old /api/v1/images/{id}
+		// still works as a deprecated alias (RFC 9745 Deprecation header), so
+		// a dansal predating the canonical route (404/405) still gets the
+		// write via that fallback.
 		if ( ! $thumbnail_id ) {
-			$result = $this->api->delete( "/api/v1/images/{$dansal_id}" );
+			$result = $this->api->delete( "/api/v1/events/{$dansal_id}/image" );
+			if ( is_wp_error( $result ) && in_array( $result->get_error_code(), array( 'wpd_http_404', 'wpd_http_405' ), true ) ) {
+				$result = $this->api->delete( "/api/v1/images/{$dansal_id}" );
+			}
 			// A 404 here just means dansal never had an image for this event
 			// in the first place (e.g. it was already cleared dansal-side) —
 			// that's not a failure worth surfacing to the admin.
@@ -1396,7 +1404,10 @@ class WPD_CPT_Event {
 		if ( ! $file_path || ! is_readable( $file_path ) ) {
 			return;
 		}
-		$result = $this->api->post_multipart( "/api/v1/images/{$dansal_id}", $file_path );
+		$result = $this->api->post_multipart( "/api/v1/events/{$dansal_id}/image", $file_path );
+		if ( is_wp_error( $result ) && in_array( $result->get_error_code(), array( 'wpd_http_404', 'wpd_http_405' ), true ) ) {
+			$result = $this->api->post_multipart( "/api/v1/images/{$dansal_id}", $file_path );
+		}
 		if ( is_wp_error( $result ) ) {
 			/* translators: 1: dansal event ID, 2: underlying error message. */
 			$this->store_notice( sprintf( __( 'Failed to upload image for dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $result->get_error_message() ), 'error' );

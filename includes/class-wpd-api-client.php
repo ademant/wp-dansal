@@ -603,7 +603,7 @@ class WPD_Api_Client {
 
 	/**
 	 * Multipart file upload (dansal's image endpoints, e.g. POST
-	 * /api/v1/images/{event_id}, expect multipart/form-data — every other
+	 * /api/v1/events/{event_id}/image, expect multipart/form-data — every other
 	 * endpoint in this client is JSON, so this is kept separate from
 	 * do_request() rather than teaching it a second body encoding).
 	 * WP core has no built-in multipart helper, so the body is hand-built

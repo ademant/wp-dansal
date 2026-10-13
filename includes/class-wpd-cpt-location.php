@@ -908,6 +908,24 @@ class WPD_CPT_Location {
 		);
 	}
 
+	/**
+	 * Links a location to an organization. dansal's canonical route (#146;
+	 * dansal b10e7f9, #1380) is PUT .../organizations/{org_id} — no body,
+	 * 204, idempotent. The old POST .../assign-org {"organization_id":N}
+	 * still works as a deprecated alias (RFC 9745 Deprecation header), so a
+	 * dansal predating the canonical route (404/405) still gets a working
+	 * assignment via that fallback.
+	 *
+	 * @return true|WP_Error
+	 */
+	private function assign_org( $location_id, $org_id ) {
+		$result = $this->api->put( "/api/v1/locations/{$location_id}/organizations/{$org_id}", null );
+		if ( is_wp_error( $result ) && in_array( $result->get_error_code(), array( 'wpd_http_404', 'wpd_http_405' ), true ) ) {
+			$result = $this->api->post( "/api/v1/locations/{$location_id}/assign-org", array( 'organization_id' => $org_id ) );
+		}
+		return is_wp_error( $result ) ? $result : true;
+	}
+
 	private function sync_to_dansal( $post_id, $use_existing_id = 0 ) {
 		$title     = get_post_field( 'post_title', $post_id, 'raw' );
 		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
@@ -922,7 +940,7 @@ class WPD_CPT_Location {
 		}
 
 		if ( ! $dansal_id && $use_existing_id ) {
-			$assign = $this->api->post( "/api/v1/locations/{$use_existing_id}/assign-org", array( 'organization_id' => $org_id ) );
+			$assign = $this->assign_org( $use_existing_id, $org_id );
 			if ( is_wp_error( $assign ) ) {
 				/* translators: 1: dansal location ID, 2: underlying error message. */
 				$this->store_notice( sprintf( __( 'Failed to assign your organization to existing dansal location #%1$d: %2$s', 'wp-dansal' ), $use_existing_id, $assign->get_error_message() ), 'error' );
@@ -967,7 +985,7 @@ class WPD_CPT_Location {
 			$body        = is_array( $data ) && isset( $data['body'] ) && is_array( $data['body'] ) ? $data['body'] : array();
 			$existing_id = ! empty( $body['existing_id'] ) ? (int) $body['existing_id'] : 0;
 			if ( 'wpd_http_409' === $result->get_error_code() && $existing_id > 0 ) {
-				$assign = $this->api->post( "/api/v1/locations/{$existing_id}/assign-org", array( 'organization_id' => $org_id ) );
+				$assign = $this->assign_org( $existing_id, $org_id );
 				if ( is_wp_error( $assign ) ) {
 					/* translators: 1: dansal location ID, 2: underlying error message. */
 					$this->store_notice( sprintf( __( 'Duplicate of dansal location #%1$d, but assigning your organization to it failed: %2$s', 'wp-dansal' ), $existing_id, $assign->get_error_message() ), 'error' );
