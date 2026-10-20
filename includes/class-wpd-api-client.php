@@ -78,7 +78,6 @@ class WPD_Api_Client {
 			return true;
 		}
 		if ( 400 === $code ) {
-			$this->settings->mark_apikey_no_expiry();
 			return new WP_Error( 'wpd_apikey_no_expiry', __( 'Publisher API key has no expiry; renewal not applicable.', 'wp-dansal' ) );
 		}
 		if ( 401 === $code ) {
@@ -135,13 +134,14 @@ class WPD_Api_Client {
 	 * (default 7 days). Filter `wpd_apikey_renew_leadtime` to tune (seconds).
 	 */
 	public function apikey_should_renew() {
-		if ( $this->settings->get_api_key_no_expiry() || $this->settings->is_api_key_dead() ) {
+		if ( $this->settings->is_api_key_dead() ) {
 			return false;
 		}
 		$exp = $this->settings->get_api_key_expires_at();
 		if ( $exp <= 0 ) {
-			// Never checked — attempt once so we discover whether it has an
-			// expiry (200) or not (400 → mark no-expiry).
+			// Unknown expiry: probe so an expiring key gets renewed and a
+			// lapsed one is detected (401 → dead). A 400 just means there is
+			// nothing to renew, and is cheap to repeat on the daily cron.
 			return true;
 		}
 		$leadtime = (int) apply_filters( 'wpd_apikey_renew_leadtime', 7 * DAY_IN_SECONDS );

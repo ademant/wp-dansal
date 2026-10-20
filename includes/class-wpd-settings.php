@@ -215,10 +215,6 @@ class WPD_Settings {
 		return (int) $this->get( 'api_key_expires_at' );
 	}
 
-	public function get_api_key_no_expiry() {
-		return (bool) $this->get( 'api_key_no_expiry' );
-	}
-
 	public function is_api_key_dead() {
 		return (bool) $this->get( 'api_key_dead' );
 	}
@@ -312,12 +308,6 @@ class WPD_Settings {
 		$opts['api_key_dead']       = false;
 		update_option( self::OPTION, $opts );
 		delete_transient( WPD_Api_Client::TOKEN_TRANSIENT );
-	}
-
-	public function mark_apikey_no_expiry() {
-		$opts                      = $this->get_all();
-		$opts['api_key_no_expiry'] = true;
-		update_option( self::OPTION, $opts );
 	}
 
 	/**
@@ -611,9 +601,9 @@ class WPD_Settings {
 		}
 
 		// A new real plaintext key typed in the admin form resets renewal state.
-		// Programmatic callers (record_apikey_renewed, mark_apikey_no_expiry,
-		// mark_apikey_dead) pass '***' as the api_key and supply their own
-		// lifecycle values in $input — honour those verbatim rather than
+		// Programmatic callers (record_apikey_renewed, mark_apikey_dead) pass
+		// '***' as the api_key and supply their own lifecycle values in $input
+		// — honour those verbatim rather than
 		// resetting, so renew expiry / no-expiry / dead flags survive.
 		$real_plaintext_typed = ! empty( $input['api_key'] ) && '***' !== $input['api_key'];
 		if ( $real_plaintext_typed ) {
