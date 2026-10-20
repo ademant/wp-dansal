@@ -103,7 +103,9 @@ window.wpdInitMaps = function () {
 	// #99: multiple map containers may share the id (initial render + AJAX swap
 	// for [dansal_nearby]); querySelectorAll picks up whichever is currently
 	// in the DOM. wpdMapReady guards against double init on the same node.
-	document.querySelectorAll( '.wpd-locations-map' ).forEach( wpdInitMap );
+	// .wpd-single-map / .wpd-event-map are the single location and event
+	// templates' inlays (#147); they share this init path with the archive map.
+	document.querySelectorAll( '.wpd-locations-map, .wpd-single-map, .wpd-event-map' ).forEach( wpdInitMap );
 };
 
 document.addEventListener( 'DOMContentLoaded', function () {
