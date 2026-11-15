@@ -70,6 +70,78 @@ class WPD_CPT_Location {
 		add_filter( 'manage_' . self::POST_TYPE . '_posts_columns', array( $this, 'columns' ) );
 		add_action( 'manage_' . self::POST_TYPE . '_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
 		add_action( 'load-edit.php', array( $this, 'maybe_pull_sync' ) );
+		add_filter( 'post_row_actions', array( $this, 'row_actions' ), 10, 2 );
+	}
+
+	/**
+	 * #159: whether the current user may create events, and this location
+	 * can be attached to one (the event form only offers synced locations).
+	 */
+	private static function can_add_event_at( $post_id ) {
+		$event_type = get_post_type_object( WPD_CPT_Event::POST_TYPE );
+		return $event_type
+			&& current_user_can( $event_type->cap->create_posts )
+			&& (int) get_post_meta( $post_id, self::META_DANSAL_ID, true ) > 0;
+	}
+
+	/** #159: "Add event here" on each location row (rooms included). */
+	public function row_actions( $actions, $post ) {
+		if ( self::POST_TYPE !== $post->post_type || ! self::can_add_event_at( $post->ID ) ) {
+			return $actions;
+		}
+		$actions['wpd_add_event'] = sprintf(
+			'<a href="%s">%s</a>',
+			esc_url( WPD_CPT_Event::new_event_url( $post->ID ) ),
+			esc_html__( 'Add event here', 'wp-dansal' )
+		);
+		return $actions;
+	}
+
+	/** #159: sidebar box with an "Add event here" button and upcoming events. */
+	public function render_events_box( $post ) {
+		if ( 'auto-draft' === $post->post_status ) {
+			echo '<p>' . esc_html__( 'Save this location first.', 'wp-dansal' ) . '</p>';
+			return;
+		}
+		if ( self::can_add_event_at( $post->ID ) ) {
+			printf(
+				'<p><a class="button button-primary" href="%s">%s</a></p>',
+				esc_url( WPD_CPT_Event::new_event_url( $post->ID ) ),
+				esc_html__( 'Add event here', 'wp-dansal' )
+			);
+		} elseif ( ! (int) get_post_meta( $post->ID, self::META_DANSAL_ID, true ) ) {
+			echo '<p>' . esc_html__( 'Events can be added once this location is synced to dansal.', 'wp-dansal' ) . '</p>';
+		}
+
+		$events = WPD_CPT_Event::upcoming_at_location( $post->ID, 5 );
+		if ( ! $events ) {
+			echo '<p>' . esc_html__( 'No upcoming events here.', 'wp-dansal' ) . '</p>';
+		} else {
+			$format = get_option( 'date_format' ) . ' ' . get_option( 'time_format' );
+			echo '<ul class="wpd-location-events">';
+			foreach ( $events as $event ) {
+				$start = get_post_meta( $event->ID, '_wpd_start_time', true );
+				$dt    = $start ? date_create( $start, wp_timezone() ) : false;
+				$when  = $dt ? wp_date( $format, $dt->getTimestamp() ) : '';
+				$title = get_the_title( $event ) ? get_the_title( $event ) : __( '(no title)', 'wp-dansal' );
+				$link  = get_edit_post_link( $event->ID );
+				echo '<li>';
+				echo $link ? '<a href="' . esc_url( $link ) . '">' . esc_html( $title ) . '</a>' : esc_html( $title );
+				if ( $when ) {
+					echo '<br /><small>' . esc_html( $when ) . '</small>';
+				}
+				if ( 'publish' !== $event->post_status ) {
+					echo ' <small>(' . esc_html( get_post_status_object( $event->post_status )->label ) . ')</small>';
+				}
+				echo '</li>';
+			}
+			echo '</ul>';
+		}
+		printf(
+			'<p><a href="%s">%s</a></p>',
+			esc_url( WPD_CPT_Event::list_url( $post->ID ) ),
+			esc_html__( 'View all events here', 'wp-dansal' )
+		);
 	}
 
 	public function register_post_type() {
@@ -181,6 +253,7 @@ class WPD_CPT_Location {
 
 	public function add_meta_boxes() {
 		add_meta_box( 'wpd_location_details', __( 'Dansal Location Details', 'wp-dansal' ), array( $this, 'render_meta_box' ), self::POST_TYPE, 'normal', 'high' );
+		add_meta_box( 'wpd_location_events', __( 'Events here', 'wp-dansal' ), array( $this, 'render_events_box' ), self::POST_TYPE, 'side', 'default' );
 	}
 
 	private function field( $post_id, $key, $default_value = '' ) {
