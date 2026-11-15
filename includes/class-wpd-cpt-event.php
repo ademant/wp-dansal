@@ -85,6 +85,10 @@ class WPD_CPT_Event {
 
 		add_filter( 'post_row_actions', array( $this, 'row_actions' ), 10, 2 );
 		add_action( 'post_submitbox_misc_actions', array( $this, 'render_clone_button' ) );
+
+		// #159: filter the event list by location (building incl. its rooms).
+		add_action( 'restrict_manage_posts', array( $this, 'render_location_filter' ) );
+		add_action( 'pre_get_posts', array( $this, 'apply_location_filter' ) );
 		WPD_Admin_Action::register( 'wpd_clone_event', 'edit_posts', array( $this, 'handle_clone' ) );
 
 		add_action( 'admin_menu', array( $this, 'add_assign_series_page' ) );
@@ -315,6 +319,135 @@ class WPD_CPT_Event {
 			esc_html__( 'Assign to series…', 'wp-dansal' )
 		);
 		return $actions;
+	}
+
+	/**
+	 * #159: new-event screen with the location (building or room) preselected.
+	 *
+	 * @param int $location_post_id WP post ID of a dansal_location.
+	 * @return string Admin URL (unescaped).
+	 */
+	public static function new_event_url( $location_post_id ) {
+		return add_query_arg(
+			array(
+				'post_type'    => self::POST_TYPE,
+				'wpd_location' => (int) $location_post_id,
+			),
+			admin_url( 'post-new.php' )
+		);
+	}
+
+	/**
+	 * #159: the event list filtered to a location and its rooms.
+	 *
+	 * @param int $location_post_id WP post ID of a dansal_location.
+	 * @return string Admin URL (unescaped).
+	 */
+	public static function list_url( $location_post_id ) {
+		return add_query_arg(
+			array(
+				'post_type'    => self::POST_TYPE,
+				'wpd_location' => (int) $location_post_id,
+			),
+			admin_url( 'edit.php' )
+		);
+	}
+
+	/**
+	 * The ?wpd_location=<id> query arg, if it names an existing location.
+	 *
+	 * @return int WP post ID of the location, or 0.
+	 */
+	public static function requested_location() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only prefill/filter, no state change.
+		$id = isset( $_GET['wpd_location'] ) ? absint( $_GET['wpd_location'] ) : 0;
+		return ( $id && WPD_CPT_Location::POST_TYPE === get_post_type( $id ) ) ? $id : 0;
+	}
+
+	/**
+	 * #159: upcoming local events at a location or any of its rooms, soonest
+	 * first. Includes drafts and pending posts, since this feeds admin screens.
+	 *
+	 * @param int $location_post_id WP post ID of a dansal_location.
+	 * @param int $limit            Maximum number of posts.
+	 * @return WP_Post[]
+	 */
+	public static function upcoming_at_location( $location_post_id, $limit = 5 ) {
+		return get_posts(
+			array(
+				'post_type'      => self::POST_TYPE,
+				'post_status'    => array( 'publish', 'future', 'draft', 'pending', 'private' ),
+				'posts_per_page' => (int) $limit,
+				'meta_key'       => '_wpd_start_time', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+				'orderby'        => 'meta_value',
+				'order'          => 'ASC',
+				'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+					array(
+						'key'     => '_wpd_location_post_id',
+						'value'   => WPD_CPT_Location::venue_post_ids( $location_post_id ),
+						'compare' => 'IN',
+					),
+					array(
+						'key'     => '_wpd_start_time',
+						'value'   => current_time( 'Y-m-d\TH:i' ),
+						'compare' => '>=',
+					),
+				),
+			)
+		);
+	}
+
+	/** #159: location dropdown above the event list table. */
+	public function render_location_filter( $post_type ) {
+		if ( self::POST_TYPE !== $post_type ) {
+			return;
+		}
+		$selected  = self::requested_location();
+		$locations = get_posts(
+			array(
+				'post_type'      => WPD_CPT_Location::POST_TYPE,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+			)
+		);
+		$options = array();
+		foreach ( $locations as $location ) {
+			$options[ $location->ID ] = WPD_CPT_Location::label( $location->ID );
+		}
+		asort( $options, SORT_NATURAL | SORT_FLAG_CASE );
+		?>
+		<label for="wpd-location-filter" class="screen-reader-text"><?php esc_html_e( 'Filter by location', 'wp-dansal' ); ?></label>
+		<select name="wpd_location" id="wpd-location-filter">
+			<option value=""><?php esc_html_e( 'All locations', 'wp-dansal' ); ?></option>
+			<?php foreach ( $options as $id => $label ) : ?>
+				<option value="<?php echo esc_attr( $id ); ?>" <?php selected( $selected, $id ); ?>><?php echo esc_html( $label ); ?></option>
+			<?php endforeach; ?>
+		</select>
+		<?php
+	}
+
+	/** #159: restrict the admin event list to the requested location and its rooms. */
+	public function apply_location_filter( $query ) {
+		if ( ! is_admin() || ! $query->is_main_query() || self::POST_TYPE !== $query->get( 'post_type' ) ) {
+			return;
+		}
+		global $pagenow;
+		if ( 'edit.php' !== $pagenow ) {
+			return;
+		}
+		$location = self::requested_location();
+		if ( ! $location ) {
+			return;
+		}
+		$meta_query   = (array) $query->get( 'meta_query' );
+		$meta_query[] = array(
+			'key'     => '_wpd_location_post_id',
+			'value'   => WPD_CPT_Location::venue_post_ids( $location ),
+			'compare' => 'IN',
+		);
+		$query->set( 'meta_query', $meta_query );
 	}
 
 	public function add_assign_series_page() {
@@ -633,6 +766,14 @@ class WPD_CPT_Event {
 		$overlay_values = 'auto-draft' === $post->post_status
 			? WPD_Event_Prefill::resolve( $this->settings->get_event_defaults(), $stored )
 			: $stored;
+		// #159: "Add event here" from a location links to post-new.php with
+		// ?wpd_location=<id>. Prefill only; nothing is stored until save.
+		if ( 'auto-draft' === $post->post_status ) {
+			$requested = self::requested_location();
+			if ( $requested ) {
+				$overlay_values['_wpd_location_post_id'] = (string) $requested;
+			}
+		}
 
 		$hint = $this->resolve_datetime_hint( $post->ID );
 		?>
