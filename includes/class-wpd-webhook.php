@@ -18,6 +18,7 @@ class WPD_Webhook {
 
 	/** Seen-nonce replay guard, keyed per-nonce; TTL matches the accepted skew window. */
 	const NONCE_TRANSIENT_PREFIX = 'wpd_webhook_nonce_';
+	const RATE_TRANSIENT_PREFIX  = 'wpd_webhook_rate_';
 
 	/** @var WPD_Settings */
 	private $settings;
@@ -51,6 +52,10 @@ class WPD_Webhook {
 	 * re-fetch, which reuses the existing pull-sync code.
 	 */
 	public function receive( WP_REST_Request $request ) {
+		if ( $this->over_rate_limit() ) {
+			return new WP_Error( 'wpd_webhook_rate_limited', __( 'Too many webhook deliveries from this address.', 'wp-dansal' ), array( 'status' => 429 ) );
+		}
+
 		$verified = $this->verify_signature( $request );
 		if ( is_wp_error( $verified ) ) {
 			return $verified;
@@ -97,6 +102,43 @@ class WPD_Webhook {
 			),
 			202
 		);
+	}
+
+	/**
+	 * Fixed-window per-IP counter (one bucket per minute). Counts every
+	 * delivery attempt, signed or not, so a flood of unsigned requests is
+	 * stopped before any HMAC or JSON work. Keep the limit well above dansal's
+	 * real delivery rate: dansal counts a 429 as a failed delivery and retries
+	 * it, and disables the subscription after repeated failures.
+	 */
+	private function over_rate_limit() {
+		$limit = (int) apply_filters( 'wpd_webhook_rate_limit', 300 );
+		$key   = self::RATE_TRANSIENT_PREFIX . md5( $this->client_ip() . ':' . (int) floor( time() / MINUTE_IN_SECONDS ) );
+		$count = (int) get_transient( $key );
+		if ( $count >= $limit ) {
+			return true;
+		}
+		set_transient( $key, $count + 1, MINUTE_IN_SECONDS * 2 );
+		return false;
+	}
+
+	/**
+	 * The caller's address. Behind the local nginx reverse proxy REMOTE_ADDR
+	 * is always loopback, which would put every caller in one bucket, so the
+	 * forwarded address is honoured only when the direct peer is loopback
+	 * (the same rule dansal applies, dansal #1534). Otherwise a remote caller
+	 * could spoof its own address by sending the header.
+	 */
+	private function client_ip() {
+		$peer = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '';
+		if ( ! in_array( $peer, array( '127.0.0.1', '::1' ), true ) ) {
+			return $peer;
+		}
+		$forwarded = isset( $_SERVER['HTTP_X_REAL_IP'] ) ? (string) $_SERVER['HTTP_X_REAL_IP'] : '';
+		if ( '' === $forwarded && isset( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+			$forwarded = trim( explode( ',', (string) $_SERVER['HTTP_X_FORWARDED_FOR'] )[0] );
+		}
+		return false !== filter_var( $forwarded, FILTER_VALIDATE_IP ) ? $forwarded : $peer;
 	}
 
 	/**
