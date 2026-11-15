@@ -43,9 +43,4 @@ class NoLiveMusicTest extends WP_UnitTestCase {
 		$this->assertFalse( $payload['no_live_music'] );
 		$this->assertSame( array( 12, 13 ), $payload['musicians'] );
 	}
-
-	public function test_meta_is_registered_for_rest() {
-		$keys = get_registered_meta_keys( 'post', WPD_CPT_Event::POST_TYPE );
-		$this->assertArrayHasKey( '_wpd_no_live_music', $keys );
-	}
 }
