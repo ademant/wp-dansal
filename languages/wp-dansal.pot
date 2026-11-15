@@ -35,10 +35,10 @@ msgid "ademant"
 msgstr ""
 
 #: includes/class-wpd-admin-action.php:32
-#: includes/class-wpd-cpt-event.php:333
-#: includes/class-wpd-cpt-event.php:441
-#: includes/class-wpd-cpt-event.php:1826
-#: includes/class-wpd-cpt-event.php:1868
+#: includes/class-wpd-cpt-event.php:466
+#: includes/class-wpd-cpt-event.php:574
+#: includes/class-wpd-cpt-event.php:1967
+#: includes/class-wpd-cpt-event.php:2009
 #: includes/class-wpd-cpt-person.php:124
 #: includes/class-wpd-cpt-series.php:587
 msgid "Insufficient permissions."
@@ -102,378 +102,386 @@ msgstr ""
 msgid "Tile proxy returned HTTP %d"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:105
-#: includes/class-wpd-cpt-event.php:315
+#: includes/class-wpd-cpt-event.php:109
+#: includes/class-wpd-cpt-event.php:319
 msgid "Assign to series…"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:106
+#: includes/class-wpd-cpt-event.php:110
 msgid "Accept dansal update"
 msgstr ""
 
 #. translators: 1: number of events with an accepted pending pull, 2: number of selected rows that had no pending update.
-#: includes/class-wpd-cpt-event.php:138
+#: includes/class-wpd-cpt-event.php:142
 #, php-format
 msgid "Accepted %1$d dansal update(s). %2$d selected event(s) had no pending update."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:181
+#: includes/class-wpd-cpt-event.php:185
 msgid "Dance Events"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:182
+#: includes/class-wpd-cpt-event.php:186
 msgid "Dance Event"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:183
+#: includes/class-wpd-cpt-event.php:187
 msgid "Add New Event"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:184
+#: includes/class-wpd-cpt-event.php:188
 msgid "Edit Event"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:264
-#: includes/class-wpd-cpt-event.php:643
+#: includes/class-wpd-cpt-event.php:268
+#: includes/class-wpd-cpt-event.php:784
 #: includes/class-wpd-event-fields.php:341
 msgid "Start"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:265
+#: includes/class-wpd-cpt-event.php:269
 #: includes/class-wpd-event-fields.php:157
 msgid "Location"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:266
-#: includes/class-wpd-cpt-location.php:164
+#: includes/class-wpd-cpt-event.php:270
+#: includes/class-wpd-cpt-location.php:236
 #: includes/class-wpd-cpt-person.php:82
 msgid "Dansal ID"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:283
-#: includes/class-wpd-cpt-location.php:173
+#: includes/class-wpd-cpt-event.php:287
+#: includes/class-wpd-cpt-location.php:245
 #: includes/class-wpd-cpt-person.php:90
 msgid "not synced"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:285
+#: includes/class-wpd-cpt-event.php:289
 msgid "pending update"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:292
+#: includes/class-wpd-cpt-event.php:296
 msgid "Dansal Event Details"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:303
+#: includes/class-wpd-cpt-event.php:307
 msgid "Clone"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:323
-#: includes/class-wpd-cpt-event.php:324
-#: includes/class-wpd-cpt-event.php:378
+#: includes/class-wpd-cpt-event.php:421
+msgid "Filter by location"
+msgstr ""
+
+#: includes/class-wpd-cpt-event.php:423
+msgid "All locations"
+msgstr ""
+
+#: includes/class-wpd-cpt-event.php:456
+#: includes/class-wpd-cpt-event.php:457
+#: includes/class-wpd-cpt-event.php:511
 msgid "Assign to series"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:353
-#: includes/class-wpd-cpt-event.php:543
+#: includes/class-wpd-cpt-event.php:486
+#: includes/class-wpd-cpt-event.php:676
 msgid "Not a dansal event."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:380
+#: includes/class-wpd-cpt-event.php:513
 msgid "Events:"
 msgstr ""
 
 #. translators: %s: event title (wrapped in <strong>)
-#: includes/class-wpd-cpt-event.php:390
+#: includes/class-wpd-cpt-event.php:523
 #, php-format
 msgid "Event: %s"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:400
-#: includes/class-wpd-cpt-event.php:664
+#: includes/class-wpd-cpt-event.php:533
+#: includes/class-wpd-cpt-event.php:805
 msgid "Series"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:404
+#: includes/class-wpd-cpt-event.php:537
 msgid "— no change —"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:406
+#: includes/class-wpd-cpt-event.php:539
 msgid "— detach from series —"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:414
+#: includes/class-wpd-cpt-event.php:547
 msgid "Save"
 msgstr ""
 
 #. translators: %s: event title.
-#: includes/class-wpd-cpt-event.php:501
+#: includes/class-wpd-cpt-event.php:634
 #, php-format
 msgid "Event \"%s\" was saved locally but its series was not synced to dansal: the selected series has not been synced yet."
 msgstr ""
 
 #. translators: 1: dansal event ID, 2: underlying error message.
-#: includes/class-wpd-cpt-event.php:507
+#: includes/class-wpd-cpt-event.php:640
 #, php-format
 msgid "Failed to attach dansal event #%1$d to its series: %2$s"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:523
+#: includes/class-wpd-cpt-event.php:656
 msgid "Clone this event"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:539
+#: includes/class-wpd-cpt-event.php:672
 msgid "Cannot clone this event."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:559
+#: includes/class-wpd-cpt-event.php:692
 msgid "Failed to create clone."
 msgstr ""
 
 #. translators: 1: series name, 2: time range (e.g. "20:00–22:00")
-#: includes/class-wpd-cpt-event.php:584
+#: includes/class-wpd-cpt-event.php:717
 #, php-format
 msgid "Series %1$s: %2$s"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:623
+#: includes/class-wpd-cpt-event.php:756
 msgid "Synced with dansal event #"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:640
+#: includes/class-wpd-cpt-event.php:781
 msgid "When & where"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:653
+#: includes/class-wpd-cpt-event.php:794
 #: includes/class-wpd-event-fields.php:342
 msgid "End"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:679
+#: includes/class-wpd-cpt-event.php:820
 msgid "— not part of a series —"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:690
+#: includes/class-wpd-cpt-event.php:831
 msgid "Classification"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:697
+#: includes/class-wpd-cpt-event.php:838
 msgid "Pricing & booking"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:704
+#: includes/class-wpd-cpt-event.php:845
 #: includes/class-wpd-event-fields.php:334
 msgid "Timetable"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:711
+#: includes/class-wpd-cpt-event.php:852
 msgid "Amenities & floor"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:718
+#: includes/class-wpd-cpt-event.php:859
 msgid "People"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:721
+#: includes/class-wpd-cpt-event.php:862
 #: includes/class-wpd-cpt-musician.php:15
 msgid "Musicians"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:723
+#: includes/class-wpd-cpt-event.php:864
 msgid "Search musicians…"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:726
+#: includes/class-wpd-cpt-event.php:867
 msgid "No live music (DJ / recorded)"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:728
+#: includes/class-wpd-cpt-event.php:869
 msgid "dansal does not allow this together with musicians; it is cleared when musicians are listed."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:732
+#: includes/class-wpd-cpt-event.php:873
 #: includes/class-wpd-cpt-instructor.php:15
 msgid "Instructors"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:733
+#: includes/class-wpd-cpt-event.php:874
 msgid "Search instructors…"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:741
+#: includes/class-wpd-cpt-event.php:882
 msgid "Status"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:746
+#: includes/class-wpd-cpt-event.php:887
 msgid "This post is published, so it is synced to dansal as a public event. Switch it back to Draft/Pending to unpublish it in dansal too."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:748
+#: includes/class-wpd-cpt-event.php:889
 msgid "This post is not published yet, so it is synced to dansal as a draft (not publicly visible). Publishing this WordPress post makes it public in dansal."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:754
+#: includes/class-wpd-cpt-event.php:895
 #: includes/class-wpd-frontend.php:943
 #: includes/class-wpd-frontend.php:1152
 #: includes/class-wpd-frontend.php:1712
 msgid "Cancelled"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:771
-#: includes/class-wpd-cpt-event.php:806
+#: includes/class-wpd-cpt-event.php:912
+#: includes/class-wpd-cpt-event.php:947
 msgid "Create / edit local copy"
 msgstr ""
 
 #. translators: %s: name typed by the user.
-#: includes/class-wpd-cpt-event.php:801
+#: includes/class-wpd-cpt-event.php:942
 #, php-format
 msgid "Create \"%s\" as new musician"
 msgstr ""
 
 #. translators: %s: name typed by the user.
-#: includes/class-wpd-cpt-event.php:803
+#: includes/class-wpd-cpt-event.php:944
 #, php-format
 msgid "Create \"%s\" as new instructor"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:804
+#: includes/class-wpd-cpt-event.php:945
 msgid "Click again to confirm"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:805
+#: includes/class-wpd-cpt-event.php:946
 msgid "Create failed — click to retry"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:807
+#: includes/class-wpd-cpt-event.php:948
 msgid "Open local copy"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:808
+#: includes/class-wpd-cpt-event.php:949
 msgid "Could not create local copy."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:817
+#: includes/class-wpd-cpt-event.php:958
 #: includes/class-wpd-cpt-series.php:245
 #: includes/class-wpd-event-fields.php:172
 msgid "— no specific room —"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:952
+#: includes/class-wpd-cpt-event.php:1093
 #: includes/class-wpd-settings.php:1216
 msgid "Unexpected response from dansal."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:981
+#: includes/class-wpd-cpt-event.php:1122
 msgid "Too many entities created in a short time — please wait a moment and try again."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:1003
-#: includes/class-wpd-cpt-location.php:704
+#: includes/class-wpd-cpt-event.php:1144
+#: includes/class-wpd-cpt-location.php:777
 msgid "Invalid input."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:1010
+#: includes/class-wpd-cpt-event.php:1151
 msgid "Could not fetch entity from dansal."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:1019
+#: includes/class-wpd-cpt-event.php:1160
 msgid "Failed to create local copy."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:1088
+#: includes/class-wpd-cpt-event.php:1229
 msgid "\"No live music\" was cleared because the event lists musicians."
 msgstr ""
 
 #. translators: %s: event title.
-#: includes/class-wpd-cpt-event.php:1231
+#: includes/class-wpd-cpt-event.php:1372
 #, php-format
 msgid "Event \"%s\" was saved locally but not synced to dansal: select a synced location first."
 msgstr ""
 
 #. translators: 1: dansal event ID, 2: underlying error message.
-#: includes/class-wpd-cpt-event.php:1264
+#: includes/class-wpd-cpt-event.php:1405
 #, php-format
 msgid "Failed to publish dansal event #%1$d: %2$s"
 msgstr ""
 
 #. translators: 1: dansal event ID, 2: underlying error message.
-#: includes/class-wpd-cpt-event.php:1278
+#: includes/class-wpd-cpt-event.php:1419
 #, php-format
 msgid "Failed to cancel dansal event #%1$d: %2$s"
 msgstr ""
 
 #. translators: 1: dansal event ID, 2: underlying error message.
-#: includes/class-wpd-cpt-event.php:1294
+#: includes/class-wpd-cpt-event.php:1435
 #, php-format
 msgid "Failed to clear location on dansal event #%1$d: %2$s"
 msgstr ""
 
 #. translators: %d: dansal event ID.
-#: includes/class-wpd-cpt-event.php:1336
+#: includes/class-wpd-cpt-event.php:1477
 #, php-format
 msgid "Dansal event #%d changed since your last sync — your edit was not applied. Review the pending update on the events list."
 msgstr ""
 
 #. translators: 1: dansal event ID, 2: underlying error message.
-#: includes/class-wpd-cpt-event.php:1341
+#: includes/class-wpd-cpt-event.php:1482
 #, php-format
 msgid "Failed to update dansal event #%1$d: %2$s"
 msgstr ""
 
 #. translators: %s: underlying error message.
-#: includes/class-wpd-cpt-event.php:1368
+#: includes/class-wpd-cpt-event.php:1509
 #, php-format
 msgid "Failed to create dansal event: %s"
 msgstr ""
 
 #. translators: %d: newly created dansal event ID.
-#: includes/class-wpd-cpt-event.php:1385
+#: includes/class-wpd-cpt-event.php:1526
 #, php-format
 msgid "Created dansal event #%d."
 msgstr ""
 
 #. translators: 1: dansal event ID, 2: underlying error message.
-#: includes/class-wpd-cpt-event.php:1421
+#: includes/class-wpd-cpt-event.php:1562
 #, php-format
 msgid "Failed to remove image on dansal event #%1$d: %2$s"
 msgstr ""
 
 #. translators: 1: dansal event ID, 2: underlying error message.
-#: includes/class-wpd-cpt-event.php:1438
+#: includes/class-wpd-cpt-event.php:1579
 #, php-format
 msgid "Failed to upload image for dansal event #%1$d: %2$s"
 msgstr ""
 
 #. translators: 1: dansal event ID, 2: underlying error message.
-#: includes/class-wpd-cpt-event.php:1483
+#: includes/class-wpd-cpt-event.php:1624
 #, php-format
 msgid "Failed to update dansal event #%1$d timetable: %2$s"
 msgstr ""
 
 #. translators: 1: number of newly imported events, 2: number of refreshed events.
-#: includes/class-wpd-cpt-event.php:1560
+#: includes/class-wpd-cpt-event.php:1701
 #, php-format
 msgid "Synced with dansal: %1$d new event(s) imported, %2$d refreshed."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:1590
+#: includes/class-wpd-cpt-event.php:1731
 msgid "Unexpected event payload from dansal."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:1815
+#: includes/class-wpd-cpt-event.php:1956
 msgid "Dansal has newer changes for this event. Accepting will overwrite the WordPress fields with the dansal version."
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:1817
+#: includes/class-wpd-cpt-event.php:1958
 msgid "Accept dansal version"
 msgstr ""
 
-#: includes/class-wpd-cpt-event.php:1819
+#: includes/class-wpd-cpt-event.php:1960
 msgid "Ignore this update"
 msgstr ""
 
 #. translators: 1: event title, 2: dansal location ID.
-#: includes/class-wpd-cpt-event.php:1908
+#: includes/class-wpd-cpt-event.php:2049
 #, php-format
 msgid "Event \"%1$s\": dansal location #%2$d could not be imported, so the previous local location was kept."
 msgstr ""
@@ -496,180 +504,209 @@ msgstr ""
 msgid "Description"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:80
+#: includes/class-wpd-cpt-location.php:95
+#: includes/class-wpd-cpt-location.php:110
+msgid "Add event here"
+msgstr ""
+
+#: includes/class-wpd-cpt-location.php:103
+msgid "Save this location first."
+msgstr ""
+
+#: includes/class-wpd-cpt-location.php:113
+msgid "Events can be added once this location is synced to dansal."
+msgstr ""
+
+#: includes/class-wpd-cpt-location.php:118
+msgid "No upcoming events here."
+msgstr ""
+
+#: includes/class-wpd-cpt-location.php:126
+msgid "(no title)"
+msgstr ""
+
+#: includes/class-wpd-cpt-location.php:143
+msgid "View all events here"
+msgstr ""
+
+#: includes/class-wpd-cpt-location.php:152
 msgid "Dance Locations"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:81
+#: includes/class-wpd-cpt-location.php:153
 msgid "Dance Location"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:82
+#: includes/class-wpd-cpt-location.php:154
 msgid "Add New Location"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:83
+#: includes/class-wpd-cpt-location.php:155
 msgid "Edit Location"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:165
-#: includes/class-wpd-cpt-location.php:335
+#: includes/class-wpd-cpt-location.php:237
+#: includes/class-wpd-cpt-location.php:408
 msgid "Town"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:166
+#: includes/class-wpd-cpt-location.php:238
 msgid "Room of"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:183
+#: includes/class-wpd-cpt-location.php:255
 msgid "Dansal Location Details"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:200
-#: includes/class-wpd-cpt-location.php:289
+#: includes/class-wpd-cpt-location.php:256
+msgid "Events here"
+msgstr ""
+
+#: includes/class-wpd-cpt-location.php:273
+#: includes/class-wpd-cpt-location.php:362
 msgid "Synced with dansal location #"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:205
+#: includes/class-wpd-cpt-location.php:278
 msgid "This is a room. Its address and coordinates are inherited from its building and can only be changed there."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:208
+#: includes/class-wpd-cpt-location.php:281
 msgid "Building:"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:220
-#: includes/class-wpd-cpt-location.php:381
+#: includes/class-wpd-cpt-location.php:293
+#: includes/class-wpd-cpt-location.php:454
 msgid "Floor condition"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:223
-#: includes/class-wpd-cpt-location.php:372
-#: includes/class-wpd-cpt-location.php:384
+#: includes/class-wpd-cpt-location.php:296
+#: includes/class-wpd-cpt-location.php:445
+#: includes/class-wpd-cpt-location.php:457
 #: includes/class-wpd-event-fields.php:396
 #: includes/class-wpd-event-fields.php:405
 msgid "— not set —"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:231
-#: includes/class-wpd-cpt-location.php:392
+#: includes/class-wpd-cpt-location.php:304
+#: includes/class-wpd-cpt-location.php:465
 msgid "No street shoes"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:236
-#: includes/class-wpd-cpt-location.php:397
+#: includes/class-wpd-cpt-location.php:309
+#: includes/class-wpd-cpt-location.php:470
 msgid "Amenities"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:240
-#: includes/class-wpd-cpt-location.php:401
+#: includes/class-wpd-cpt-location.php:313
+#: includes/class-wpd-cpt-location.php:474
 #: includes/class-wpd-event-fields.php:440
 #: templates/single-dansal_event.php:82
 #: templates/single-dansal_location.php:35
 msgid "Wheelchair accessible"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:241
-#: includes/class-wpd-cpt-location.php:402
+#: includes/class-wpd-cpt-location.php:314
+#: includes/class-wpd-cpt-location.php:475
 #: includes/class-wpd-event-fields.php:441
 #: templates/single-dansal_event.php:83
 #: templates/single-dansal_location.php:36
 msgid "Bar"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:242
-#: includes/class-wpd-cpt-location.php:403
+#: includes/class-wpd-cpt-location.php:315
+#: includes/class-wpd-cpt-location.php:476
 #: includes/class-wpd-event-fields.php:442
 #: templates/single-dansal_event.php:84
 #: templates/single-dansal_location.php:37
 msgid "Kitchen"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:253
+#: includes/class-wpd-cpt-location.php:326
 msgid "Capacity"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:256
+#: includes/class-wpd-cpt-location.php:329
 msgid "people (informational)"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:260
+#: includes/class-wpd-cpt-location.php:333
 msgid "Floor area"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:263
+#: includes/class-wpd-cpt-location.php:336
 msgid "m² (informational)"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:267
-#: includes/class-wpd-cpt-location.php:414
+#: includes/class-wpd-cpt-location.php:340
+#: includes/class-wpd-cpt-location.php:487
 msgid "Notes (Markdown)"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:294
+#: includes/class-wpd-cpt-location.php:367
 msgid "Address & geocoding"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:300
+#: includes/class-wpd-cpt-location.php:373
 msgid "Re-match location (OpenStreetMap / Nominatim)"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:301
+#: includes/class-wpd-cpt-location.php:374
 msgid "Find address (OpenStreetMap / Nominatim)"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:305
+#: includes/class-wpd-cpt-location.php:378
 msgid "Already synced with dansal — re-matching only updates the fields below on next save, it will not create a second location."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:308
-#: includes/class-wpd-cpt-location.php:310
+#: includes/class-wpd-cpt-location.php:381
+#: includes/class-wpd-cpt-location.php:383
 #: includes/class-wpd-settings.php:718
 msgid "Search"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:309
+#: includes/class-wpd-cpt-location.php:382
 msgid "e.g. Bürgerhaus Stollwerck, Köln"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:311
+#: includes/class-wpd-cpt-location.php:384
 msgid "Search from fields below"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:312
+#: includes/class-wpd-cpt-location.php:385
 msgid "Reverse geocode from lat/long"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:318
+#: includes/class-wpd-cpt-location.php:391
 msgid "Drag the marker or click the map to fine-tune the coordinates."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:323
+#: includes/class-wpd-cpt-location.php:396
 msgid "Short name"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:327
+#: includes/class-wpd-cpt-location.php:400
 #: includes/class-wpd-settings.php:715
 msgid "Address"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:331
+#: includes/class-wpd-cpt-location.php:404
 msgid "Zipcode"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:339
+#: includes/class-wpd-cpt-location.php:412
 msgid "Country code"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:343
+#: includes/class-wpd-cpt-location.php:416
 msgid "Country"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:347
+#: includes/class-wpd-cpt-location.php:420
 msgid "Region"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:351
+#: includes/class-wpd-cpt-location.php:424
 #: includes/class-wpd-settings.php:723
 #: assets/js/blocks-editor.js:137
 #: assets/js/blocks-editor.js:175
@@ -677,7 +714,7 @@ msgstr ""
 msgid "Latitude"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:355
+#: includes/class-wpd-cpt-location.php:428
 #: includes/class-wpd-settings.php:727
 #: assets/js/blocks-editor.js:138
 #: assets/js/blocks-editor.js:176
@@ -685,136 +722,136 @@ msgstr ""
 msgid "Longitude"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:359
+#: includes/class-wpd-cpt-location.php:432
 msgid "Website"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:366
+#: includes/class-wpd-cpt-location.php:439
 msgid "Details"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:369
+#: includes/class-wpd-cpt-location.php:442
 msgid "Parking"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:424
+#: includes/class-wpd-cpt-location.php:497
 msgid "Rooms"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:425
+#: includes/class-wpd-cpt-location.php:498
 msgid "Named sub-areas of this venue (e.g. \"Grand Hall\", \"Studio 2\"). A room is a location of its own (with its own page); it uses this venue's address and coordinates. Events can be assigned to a specific room."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:428
+#: includes/class-wpd-cpt-location.php:501
 msgid "e.g. Grand Hall"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:429
+#: includes/class-wpd-cpt-location.php:502
 msgid "Add room"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:677
+#: includes/class-wpd-cpt-location.php:750
 msgid "Location is not synced yet — save it first."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:680
+#: includes/class-wpd-cpt-location.php:753
 msgid "A room cannot have rooms of its own."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:700
+#: includes/class-wpd-cpt-location.php:773
 msgid "Location is not synced yet."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:735
+#: includes/class-wpd-cpt-location.php:808
 msgid "No matches found."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:736
+#: includes/class-wpd-cpt-location.php:809
 msgid "Checking dansal for existing locations…"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:737
+#: includes/class-wpd-cpt-location.php:810
 msgid "Possible existing location(s) in dansal:"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:738
+#: includes/class-wpd-cpt-location.php:811
 msgid "Use this existing location"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:739
+#: includes/class-wpd-cpt-location.php:812
 msgid "Create new location anyway"
 msgstr ""
 
 #. translators: %d is replaced client-side (JS .replace('%d', id)) with the dansal location ID.
-#: includes/class-wpd-cpt-location.php:741
+#: includes/class-wpd-cpt-location.php:814
 #, php-format
 msgid "On save, your organization will be assigned to dansal location #%d instead of creating a new one."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:742
+#: includes/class-wpd-cpt-location.php:815
 msgid "No rooms yet."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:743
+#: includes/class-wpd-cpt-location.php:816
 #: includes/class-wpd-event-fields.php:294
 #: includes/class-wpd-event-fields.php:361
 msgid "Remove"
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:744
+#: includes/class-wpd-cpt-location.php:817
 msgid "Remove this room? Any event using it will lose its room assignment."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:745
+#: includes/class-wpd-cpt-location.php:818
 msgid "Failed to update rooms."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:746
+#: includes/class-wpd-cpt-location.php:819
 msgid "Enter a latitude and longitude first."
 msgstr ""
 
-#: includes/class-wpd-cpt-location.php:747
+#: includes/class-wpd-cpt-location.php:820
 msgid "Reverse geocoding…"
 msgstr ""
 
 #. translators: 1: dansal location ID, 2: underlying error message.
-#: includes/class-wpd-cpt-location.php:946
+#: includes/class-wpd-cpt-location.php:1019
 #, php-format
 msgid "Failed to assign your organization to existing dansal location #%1$d: %2$s"
 msgstr ""
 
 #. translators: 1: dansal location ID, 2: underlying error message.
-#: includes/class-wpd-cpt-location.php:957
+#: includes/class-wpd-cpt-location.php:1030
 #, php-format
 msgid "Failed to update dansal location #%1$d: %2$s"
 msgstr ""
 
 #. translators: 1: dansal location ID, 2: underlying error message.
-#: includes/class-wpd-cpt-location.php:991
+#: includes/class-wpd-cpt-location.php:1064
 #, php-format
 msgid "Duplicate of dansal location #%1$d, but assigning your organization to it failed: %2$s"
 msgstr ""
 
 #. translators: %d: pre-existing dansal location ID.
-#: includes/class-wpd-cpt-location.php:997
+#: includes/class-wpd-cpt-location.php:1070
 #, php-format
 msgid "Linked to existing dansal location #%d (a duplicate was detected)."
 msgstr ""
 
 #. translators: %s: underlying error message.
-#: includes/class-wpd-cpt-location.php:1001
+#: includes/class-wpd-cpt-location.php:1074
 #, php-format
 msgid "Failed to create dansal location: %s"
 msgstr ""
 
 #. translators: %d: newly created dansal location ID.
-#: includes/class-wpd-cpt-location.php:1014
+#: includes/class-wpd-cpt-location.php:1087
 #, php-format
 msgid "Created dansal location #%d."
 msgstr ""
 
 #. translators: 1: number of newly imported locations, 2: number of refreshed locations.
-#: includes/class-wpd-cpt-location.php:1081
+#: includes/class-wpd-cpt-location.php:1154
 #, php-format
 msgid "Synced with dansal: %1$d new location(s) imported, %2$d refreshed."
 msgstr ""
