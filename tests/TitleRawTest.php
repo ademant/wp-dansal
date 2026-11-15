@@ -118,7 +118,13 @@ class TitleRawTest extends WP_UnitTestCase {
 		$this->call(
 			wpd_plugin()->cpt_location,
 			'write_location_post',
-			array( $id, array( 'location' => "L'Atelier", 'id' => 999 ) )
+			array(
+				$id,
+				array(
+					'location' => "L'Atelier",
+					'id'       => 999,
+				),
+			)
 		);
 
 		$this->assertSame( $before, get_post( $id )->post_modified_gmt, 'no wp_update_post() call means post_modified does not move' );

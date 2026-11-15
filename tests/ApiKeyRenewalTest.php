@@ -74,7 +74,15 @@ class ApiKeyRenewalTest extends WP_UnitTestCase {
 
 	public function test_a_200_stores_the_new_key_and_its_expiry() {
 		$expires = gmdate( 'c', time() + 30 * DAY_IN_SECONDS );
-		$this->mock_renew( 200, wp_json_encode( array( 'api_key' => 'ak_new', 'expires_at' => $expires ) ) );
+		$this->mock_renew(
+			200,
+			wp_json_encode(
+				array(
+					'api_key'    => 'ak_new',
+					'expires_at' => $expires,
+				)
+			)
+		);
 
 		$this->assertTrue( $this->api()->renew_apikey() );
 		$this->assertSame( strtotime( $expires ), $this->settings()->get_api_key_expires_at() );

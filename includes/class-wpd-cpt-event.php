@@ -240,6 +240,7 @@ class WPD_CPT_Event {
 				'_wpd_pricing_amount',
 				'_wpd_pricing_currency',
 				'_wpd_is_cancelled',
+				'_wpd_no_live_music',
 				'_wpd_musician_names',
 				'_wpd_instructor_names',
 			) as $key
@@ -718,7 +719,14 @@ class WPD_CPT_Event {
 			<table class="form-table">
 				<tr>
 					<th><?php esc_html_e( 'Musicians', 'wp-dansal' ); ?></th>
-					<td><?php $this->render_entity_picker( $post->ID, 'musician', __( 'Search musicians…', 'wp-dansal' ) ); ?></td>
+					<td>
+						<?php $this->render_entity_picker( $post->ID, 'musician', __( 'Search musicians…', 'wp-dansal' ) ); ?>
+						<label>
+							<input type="checkbox" name="wpd_no_live_music" value="1" <?php checked( $this->field( $post->ID, '_wpd_no_live_music' ), '1' ); ?> />
+							<?php esc_html_e( 'No live music (DJ / recorded)', 'wp-dansal' ); ?>
+						</label>
+						<p class="description"><?php esc_html_e( 'dansal does not allow this together with musicians; it is cleared when musicians are listed.', 'wp-dansal' ); ?></p>
+					</td>
 				</tr>
 				<tr>
 					<th><?php esc_html_e( 'Instructors', 'wp-dansal' ); ?></th>
@@ -1072,6 +1080,15 @@ class WPD_CPT_Event {
 			update_post_meta( $post_id, $meta_key, sanitize_text_field( $value ) );
 		}
 
+		// #149: dansal refuses no_live_music together with musicians (400),
+		// so musicians win and the flag is dropped with a notice.
+		$no_live_music = ! empty( $_POST['wpd_no_live_music'] );
+		if ( $no_live_music && self::has_musicians( $post_id ) ) {
+			$no_live_music = false;
+			$this->store_notice( __( '"No live music" was cleared because the event lists musicians.', 'wp-dansal' ), 'warning' );
+		}
+		update_post_meta( $post_id, '_wpd_no_live_music', $no_live_music ? '1' : '' );
+
 		$this->maybe_sync_to_dansal( $post_id );
 	}
 
@@ -1119,6 +1136,11 @@ class WPD_CPT_Event {
 		} catch ( Exception $e ) {
 			return '';
 		}
+	}
+
+	/** Whether the event post lists at least one dansal musician. */
+	private static function has_musicians( $post_id ) {
+		return (bool) array_filter( array_map( 'absint', explode( ',', (string) get_post_meta( $post_id, '_wpd_musician_ids', true ) ) ) );
 	}
 
 	private function build_payload( $post_id ) {
@@ -1178,6 +1200,9 @@ class WPD_CPT_Event {
 			// _wpd_location_post_id already is that single choice.
 			'pricing'            => $pricing,
 			'musicians'          => array_values( array_filter( array_map( 'absint', explode( ',', $get( '_wpd_musician_ids' ) ) ) ) ),
+			// #149: always sent, because PUT resets omitted fields. Never
+			// true alongside musicians, which dansal rejects with 400.
+			'no_live_music'      => '1' === $get( '_wpd_no_live_music' ) && ! self::has_musicians( $post_id ),
 			'instructors'        => array_values( array_filter( array_map( 'absint', explode( ',', $get( '_wpd_instructor_ids' ) ) ) ) ),
 			'dances'             => array_values( array_filter( array_map( 'absint', explode( ',', $get( '_wpd_dance_ids' ) ) ) ) ),
 			'booking_url'        => $get( '_wpd_booking_url' ),
@@ -2029,6 +2054,7 @@ class WPD_CPT_Event {
 		$musicians = isset( $event['musicians'] ) && is_array( $event['musicians'] ) ? $event['musicians'] : array();
 		update_post_meta( $post_id, '_wpd_musician_ids', implode( ',', wp_list_pluck( $musicians, 'id' ) ) );
 		update_post_meta( $post_id, '_wpd_musician_names', implode( '|', wp_list_pluck( $musicians, 'bandname' ) ) );
+		update_post_meta( $post_id, '_wpd_no_live_music', ! empty( $event['no_live_music'] ) ? '1' : '' );
 
 		$instructors = isset( $event['instructors'] ) && is_array( $event['instructors'] ) ? $event['instructors'] : array();
 		update_post_meta( $post_id, '_wpd_instructor_ids', implode( ',', wp_list_pluck( $instructors, 'id' ) ) );
