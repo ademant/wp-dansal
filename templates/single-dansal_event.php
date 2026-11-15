@@ -68,6 +68,7 @@ while ( have_posts() ) :
 	$drink        = get_post_meta( $wpd_post_id, '_wpd_drink', true );
 	$floor        = get_post_meta( $wpd_post_id, '_wpd_floor_condition', true );
 	$cancelled    = '1' === get_post_meta( $wpd_post_id, '_wpd_is_cancelled', true );
+	$no_live      = ! $musicians && '1' === get_post_meta( $wpd_post_id, '_wpd_no_live_music', true );
 
 	// Parking/floor/amenities usually live on the location, not the event —
 	// the event-level fields are only an override for this specific
@@ -171,6 +172,11 @@ while ( have_posts() ) :
 								<th><?php esc_html_e( 'Musicians:', 'wp-dansal' ); ?></th>
 								<?php // Each item in $musicians is already an <a>…</a> with esc_html() on the display text and esc_url() on the href — see $wpd_link_people above; the separator is a static ", ". ?>
 								<td><?php echo implode( ', ', $musicians ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+							</tr>
+						<?php elseif ( $no_live ) : ?>
+							<tr>
+								<th><?php esc_html_e( 'Music:', 'wp-dansal' ); ?></th>
+								<td><?php esc_html_e( 'Recorded music (no live band)', 'wp-dansal' ); ?></td>
 							</tr>
 						<?php endif; ?>
 						<?php if ( $instructors ) : ?>

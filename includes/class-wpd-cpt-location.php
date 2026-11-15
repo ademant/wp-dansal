@@ -1465,7 +1465,7 @@ class WPD_CPT_Location {
 		foreach ( $notices as $notice ) {
 			printf(
 				'<div class="notice notice-%1$s is-dismissible"><p>%2$s</p></div>',
-				'error' === $notice['type'] ? 'error' : 'success',
+				in_array( $notice['type'], array( 'error', 'warning' ), true ) ? $notice['type'] : 'success',
 				esc_html( $notice['message'] )
 			);
 		}
