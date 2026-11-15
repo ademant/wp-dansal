@@ -390,11 +390,24 @@ class WPD_Frontend {
 		}
 
 		return array(
-			'urlTemplate'    => (string) apply_filters( 'wpd_tile_url_template', $default ),
+			'urlTemplate'    => $this->valid_tile_template( (string) apply_filters( 'wpd_tile_url_template', $default ) ),
 			'attribution'    => (string) apply_filters( 'wpd_tile_attribution', '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' ),
 			'maxZoom'        => (int) apply_filters( 'wpd_tile_max_zoom', 19 ),
 			'referrerPolicy' => (string) apply_filters( 'wpd_tile_referrer_policy', 'origin' ),
 		);
+	}
+
+	/**
+	 * Falls back to the same-origin tile route unless the template is an
+	 * http(s) URL with all three Leaflet placeholders, so a malformed override
+	 * (or one from a filter that returns junk) can't break every map on the site.
+	 */
+	private function valid_tile_template( $template ) {
+		$scheme = strtolower( (string) wp_parse_url( $template, PHP_URL_SCHEME ) );
+		if ( in_array( $scheme, array( 'http', 'https' ), true ) && false !== strpos( $template, '{z}' ) && false !== strpos( $template, '{x}' ) && false !== strpos( $template, '{y}' ) ) {
+			return $template;
+		}
+		return rest_url( 'wpd/v1/tiles/{z}/{x}/{y}' );
 	}
 
 	/**
