@@ -1433,6 +1433,13 @@ class WPD_Settings {
 			return new WP_Error( 'wpd_connect_bad_url', __( 'Connect link must be HTTPS and look like .../api/v1/invites/{token}/publisher.', 'wp-dansal' ), array( 'status' => 400 ) );
 		}
 
+		// #157: opt-in host allowlist. Empty (the default) accepts any host, so
+		// self-hosted dansal instances keep working unchanged.
+		$allowed_hosts = array_map( 'strtolower', array_filter( (array) apply_filters( 'wpd_connect_link_allowed_hosts', array() ) ) );
+		if ( $allowed_hosts && ! in_array( strtolower( (string) wp_parse_url( $connect_url, PHP_URL_HOST ) ), $allowed_hosts, true ) ) {
+			return new WP_Error( 'wpd_connect_host_not_allowed', __( 'This connect link points to a dansal server that is not on the allowed list.', 'wp-dansal' ), array( 'status' => 400 ) );
+		}
+
 		$client_name = sprintf( 'wp-dansal @ %s', wp_parse_url( home_url(), PHP_URL_HOST ) );
 
 		// #55: single-use random challenge dansal must echo back verbatim.
