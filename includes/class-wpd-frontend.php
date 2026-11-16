@@ -31,6 +31,8 @@ class WPD_Frontend {
 		$this->remote_events = $remote_events;
 		$this->api           = $api;
 
+		add_action( 'send_headers', array( $this, 'send_page_security_headers' ) );
+		add_filter( 'rest_post_dispatch', array( $this, 'add_rest_security_headers' ), 10, 3 );
 		add_shortcode( 'dansal_events', array( $this, 'shortcode_events' ) );
 		add_shortcode( 'dansal_locations', array( $this, 'shortcode_locations' ) );
 		add_shortcode( 'dansal_nearby', array( $this, 'shortcode_nearby' ) );
@@ -48,6 +50,46 @@ class WPD_Frontend {
 		add_action( 'wp_ajax_nopriv_wpd_tile', array( $this, 'ajax_tile' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 		add_filter( 'rest_pre_serve_request', array( $this, 'serve_tile_raw' ), 10, 3 );
+	}
+
+	/**
+	 * Hardening headers (#151) for the pages the plugin's own templates render
+	 * and its REST routes. Shortcodes placed on arbitrary pages are not covered:
+	 * they render after headers are sent, so the site owner's own headers apply.
+	 *
+	 * @return array<string,string>
+	 */
+	private function security_headers() {
+		return apply_filters(
+			'wpd_security_headers',
+			array(
+				'X-Content-Type-Options' => 'nosniff',
+				'X-Frame-Options'        => 'SAMEORIGIN',
+				'Referrer-Policy'        => 'strict-origin-when-cross-origin',
+			)
+		);
+	}
+
+	public function send_page_security_headers() {
+		$is_plugin_page = is_singular( array( WPD_CPT_Event::POST_TYPE, WPD_CPT_Location::POST_TYPE ) )
+			|| is_post_type_archive( array( WPD_CPT_Event::POST_TYPE, WPD_CPT_Location::POST_TYPE ) )
+			|| ( is_page() && in_array( get_page_template_slug( get_queried_object_id() ), array( 'wpd-locations.php', 'wpd-calendar.php' ), true ) );
+		if ( ! $is_plugin_page ) {
+			return;
+		}
+		foreach ( $this->security_headers() as $name => $value ) {
+			header( $name . ': ' . $value );
+		}
+	}
+
+	public function add_rest_security_headers( $response, $server, $request ) {
+		if ( ! $response instanceof WP_REST_Response || 0 !== strpos( (string) $request->get_route(), '/wpd/v1/' ) ) {
+			return $response;
+		}
+		foreach ( $this->security_headers() as $name => $value ) {
+			$response->header( $name, $value );
+		}
+		return $response;
 	}
 
 	/**
