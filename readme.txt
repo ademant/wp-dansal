@@ -4,7 +4,7 @@ Tags: events, calendar, dance, locations, dansal
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.32.0
+Stable tag: 0.33.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -71,6 +71,17 @@ Yes! The plugin is fully translation-ready with the `wp-dansal` text domain. Tra
 3. **Connection Management** - Settings page for connecting to your dansal instance via one-time link or manual API credentials.
 
 == Changelog ==
+
+= 0.33.0 =
+* Sync with dansal changes (#167): a newer version on dansal is no longer treated as a conflict on its own. The content is compared first. Identical content is adopted silently. Different content shows a yellow hint on the edit screen with a button to sync the dansal version to WordPress. Saving then asks whether to force your version over dansal's, with Force and Cancel. The Ignore action is removed. It had left the sync state stale, so every later save failed with "changed since your last sync".
+* Fix: saving an event after clearing its location no longer fails with a false conflict. The plugin's own DELETE updated dansal's change timestamp before the save that followed.
+* Fix: the single location and event map inlays now show a map and pin (#147).
+* Support dansal's "no live music" event flag (#149).
+* Quick "Add event here" actions on locations (#159).
+* Security: rate-limit the public webhook receiver per caller address, send hardening headers on the plugin's own pages and REST routes, log rejected webhook deliveries, and optionally restrict connect links to an allowlist of hosts.
+* Fix: a publisher key that expires is probed again after a 400 from the renew call instead of being left unusable.
+* Fix: the event sync no longer aborts on a 404 from the legacy /publish call, and the event title is sent without WordPress filters applied.
+* Internal: the location and nearby widgets use the Interactivity API, and the admin location and event scripts are plain JavaScript.
 
 = 0.32.0 =
 * Push-based reverse sync via webhook (#141, paired with dansal's own [dansal#1370](https://github.com/ademant/dansal/issues/1370)): when registered, dansal pushes a signed notification to this site the moment one of its events changes, so the local copy updates within seconds instead of waiting for the scheduled pull (0.30.0) to catch it. A new **Settings → Dansal → Webhooks** panel lets an admin explicitly register/test/unregister the subscription (never automatic) and shows its live status, including when dansal has auto-disabled it after repeated delivery failures. Reuses the exact HMAC scheme from 0.31.0's request signing — same `X-Wpd-Timestamp`/`X-Wpd-Nonce`/`X-Wpd-Signature` headers, verified instead of generated — so the public `POST /wp-json/wpd/v1/webhook` receiver needs no WordPress capability check; authentication is entirely the signature. Requires having connected via Connect Link (not the manual base URL/API key form), since only that response ever hands us this site's own dansal publisher id. The scheduled pull keeps running regardless, as the fallback for any push that's ever missed or dropped (dansal's own delivery has no persistent queue).
