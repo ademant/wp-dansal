@@ -29,9 +29,11 @@ class WPD_CPT_Event {
 	const META_LAST_SYNCED_CANCELLED  = '_wpd_last_synced_is_cancelled';
 	// #135: dansal-side changed_at we last observed (unix ts). Used to
 	// send `If-Match: W/"<changed_at>"` on PATCH so a concurrent
-	// dansal-web edit surfaces as a 412 and routes into the existing
-	// pending-pull accept/ignore flow instead of silently clobbering.
+	// dansal-web edit surfaces as a 412 and routes into the pending-update
+	// hint instead of silently clobbering.
 	const META_LAST_PULLED_CHANGED_AT = '_wpd_last_pulled_changed_at';
+	/** dansal's changed_by for the version in META_LAST_PULLED_CHANGED_AT. */
+	const META_LAST_PULLED_CHANGED_BY = '_wpd_last_pulled_changed_by';
 	const POST_TYPE                   = 'dansal_event';
 	/** One-shot marker: every event's pre-#121 _wpd_room_id/_wpd_room_name has been resolved. */
 	const OPTION_ROOMS_MIGRATED       = 'wpd_rooms_model_migrated';
@@ -81,7 +83,6 @@ class WPD_CPT_Event {
 		add_action( 'admin_init', array( $this, 'maybe_migrate_legacy_rooms' ), 30 );
 		add_action( 'admin_notices', array( $this, 'render_pending_pull_notice' ) );
 		WPD_Admin_Action::register( 'wpd_event_pull_accept', 'edit_posts', array( $this, 'handle_pull_accept' ) );
-		WPD_Admin_Action::register( 'wpd_event_pull_ignore', 'edit_posts', array( $this, 'handle_pull_ignore' ) );
 
 		add_filter( 'post_row_actions', array( $this, 'row_actions' ), 10, 2 );
 		add_action( 'post_submitbox_misc_actions', array( $this, 'render_clone_button' ) );
@@ -930,6 +931,9 @@ class WPD_CPT_Event {
 		wp_enqueue_script( 'wpd-admin-pricing', WPD_PLUGIN_URL . 'assets/js/admin-pricing.js', array(), wpd_asset_ver( 'assets/js/admin-pricing.js' ), true );
 		wp_enqueue_script( 'wpd-admin-rooms', WPD_PLUGIN_URL . 'assets/js/admin-rooms.js', array( 'wp-api-fetch' ), wpd_asset_ver( 'assets/js/admin-rooms.js' ), true );
 		WPD_Datetime_Hint::enqueue();
+		$sync_post_id = $this->refresh_dansal_changes_for_edit_screen();
+		wp_enqueue_script( 'wpd-admin-event-sync', WPD_PLUGIN_URL . 'assets/js/admin-event-sync.js', array( 'wp-data', 'wp-api-fetch', 'wp-editor' ), wpd_asset_ver( 'assets/js/admin-event-sync.js' ), true );
+		wp_localize_script( 'wpd-admin-event-sync', 'wpdEventSync', $this->event_sync_config( $sync_post_id ) );
 		wp_localize_script(
             'wpd-admin-event',
             'wpdEvent',
@@ -1248,7 +1252,8 @@ class WPD_CPT_Event {
 		if ( ! $post || self::POST_TYPE !== $post->post_type ) {
 			return;
 		}
-		$this->maybe_sync_to_dansal( (int) $post->ID );
+		$force = '1' === $request->get_header( 'X-WPD-Force-Overwrite' );
+		$this->maybe_sync_to_dansal( (int) $post->ID, $force );
 	}
 
 	/**
@@ -1256,7 +1261,7 @@ class WPD_CPT_Event {
 	 * unconfigured settings and on a repeat call for the same post
 	 * within one HTTP request.
 	 */
-	private function maybe_sync_to_dansal( $post_id ) {
+	private function maybe_sync_to_dansal( $post_id, $force = false ) {
 		if ( isset( self::$synced_this_request[ $post_id ] ) ) {
 			return;
 		}
@@ -1264,7 +1269,7 @@ class WPD_CPT_Event {
 			return;
 		}
 		self::$synced_this_request[ $post_id ] = true;
-		$this->sync_to_dansal( $post_id );
+		$this->sync_to_dansal( $post_id, $force );
 	}
 
 	private function to_rfc3339( $datetime_local ) {
@@ -1360,7 +1365,7 @@ class WPD_CPT_Event {
 		);
 	}
 
-	private function sync_to_dansal( $post_id ) {
+	private function sync_to_dansal( $post_id, $force = false ) {
 		$payload   = $this->build_payload( $post_id );
 		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
 
@@ -1435,6 +1440,9 @@ class WPD_CPT_Event {
 					$this->store_notice( sprintf( __( 'Failed to clear location on dansal event #%1$d: %2$s', 'wp-dansal' ), $dansal_id, $clear->get_error_message() ), 'error' );
 					return;
 				}
+				// DELETE bumped dansal's changed_at. Adopt the new value so
+				// the PATCH below is not rejected by our own write.
+				$this->refresh_baseline( $post_id, $dansal_id );
 			}
 
 			// PATCH (RFC 7396 merge-patch) so fields the plugin doesn't manage
@@ -1454,28 +1462,29 @@ class WPD_CPT_Event {
 			);
 			// #135: optimistic concurrency. Send the weak ETag over the
 			// last-pulled changed_at so a concurrent dansal-side edit
-			// surfaces as 412 instead of last-write-wins. Omitted when
-			// we have never pulled this event (fresh push after CREATE).
-			$if_match_headers = array();
-			$last_pulled      = (int) get_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, true );
-			if ( $last_pulled > 0 ) {
-				$if_match_headers['If-Match'] = 'W/"' . $last_pulled . '"';
-			}
-			$result = $this->api->patch( "/api/v1/events/{$dansal_id}", $patch, $if_match_headers );
+			// surfaces as 412 instead of last-write-wins. A forced save
+			// sends `*`, which dansal accepts unconditionally.
+			$if_match_headers = $force ? array( 'If-Match' => '*' ) : $this->if_match_headers( $post_id );
+			$result           = $this->api->patch( "/api/v1/events/{$dansal_id}", $patch, $if_match_headers );
 			if ( is_wp_error( $result ) && 'wpd_http_412' === $result->get_error_code() ) {
-				// #135: dansal-side is newer than what we last pulled.
-				// Route into the existing pending-pull flow: fetch the
-				// current version and stash it so the admin sees the
-				// Accept/Ignore notice with the incoming changes side by
-				// side with what they just tried to save.
-				$current = $this->api->get( "/api/v1/events/{$dansal_id}" );
-				if ( ! is_wp_error( $current ) && is_array( $current ) && ! empty( $current['id'] ) ) {
-					$incoming_ts = ! empty( $current['changed_at'] ) ? (int) strtotime( (string) $current['changed_at'] ) : time();
-					$this->stash_pending_pull( $post_id, $current, $incoming_ts );
+				// dansal changed since our last pull. If its content already
+				// equals what we are saving, the change is not a conflict:
+				// adopt its changed_at and retry once.
+				$current     = $this->api->get( "/api/v1/events/{$dansal_id}" );
+				$has_current = ! is_wp_error( $current ) && is_array( $current ) && ! empty( $current['id'] );
+				if ( $has_current && ! $this->differs_from_local( $post_id, $current ) ) {
+					$this->store_baseline( $post_id, $current );
+					$result = $this->api->patch( "/api/v1/events/{$dansal_id}", $patch, $this->if_match_headers( $post_id ) );
 				}
-				/* translators: %d: dansal event ID. */
-				$this->store_notice( sprintf( __( 'Dansal event #%d changed since your last sync — your edit was not applied. Review the pending update on the events list.', 'wp-dansal' ), $dansal_id ), 'error' );
-				return;
+				if ( is_wp_error( $result ) && 'wpd_http_412' === $result->get_error_code() ) {
+					if ( $has_current ) {
+						// Stash the dansal version so the edit screen shows the hint.
+						$this->stash_pending_pull( $post_id, $current, (int) strtotime( (string) ( $current['changed_at'] ?? '' ) ) );
+					}
+					/* translators: %d: dansal event ID. */
+					$this->store_notice( sprintf( __( 'Dansal event #%d changed since your last sync — your edit was not applied. Review the dansal changes on this event before saving again.', 'wp-dansal' ), $dansal_id ), 'error' );
+					return;
+				}
 			}
 			if ( is_wp_error( $result ) ) {
 				/* translators: 1: dansal event ID, 2: underlying error message. */
@@ -1493,10 +1502,8 @@ class WPD_CPT_Event {
 				// response so the *next* PATCH's If-Match uses the new
 				// value; clear on missing shape rather than sending a
 				// stale ETag that would 412 the next legitimate save.
-				$new_changed_at = ( is_array( $result ) && ! empty( $result['changed_at'] ) )
-					? (int) strtotime( (string) $result['changed_at'] )
-					: 0;
-				update_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, $new_changed_at );
+				$this->store_baseline( $post_id, is_array( $result ) ? $result : array() );
+				$this->clear_pending_pull( $post_id );
 				$this->push_timetable( $post_id, $dansal_id );
 				$this->push_image( $post_id, $dansal_id );
 			}
@@ -1520,8 +1527,7 @@ class WPD_CPT_Event {
 			update_post_meta( $post_id, self::META_LAST_SYNCED_LOCATION, ! empty( $payload['location_id'] ) ? (int) $payload['location_id'] : 0 );
 			update_post_meta( $post_id, self::META_LAST_SYNCED_PUBLISHED, ! empty( $payload['is_published'] ) ? '1' : '' );
 			update_post_meta( $post_id, self::META_LAST_SYNCED_CANCELLED, ! empty( $payload['is_cancelled'] ) ? '1' : '' );
-			$new_changed_at = ! empty( $result[0]['changed_at'] ) ? (int) strtotime( (string) $result[0]['changed_at'] ) : 0;
-			update_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, $new_changed_at );
+			$this->store_baseline( $post_id, isset( $result[0] ) && is_array( $result[0] ) ? $result[0] : array() );
 			/* translators: %d: newly created dansal event ID. */
 			$this->store_notice( sprintf( __( 'Created dansal event #%d.', 'wp-dansal' ), $new_id ), 'success' );
 			$this->push_timetable( $post_id, $new_id );
@@ -1774,34 +1780,187 @@ class WPD_CPT_Event {
 			return;
 		}
 
-		// A missing/empty changed_at means dansal has no recorded change for
-		// this event (a known dansal-side gap, not "always stale") -- treat
-		// it the same as "not newer" rather than unconditionally re-flagging
-		// a pending pull on every single check (#83).
-		$changed_at  = ! empty( $event['changed_at'] ) ? strtotime( $event['changed_at'] ) : 0;
-		$last_synced = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_AT, true );
-		if ( ! $changed_at || $changed_at <= $last_synced ) {
-			return; // Already current, or dansal reports no change.
-		}
-
-		// Don't silently overwrite: stash for admin confirmation on the edit
-		// screen (issue #47). Events are the primary WP authoring surface;
-		// dansal-side edits must be explicitly accepted.
-		$this->stash_pending_pull( $post_id, $event, $changed_at );
+		$this->reconcile_dansal_event( $post_id, $event );
 	}
 
 	/**
-	 * Store a dansal payload to be applied to $post_id only after the admin
-	 * accepts it. Skip if the same (or newer) version was already Ignored --
-	 * we don't want to re-prompt on the same dansal edit tick.
+	 * Stash a dansal payload as this event's pending update. The edit screen
+	 * shows it as a yellow hint until the admin syncs it or saves over it.
 	 */
 	private function stash_pending_pull( $post_id, array $event, $changed_at ) {
-		$ignored_at = (int) get_post_meta( $post_id, '_wpd_pull_ignored_at', true );
-		if ( $ignored_at && $changed_at && $changed_at <= $ignored_at ) {
-			return;
-		}
 		set_transient( 'wpd_event_pending_pull_' . $post_id, $event, DAY_IN_SECONDS );
 		update_post_meta( $post_id, '_wpd_pending_pull', $changed_at ? (int) $changed_at : time() );
+	}
+
+	/**
+	 * Decides what a dansal event that changed since our baseline means.
+	 *
+	 * A newer changed_at alone is not a conflict. Only a content difference
+	 * is stashed as a pending update; otherwise the baseline is adopted.
+	 */
+	private function reconcile_dansal_event( $post_id, array $event ) {
+		$changed_at = ! empty( $event['changed_at'] ) ? (int) strtotime( (string) $event['changed_at'] ) : 0;
+		$baseline   = (int) get_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, true );
+		if ( ! $changed_at || $changed_at <= $baseline ) {
+			return; // Already current, or dansal reports no change.
+		}
+		if ( $this->differs_from_local( $post_id, $event ) ) {
+			$this->stash_pending_pull( $post_id, $event, $changed_at );
+			return;
+		}
+		$this->store_baseline( $post_id, $event );
+		$this->clear_pending_pull( $post_id );
+	}
+
+	/**
+	 * Compares a dansal event with the local WordPress copy of $post_id.
+	 *
+	 * Only fields that dansal returns on GET are compared. Food, drink, floor
+	 * condition, contact name, musicians and dances are not returned, so they
+	 * are not checked. Tags are not compared either: dansal filters them against
+	 * its own vocabulary, so a local tag it dropped would always differ.
+	 */
+	private function differs_from_local( $post_id, array $remote ) {
+		$local = $this->build_payload( $post_id );
+		$post  = get_post( $post_id );
+
+		if ( array_key_exists( 'title', $remote ) && trim( (string) $remote['title'] ) !== trim( $local['title'] ) ) {
+			return true;
+		}
+		if ( array_key_exists( 'description', $remote ) ) {
+			$local_html  = self::sanitize_dansal_description( $post ? $post->post_content : '' );
+			$remote_html = self::sanitize_dansal_description( (string) $remote['description'] );
+			if ( $local_html !== $remote_html ) {
+				return true;
+			}
+		}
+		foreach ( array( 'start_time', 'end_time' ) as $key ) {
+			if ( array_key_exists( $key, $remote ) && self::epoch( $remote[ $key ] ) !== self::epoch( $local[ $key ] ) ) {
+				return true;
+			}
+		}
+		foreach ( array( 'is_cancelled', 'is_published', 'no_live_music' ) as $key ) {
+			if ( array_key_exists( $key, $remote ) && (bool) $remote[ $key ] !== (bool) $local[ $key ] ) {
+				return true;
+			}
+		}
+		if ( array_key_exists( 'location_id', $remote ) && (int) $remote['location_id'] !== (int) $local['location_id'] ) {
+			return true;
+		}
+		if ( array_key_exists( 'booking_url', $remote ) && trim( (string) $remote['booking_url'] ) !== trim( (string) $local['booking_url'] ) ) {
+			return true;
+		}
+		// An empty contact email falls back to the organisation's address on
+		// dansal's side, so only a non-empty local value is compared.
+		if ( '' !== trim( (string) $local['contact_email'] ) && array_key_exists( 'contact_email', $remote ) && trim( (string) $remote['contact_email'] ) !== trim( $local['contact_email'] ) ) {
+			return true;
+		}
+		if ( null !== $local['pricing'] && array_key_exists( 'pricing', $remote ) ) {
+			$remote_pricing = is_array( $remote['pricing'] ) ? $remote['pricing'] : array();
+			if (
+				( $remote_pricing['type'] ?? '' ) !== $local['pricing']['type']
+				|| round( (float) ( $remote_pricing['amount'] ?? 0 ), 2 ) !== round( (float) $local['pricing']['amount'], 2 )
+				|| ( $remote_pricing['currency'] ?? '' ) !== $local['pricing']['currency']
+			) {
+				return true;
+			}
+		}
+		if ( isset( $remote['attributes'] ) && is_array( $remote['attributes'] ) ) {
+			foreach ( $local['attributes'] as $key => $value ) {
+				if ( array_key_exists( $key, $remote['attributes'] ) && (bool) $remote['attributes'][ $key ] !== (bool) $value ) {
+					return true;
+				}
+			}
+		}
+		if ( array_key_exists( 'instructors', $remote ) && is_array( $remote['instructors'] ) ) {
+			$remote_ids = array_map(
+				static function ( $item ) {
+					return absint( is_array( $item ) ? ( $item['id'] ?? 0 ) : $item );
+				},
+				$remote['instructors']
+			);
+			$local_ids  = $local['instructors'];
+			sort( $remote_ids );
+			sort( $local_ids );
+			if ( $remote_ids !== $local_ids ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Unix time of an RFC 3339 / dansal timestamp, 0 when empty. */
+	private static function epoch( $value ) {
+		return $value ? (int) strtotime( (string) $value ) : 0;
+	}
+
+	/** If-Match header for PATCH, from the stored baseline. Empty when never pulled. */
+	private function if_match_headers( $post_id ) {
+		$last_pulled = (int) get_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, true );
+		return $last_pulled > 0 ? array( 'If-Match' => 'W/"' . $last_pulled . '"' ) : array();
+	}
+
+	/** Records dansal's changed_at and changed_by as this site's sync baseline. */
+	private function store_baseline( $post_id, array $event ) {
+		$changed_at = ! empty( $event['changed_at'] ) ? (int) strtotime( (string) $event['changed_at'] ) : 0;
+		update_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, $changed_at );
+		update_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_BY, isset( $event['changed_by'] ) ? (string) $event['changed_by'] : '' );
+	}
+
+	/**
+	 * Re-reads dansal's changed_at after a write this plugin made itself
+	 * (e.g. DELETE /location), so the next PATCH's If-Match is not stale.
+	 */
+	private function refresh_baseline( $post_id, $dansal_id ) {
+		$event = $this->api->get( "/api/v1/events/{$dansal_id}" );
+		if ( ! is_wp_error( $event ) && is_array( $event ) && ! empty( $event['id'] ) ) {
+			$this->store_baseline( $post_id, $event );
+		}
+	}
+
+	private function clear_pending_pull( $post_id ) {
+		delete_transient( 'wpd_event_pending_pull_' . $post_id );
+		delete_post_meta( $post_id, '_wpd_pending_pull' );
+	}
+
+	private function has_pending_pull( $post_id ) {
+		return (bool) get_post_meta( $post_id, '_wpd_pending_pull', true )
+			&& (bool) get_transient( 'wpd_event_pending_pull_' . $post_id );
+	}
+
+	/**
+	 * Before the edit screen renders, checks dansal for changes made by someone
+	 * else. Changes whose content matches WordPress are adopted silently; the
+	 * rest become the pending update the edit screen shows.
+	 *
+	 * @return int The post ID being edited, or 0 when there is nothing to check.
+	 */
+	private function refresh_dansal_changes_for_edit_screen() {
+		$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) || ! $this->settings->is_configured() ) {
+			return 0;
+		}
+		$dansal_id = (int) get_post_meta( $post_id, self::META_DANSAL_ID, true );
+		if ( ! $dansal_id ) {
+			return 0;
+		}
+		$event = $this->api->get( "/api/v1/events/{$dansal_id}" );
+		if ( ! is_wp_error( $event ) && is_array( $event ) && ! empty( $event['id'] ) ) {
+			$this->reconcile_dansal_event( $post_id, $event );
+		}
+		return $post_id;
+	}
+
+	/** Config for admin-event-sync.js: whether a Force/Cancel confirmation is needed on save. */
+	private function event_sync_config( $post_id ) {
+		return array(
+			'pending' => $post_id ? $this->has_pending_pull( $post_id ) : false,
+			'i18n'    => array(
+				'message' => __( 'Dansal has changes to this event made by someone else. Force overwrites them with the version you are saving. Continue?', 'wp-dansal' ),
+				'force'   => __( 'Force', 'wp-dansal' ),
+				'cancel'  => __( 'Cancel', 'wp-dansal' ),
+			),
+		);
 	}
 
 	/**
@@ -1846,21 +2005,14 @@ class WPD_CPT_Event {
 		if ( empty( $event['id'] ) ) {
 			return null;
 		}
-		$dansal_id  = (int) $event['id'];
-		$changed_at = ! empty( $event['changed_at'] ) ? strtotime( $event['changed_at'] ) : 0;
+		$dansal_id = (int) $event['id'];
 
 		$post_id = self::find_post_id_by_dansal_id( $dansal_id );
 
 		if ( $post_id ) {
-			$last_synced = (int) get_post_meta( $post_id, self::META_LAST_SYNCED_AT, true );
-			// See the single-event refresh path for why a missing changed_at
-			// is treated as "no change" rather than "always stale" (#83).
-			if ( ! $changed_at || $changed_at <= $last_synced ) {
-				return null; // Local copy is already current, or dansal reports no change.
-			}
-			// Same rule as the single-item refresh: the admin must confirm
-			// a dansal-side change before it lands on the WP event (#47).
-			$this->stash_pending_pull( $post_id, $event, $changed_at );
+			// Same rule as the edit screen: a dansal-side change only shows as
+			// a pending update when its content differs from WordPress.
+			$this->reconcile_dansal_event( $post_id, $event );
 			return null;
 		}
 
@@ -1949,15 +2101,12 @@ class WPD_CPT_Event {
 			delete_post_meta( $post_id, '_wpd_pending_pull' );
 			return;
 		}
-		$accept = WPD_Admin_Action::url( 'wpd_event_pull_accept', array( 'post' => $post_id ) );
-		$ignore = WPD_Admin_Action::url( 'wpd_event_pull_ignore', array( 'post' => $post_id ) );
+		$sync = WPD_Admin_Action::url( 'wpd_event_pull_accept', array( 'post' => $post_id ) );
 		printf(
-			'<div class="notice notice-warning"><p>%s</p><p><a class="button button-primary" href="%s">%s</a> <a class="button" href="%s">%s</a></p></div>',
-			esc_html__( 'Dansal has newer changes for this event. Accepting will overwrite the WordPress fields with the dansal version.', 'wp-dansal' ),
-			esc_url( $accept ),
-			esc_html__( 'Accept dansal version', 'wp-dansal' ),
-			esc_url( $ignore ),
-			esc_html__( 'Ignore this update', 'wp-dansal' )
+			'<div class="notice notice-warning"><p>%s</p><p><a class="button button-primary" href="%s">%s</a></p></div>',
+			esc_html__( 'Dansal has changes to this event made by someone else. Sync the dansal version to WordPress, or save and choose Force to overwrite dansal with your version.', 'wp-dansal' ),
+			esc_url( $sync ),
+			esc_html__( 'Sync dansal version to WordPress', 'wp-dansal' )
 		);
 	}
 
@@ -1999,23 +2148,7 @@ class WPD_CPT_Event {
 		}
 		delete_transient( 'wpd_event_pending_pull_' . $post_id );
 		delete_post_meta( $post_id, '_wpd_pending_pull' );
-		delete_post_meta( $post_id, '_wpd_pull_ignored_at' );
 		return true;
-	}
-
-	public function handle_pull_ignore() {
-		$post_id = isset( $_REQUEST['post'] ) ? absint( $_REQUEST['post'] ) : 0;
-		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
-			wp_die( esc_html__( 'Insufficient permissions.', 'wp-dansal' ), 403 );
-		}
-		$ignored_at = (int) get_post_meta( $post_id, '_wpd_pending_pull', true );
-		delete_transient( 'wpd_event_pending_pull_' . $post_id );
-		delete_post_meta( $post_id, '_wpd_pending_pull' );
-		// Remember which dansal version we declined so a re-fetch of the
-		// same edit doesn't re-prompt; a genuinely newer edit still will.
-		update_post_meta( $post_id, '_wpd_pull_ignored_at', $ignored_at ? $ignored_at : time() );
-		wp_safe_redirect( get_edit_post_link( $post_id, 'raw' ) );
-		exit;
 	}
 
 	/**
@@ -2275,8 +2408,7 @@ class WPD_CPT_Event {
 		update_post_meta( $post_id, self::META_LAST_SYNCED_AT, time() );
 		// #135: record the dansal-side changed_at unix ts so the next
 		// PATCH from us can send it as an If-Match precondition.
-		$changed_at = ! empty( $event['changed_at'] ) ? strtotime( (string) $event['changed_at'] ) : 0;
-		update_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, $changed_at ? (int) $changed_at : 0 );
+		$this->store_baseline( $post_id, $event );
 	}
 
 	private function store_notice( $message, $type ) {
