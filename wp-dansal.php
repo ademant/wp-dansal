@@ -53,6 +53,19 @@ function wpd_footer_script_args() {
 	);
 }
 
+/**
+ * Records an authentication or authorization rejection (#153): written to
+ * PHP's error log and offered to the `wpd_security_event` action. Callers
+ * pass only non-secret context (codes, IP addresses), never keys or tokens.
+ *
+ * @param string $event   Dotted event name, e.g. 'webhook.rejected'.
+ * @param array  $context Non-secret details.
+ */
+function wpd_security_event( $event, array $context = array() ) {
+	do_action( 'wpd_security_event', $event, $context );
+	error_log( '[wp-dansal] security: ' . $event . ' ' . wp_json_encode( $context ) );
+}
+
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-vocab.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-secret.php';
 require_once WPD_PLUGIN_DIR . 'includes/class-wpd-settings.php';

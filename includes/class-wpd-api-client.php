@@ -82,6 +82,7 @@ class WPD_Api_Client {
 		}
 		if ( 401 === $code ) {
 			$this->settings->mark_apikey_dead();
+			wpd_security_event( 'apikey.renew_rejected', array( 'status' => $code ) );
 			return new WP_Error( 'wpd_apikey_dead', __( 'Publisher API key has expired. Re-run the connect-link flow to restore the connection.', 'wp-dansal' ) );
 		}
 		$message = is_array( $body ) && ! empty( $body['error'] ) ? $body['error'] : sprintf( 'HTTP %d', $code );

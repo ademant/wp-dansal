@@ -53,11 +53,19 @@ class WPD_Webhook {
 	 */
 	public function receive( WP_REST_Request $request ) {
 		if ( $this->over_rate_limit() ) {
+			wpd_security_event( 'webhook.rate_limited', array( 'ip' => $this->client_ip() ) );
 			return new WP_Error( 'wpd_webhook_rate_limited', __( 'Too many webhook deliveries from this address.', 'wp-dansal' ), array( 'status' => 429 ) );
 		}
 
 		$verified = $this->verify_signature( $request );
 		if ( is_wp_error( $verified ) ) {
+			wpd_security_event(
+				'webhook.rejected',
+				array(
+					'code' => $verified->get_error_code(),
+					'ip'   => $this->client_ip(),
+				)
+			);
 			return $verified;
 		}
 
