@@ -50,9 +50,9 @@ msgid "Dance"
 msgstr ""
 
 #: includes/class-wpd-api-client.php:47
-#: includes/class-wpd-api-client.php:103
-#: includes/class-wpd-api-client.php:176
-#: includes/class-wpd-api-client.php:706
+#: includes/class-wpd-api-client.php:104
+#: includes/class-wpd-api-client.php:177
+#: includes/class-wpd-api-client.php:707
 #: includes/class-wpd-settings.php:1184
 #: includes/class-wpd-settings.php:1334
 msgid "No dansal API key configured."
@@ -66,38 +66,38 @@ msgstr ""
 msgid "Publisher API key has no expiry; renewal not applicable."
 msgstr ""
 
-#: includes/class-wpd-api-client.php:85
+#: includes/class-wpd-api-client.php:86
 msgid "Publisher API key has expired. Re-run the connect-link flow to restore the connection."
 msgstr ""
 
-#: includes/class-wpd-api-client.php:126
+#: includes/class-wpd-api-client.php:127
 msgid "This dansal server does not support signing-secret rotation. Upgrade dansal to a build that includes the rotate-signing-secret endpoint."
 msgstr ""
 
 #. translators: 1: field name from dansal validation error, 2: error message.
-#: includes/class-wpd-api-client.php:396
+#: includes/class-wpd-api-client.php:397
 #, php-format
 msgid "%1$s: %2$s"
 msgstr ""
 
-#: includes/class-wpd-api-client.php:636
+#: includes/class-wpd-api-client.php:637
 msgid "Image file is not readable."
 msgstr ""
 
-#: includes/class-wpd-api-client.php:732
+#: includes/class-wpd-api-client.php:733
 msgid "This dansal server does not support self-revoke of API keys."
 msgstr ""
 
-#: includes/class-wpd-api-client.php:769
+#: includes/class-wpd-api-client.php:770
 msgid "No dansal instance configured."
 msgstr ""
 
-#: includes/class-wpd-api-client.php:804
+#: includes/class-wpd-api-client.php:805
 msgid "No usable dansal API key or public tile token."
 msgstr ""
 
 #. translators: %d: HTTP status code returned by the tile proxy.
-#: includes/class-wpd-api-client.php:850
+#: includes/class-wpd-api-client.php:851
 #, php-format
 msgid "Tile proxy returned HTTP %d"
 msgstr ""
@@ -321,9 +321,9 @@ msgid "This post is not published yet, so it is synced to dansal as a draft (not
 msgstr ""
 
 #: includes/class-wpd-cpt-event.php:895
-#: includes/class-wpd-frontend.php:943
-#: includes/class-wpd-frontend.php:1152
-#: includes/class-wpd-frontend.php:1712
+#: includes/class-wpd-frontend.php:998
+#: includes/class-wpd-frontend.php:1207
+#: includes/class-wpd-frontend.php:1767
 msgid "Cancelled"
 msgstr ""
 
@@ -1088,17 +1088,17 @@ msgid "Type"
 msgstr ""
 
 #: includes/class-wpd-event-fields.php:356
-#: includes/class-wpd-frontend.php:1694
-#: includes/class-wpd-frontend.php:1791
-#: includes/class-wpd-frontend.php:1880
+#: includes/class-wpd-frontend.php:1749
+#: includes/class-wpd-frontend.php:1846
+#: includes/class-wpd-frontend.php:1935
 #: includes/class-wpd-widget-upcoming-events.php:65
 msgid "Ball"
 msgstr ""
 
 #: includes/class-wpd-event-fields.php:357
-#: includes/class-wpd-frontend.php:1695
-#: includes/class-wpd-frontend.php:1792
-#: includes/class-wpd-frontend.php:1881
+#: includes/class-wpd-frontend.php:1750
+#: includes/class-wpd-frontend.php:1847
+#: includes/class-wpd-frontend.php:1936
 #: includes/class-wpd-widget-upcoming-events.php:66
 msgid "Workshop"
 msgstr ""
@@ -1151,59 +1151,59 @@ msgstr ""
 msgid "Email"
 msgstr ""
 
-#: includes/class-wpd-frontend.php:62
+#: includes/class-wpd-frontend.php:104
 msgid "Dansal: Locations Map"
 msgstr ""
 
-#: includes/class-wpd-frontend.php:63
+#: includes/class-wpd-frontend.php:105
 msgid "Dansal: Events Calendar"
 msgstr ""
 
-#: includes/class-wpd-frontend.php:333
+#: includes/class-wpd-frontend.php:375
 msgid "Missing coordinates."
 msgstr ""
 
-#: includes/class-wpd-frontend.php:500
+#: includes/class-wpd-frontend.php:555
 msgid "Invalid tile coordinates."
 msgstr ""
 
-#: includes/class-wpd-frontend.php:505
+#: includes/class-wpd-frontend.php:560
 msgid "Tile unavailable."
 msgstr ""
 
-#: includes/class-wpd-frontend.php:973
-#: includes/class-wpd-frontend.php:1007
-#: includes/class-wpd-frontend.php:1078
-#: includes/class-wpd-frontend.php:1091
-#: includes/class-wpd-frontend.php:1125
-#: includes/class-wpd-frontend.php:1219
+#: includes/class-wpd-frontend.php:1028
+#: includes/class-wpd-frontend.php:1062
+#: includes/class-wpd-frontend.php:1133
+#: includes/class-wpd-frontend.php:1146
+#: includes/class-wpd-frontend.php:1180
+#: includes/class-wpd-frontend.php:1274
 msgid "No upcoming events."
 msgstr ""
 
-#: includes/class-wpd-frontend.php:1294
+#: includes/class-wpd-frontend.php:1349
 msgid "Home location not configured yet — set coordinates in Settings → Dansal."
 msgstr ""
 
-#: includes/class-wpd-frontend.php:1591
+#: includes/class-wpd-frontend.php:1646
 msgid "No festivals found."
 msgstr ""
 
 #. translators: %s: latest edition date
-#: includes/class-wpd-frontend.php:1620
+#: includes/class-wpd-frontend.php:1675
 #, php-format
 msgid "Last edition: %s"
 msgstr ""
 
-#: includes/class-wpd-frontend.php:1696
-#: includes/class-wpd-frontend.php:1793
-#: includes/class-wpd-frontend.php:1882
+#: includes/class-wpd-frontend.php:1751
+#: includes/class-wpd-frontend.php:1848
+#: includes/class-wpd-frontend.php:1937
 #: includes/class-wpd-widget-upcoming-events.php:67
 msgid "Festival"
 msgstr ""
 
-#: includes/class-wpd-frontend.php:1697
-#: includes/class-wpd-frontend.php:1794
-#: includes/class-wpd-frontend.php:1883
+#: includes/class-wpd-frontend.php:1752
+#: includes/class-wpd-frontend.php:1849
+#: includes/class-wpd-frontend.php:1938
 #: includes/class-wpd-widget-upcoming-events.php:68
 msgid "Other"
 msgstr ""
@@ -1541,57 +1541,61 @@ msgstr ""
 msgid "Connect link must be HTTPS and look like .../api/v1/invites/{token}/publisher."
 msgstr ""
 
+#: includes/class-wpd-settings.php:1440
+msgid "This connect link points to a dansal server that is not on the allowed list."
+msgstr ""
+
 #. translators: %s: underlying HTTP/connection error message.
-#: includes/class-wpd-settings.php:1496
+#: includes/class-wpd-settings.php:1503
 #, php-format
 msgid "Could not reach that link: %s"
 msgstr ""
 
 #. translators: %s: underlying error message from dansal.
-#: includes/class-wpd-settings.php:1509
+#: includes/class-wpd-settings.php:1516
 #, php-format
 msgid "Connect link redemption failed: %s"
 msgstr ""
 
-#: includes/class-wpd-settings.php:1516
+#: includes/class-wpd-settings.php:1523
 msgid "Connect link challenge mismatch — refusing to store credentials."
 msgstr ""
 
-#: includes/class-wpd-settings.php:1525
+#: includes/class-wpd-settings.php:1532
 msgid "Could not decrypt the API key returned by dansal."
 msgstr ""
 
-#: includes/class-wpd-settings.php:1531
+#: includes/class-wpd-settings.php:1538
 msgid "dansal response did not include an API key."
 msgstr ""
 
 #. translators: %s: underlying error from dansal token exchange.
-#: includes/class-wpd-settings.php:1594
+#: includes/class-wpd-settings.php:1601
 #, php-format
 msgid "Connect link redeemed but the returned API key did not authenticate: %s"
 msgstr ""
 
 #. translators: %s: organization name returned by dansal.
-#: includes/class-wpd-settings.php:1603
+#: includes/class-wpd-settings.php:1610
 #, php-format
 msgid "Connected to organization \"%s\". Settings saved."
 msgstr ""
 
 #. translators: %s: underlying error message from dansal.
-#: includes/class-wpd-settings.php:1630
+#: includes/class-wpd-settings.php:1637
 #, php-format
 msgid "Server-side revocation failed (%s). The API key stays valid on dansal — delete it by hand from /admin/users."
 msgstr ""
 
-#: includes/class-wpd-settings.php:1638
+#: includes/class-wpd-settings.php:1645
 msgid "This dansal server does not support self-revoke of API keys. Delete the publisher API key by hand from dansal /admin/users, otherwise it stays valid."
 msgstr ""
 
-#: includes/class-wpd-settings.php:1647
+#: includes/class-wpd-settings.php:1654
 msgid "Disconnected. Publisher API key revoked on dansal."
 msgstr ""
 
-#: includes/class-wpd-settings.php:1648
+#: includes/class-wpd-settings.php:1655
 msgid "Disconnected locally."
 msgstr ""
 
@@ -1652,35 +1656,39 @@ msgstr ""
 msgid "Paid parking"
 msgstr ""
 
-#: includes/class-wpd-webhook.php:61
+#: includes/class-wpd-webhook.php:57
+msgid "Too many webhook deliveries from this address."
+msgstr ""
+
+#: includes/class-wpd-webhook.php:74
 msgid "Malformed webhook payload."
 msgstr ""
 
-#: includes/class-wpd-webhook.php:117
+#: includes/class-wpd-webhook.php:167
 msgid "Missing signature headers."
 msgstr ""
 
-#: includes/class-wpd-webhook.php:120
+#: includes/class-wpd-webhook.php:170
 msgid "Malformed timestamp."
 msgstr ""
 
-#: includes/class-wpd-webhook.php:125
+#: includes/class-wpd-webhook.php:175
 msgid "Timestamp outside the allowed skew window."
 msgstr ""
 
-#: includes/class-wpd-webhook.php:128
+#: includes/class-wpd-webhook.php:178
 msgid "Malformed nonce."
 msgstr ""
 
-#: includes/class-wpd-webhook.php:132
+#: includes/class-wpd-webhook.php:182
 msgid "This delivery has already been processed."
 msgstr ""
 
-#: includes/class-wpd-webhook.php:137
+#: includes/class-wpd-webhook.php:187
 msgid "No signing secret configured."
 msgstr ""
 
-#: includes/class-wpd-webhook.php:145
+#: includes/class-wpd-webhook.php:195
 msgid "Signature mismatch."
 msgstr ""
 
@@ -1822,11 +1830,11 @@ msgstr ""
 msgid "Upcoming events here"
 msgstr ""
 
-#: wp-dansal.php:215
+#: wp-dansal.php:228
 msgid "WP Dansal: the publisher API key has expired. Ask an org member to click \"Reconnect link\" next to this publisher on dansal's /admin/users page, then paste the new URL below — the existing publisher will be reused (key rotated in place, no duplicate account)."
 msgstr ""
 
-#: wp-dansal.php:217
+#: wp-dansal.php:230
 msgid "Open WP Dansal settings"
 msgstr ""
 

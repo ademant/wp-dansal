@@ -18,6 +18,9 @@ class RoutePermissionsTest extends WP_UnitTestCase {
 
 	public function test_every_route_declares_a_permission_callback() {
 		foreach ( rest_get_server()->get_routes( 'wpd/v1' ) as $route => $endpoints ) {
+			if ( '/wpd/v1' === $route ) {
+				continue; // WordPress's own namespace index, not a plugin route.
+			}
 			foreach ( $endpoints as $endpoint ) {
 				$this->assertArrayHasKey( 'permission_callback', $endpoint, "$route has a permission_callback" );
 				$this->assertNotNull( $endpoint['permission_callback'], "$route permission_callback is not null" );
@@ -28,6 +31,9 @@ class RoutePermissionsTest extends WP_UnitTestCase {
 	public function test_only_the_intentionally_public_routes_are_open_to_anonymous_callers() {
 		$open = array();
 		foreach ( rest_get_server()->get_routes( 'wpd/v1' ) as $route => $endpoints ) {
+			if ( '/wpd/v1' === $route ) {
+				continue; // WordPress's own namespace index, not a plugin route.
+			}
 			foreach ( $endpoints as $endpoint ) {
 				if ( '__return_true' === $endpoint['permission_callback'] ) {
 					$open[ $route ] = true;

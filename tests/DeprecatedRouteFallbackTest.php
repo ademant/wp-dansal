@@ -157,7 +157,7 @@ class DeprecatedRouteFallbackTest extends WP_UnitTestCase {
 		$this->call( wpd_plugin()->cpt_event, 'push_image', array( $event_id, 502 ) );
 
 		$this->assertSame( array( 'POST /api/v1/events/502/image', 'POST /api/v1/images/502' ), $this->requests );
-		$this->assertSame( array(), get_transient( 'wpd_admin_notices_' . get_current_user_id() ), 'the fallback succeeding is not a failure' );
+		$this->assertEmpty( get_transient( 'wpd_admin_notices_' . get_current_user_id() ), 'the fallback succeeding is not a failure' );
 	}
 
 	public function test_push_image_delete_falls_back_to_the_deprecated_route_on_404() {
