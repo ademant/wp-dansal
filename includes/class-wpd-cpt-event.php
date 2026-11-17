@@ -1327,7 +1327,7 @@ class WPD_CPT_Event {
 
 		return array(
 			'title'              => get_post_field( 'post_title', $post_id, 'raw' ),
-			'description'        => $post ? $post->post_content : '',
+			'description'        => $post ? self::normalize_newlines( $post->post_content ) : '',
 			'start_time'         => $this->to_rfc3339( $get( '_wpd_start_time' ) ),
 			'end_time'           => $this->to_rfc3339( $get( '_wpd_end_time' ) ),
 			'is_cancelled'       => '1' === $get( '_wpd_is_cancelled' ),
@@ -1828,8 +1828,8 @@ class WPD_CPT_Event {
 			return true;
 		}
 		if ( array_key_exists( 'description', $remote ) ) {
-			$local_html  = self::sanitize_dansal_description( $post ? $post->post_content : '' );
-			$remote_html = self::sanitize_dansal_description( (string) $remote['description'] );
+			$local_html  = self::sanitize_dansal_description( self::normalize_newlines( $post ? $post->post_content : '' ) );
+			$remote_html = self::sanitize_dansal_description( self::normalize_newlines( (string) $remote['description'] ) );
 			if ( $local_html !== $remote_html ) {
 				return true;
 			}
@@ -1889,15 +1889,23 @@ class WPD_CPT_Event {
 		return false;
 	}
 
+	/** Converts CRLF and lone CR to LF. WordPress and dansal store line endings differently. */
+	private static function normalize_newlines( $text ) {
+		return str_replace( array( "\r\n", "\r" ), "\n", (string) $text );
+	}
+
 	/** Unix time of an RFC 3339 / dansal timestamp, 0 when empty. */
 	private static function epoch( $value ) {
 		return $value ? (int) strtotime( (string) $value ) : 0;
 	}
 
-	/** If-Match header for PATCH, from the stored baseline. Empty when never pulled. */
+	/**
+	 * If-Match header for PATCH, from the stored baseline. Empty when never pulled.
+	 * Sent in the form dansal returns in its ETag header: a quoted timestamp, no W/ prefix.
+	 */
 	private function if_match_headers( $post_id ) {
 		$last_pulled = (int) get_post_meta( $post_id, self::META_LAST_PULLED_CHANGED_AT, true );
-		return $last_pulled > 0 ? array( 'If-Match' => 'W/"' . $last_pulled . '"' ) : array();
+		return $last_pulled > 0 ? array( 'If-Match' => '"' . $last_pulled . '"' ) : array();
 	}
 
 	/** Records dansal's changed_at and changed_by as this site's sync baseline. */

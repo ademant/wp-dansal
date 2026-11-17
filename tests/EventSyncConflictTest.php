@@ -194,7 +194,7 @@ class EventSyncConflictTest extends WP_UnitTestCase {
 		$this->sync( $event );
 
 		$this->assertSame( 2, count( $this->patch_requests() ), 'one retry after the 412' );
-		$this->assertSame( 'W/"200"', $this->patch_requests()[1]['headers']['If-Match'], 'retry uses the adopted changed_at' );
+		$this->assertSame( '"200"', $this->patch_requests()[1]['headers']['If-Match'], 'retry uses the adopted changed_at' );
 		$this->assertFalse( $this->has_pending( $event ) );
 		$this->assertSame( array(), $this->stored_notices(), 'no error notice for a non-conflict' );
 	}
@@ -272,7 +272,42 @@ class EventSyncConflictTest extends WP_UnitTestCase {
 
 		$this->sync( $event );
 
-		$this->assertSame( 'W/"200"', $this->patch_requests()[0]['headers']['If-Match'], 'the PATCH must not carry the stale ETag from before our DELETE' );
+		$this->assertSame( '"200"', $this->patch_requests()[0]['headers']['If-Match'], 'the PATCH must not carry the stale ETag from before our DELETE' );
 		$this->assertSame( array(), $this->stored_notices() );
+	}
+
+	public function test_if_match_uses_the_etag_form_dansal_returns() {
+		$event = $this->make_synced_event( 708, 200 );
+		$this->mock_dansal(
+			static function ( $method ) {
+				if ( 'PATCH' === $method ) {
+					return array( 200, array( 'id' => 708, 'changed_at' => '1970-01-01T00:03:20Z', 'changed_by' => 'admin' ) );
+				}
+				return array( 200, array() );
+			}
+		);
+
+		$this->sync( $event );
+
+		$this->assertSame( '"200"', $this->patch_requests()[0]['headers']['If-Match'], 'dansal compares If-Match exactly with its strong-form ETag' );
+	}
+
+	public function test_crlf_in_wordpress_and_lf_from_dansal_are_the_same_content() {
+		$event = $this->make_synced_event( 709, 100 );
+		wp_update_post( array( 'ID' => $event, 'post_content' => "Zeile eins.\r\n\r\nZeile zwei." ) );
+
+		$this->reconcile( $event, $this->remote_event( 709, '1970-01-01T00:03:20Z', array( 'description' => "Zeile eins.\n\nZeile zwei." ) ) );
+
+		$this->assertFalse( $this->has_pending( $event ), 'line endings alone must not produce a pending update' );
+		$this->assertSame( 200, (int) get_post_meta( $event, WPD_CPT_Event::META_LAST_PULLED_CHANGED_AT, true ) );
+	}
+
+	public function test_description_sent_to_dansal_has_no_carriage_returns() {
+		$event = $this->make_synced_event( 710, 100 );
+		wp_update_post( array( 'ID' => $event, 'post_content' => "Zeile eins.\r\nZeile zwei." ) );
+
+		$payload = $this->call( wpd_plugin()->cpt_event, 'build_payload', array( $event ) );
+
+		$this->assertSame( "Zeile eins.\nZeile zwei.", $payload['description'] );
 	}
 }
